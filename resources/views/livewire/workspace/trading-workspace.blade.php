@@ -1,4 +1,4 @@
-<div class="d-flex flex-column flex-xl-row gap-3" @if($autoRefresh) wire:poll.{{ $refreshInterval }}s="refreshQuote" @endif>
+<div class="d-flex flex-column flex-xl-row gap-3">
     <aside class="df-sidebar text-white p-4 d-flex flex-column gap-4">
         <div>
             <h5 class="fw-semibold text-uppercase small mb-3">Workspace</h5>
@@ -32,18 +32,10 @@
         </div>
 
         <div class="mt-auto border-top border-secondary pt-3 d-grid gap-3">
-            <div class="d-flex align-items-center justify-content-between">
-                <span class="text-secondary small">Auto refresh</span>
-                <div class="form-check form-switch">
-                    <input id="toggleRefresh" class="form-check-input" type="checkbox" role="switch"
-                        wire:model.live="autoRefresh"
-                        wire:click="toggleAutoRefresh">
-                </div>
-            </div>
             <button class="btn btn-outline-light" wire:click="refreshQuote">
-                Refresh now
+                Refresh
             </button>
-            <small class="text-secondary">Next update every {{ $refreshInterval }}s when enabled.</small>
+            <small class="text-secondary">Auto refresh disabled. Use the button to update.</small>
         </div>
     </aside>
 

@@ -5,7 +5,6 @@ namespace App\Livewire\Workspace;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use Livewire\Attributes\On;
 use Livewire\Component;
 
 class TradingWorkspace extends Component
@@ -15,10 +14,6 @@ class TradingWorkspace extends Component
     public string $selectedSymbol = 'BTCUSD';
 
     public array $selectedQuote = [];
-
-    public bool $autoRefresh = true;
-
-    public int $refreshInterval = 15; // seconds
 
     public function mount(): void
     {
@@ -75,16 +70,6 @@ class TradingWorkspace extends Component
             price: $this->selectedQuote['price'],
             changePercent: $this->selectedQuote['change_percent'],
         );
-    }
-
-    #[On('workspace:toggle-auto-refresh')]
-    public function toggleAutoRefresh(): void
-    {
-        $this->autoRefresh = ! $this->autoRefresh;
-
-        if ($this->autoRefresh) {
-            $this->dispatch('workspace:auto-refresh-started', interval: $this->refreshInterval);
-        }
     }
 
     public function render()
