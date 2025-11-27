@@ -152,12 +152,18 @@ class VolatilityRegimeController extends Controller
             throw new \Exception('COINGLASS_API_KEY not configured');
         }
 
-        $response = Http::timeout(15)
+        $http = Http::timeout(15)
             ->withHeaders([
                 'CG-API-KEY' => $apiKey,
                 'accept' => 'application/json',
-            ])
-            ->get($url, $queryParams);
+            ]);
+
+        // In non-production environments, allow self-signed/mitm certs to avoid local SSL trust issues.
+        if (! app()->environment('production')) {
+            $http = $http->withOptions(['verify' => false]);
+        }
+
+        $response = $http->get($url, $queryParams);
 
         if (!$response->successful()) {
             throw new \Exception(
@@ -296,4 +302,3 @@ class VolatilityRegimeController extends Controller
         };
     }
 }
-
