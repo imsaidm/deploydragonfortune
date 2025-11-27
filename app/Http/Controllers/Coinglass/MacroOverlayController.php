@@ -224,14 +224,26 @@ class MacroOverlayController extends Controller
     private function callFredApi(string $seriesId, array $params = []): array
     {
         $params['series_id'] = $seriesId;
-        $params['api_key'] = $this->fredApiKey;
+        $params['api_key'] = $this->fredApiKey ?: 'demo';
         
         Log::info('FRED API Call', [
             'series_id' => $seriesId,
             'params' => $params
         ]);
 
-        $response = Http::timeout(30)->get($this->fredBaseUrl, $params);
+        $http = Http::timeout(30);
+
+        // Allow local/staging without strict SSL
+        if (! app()->environment('production')) {
+            $http = $http->withOptions(['verify' => false]);
+        }
+
+        // If no API key, skip call and return empty
+        if (empty($this->fredApiKey) && app()->environment('production')) {
+            throw new \Exception('FRED_API_KEY not configured');
+        }
+
+        $response = $http->get($this->fredBaseUrl, $params);
 
         if ($response->successful()) {
             return $response->json();
@@ -254,10 +266,17 @@ class MacroOverlayController extends Controller
             'has_key' => !empty($apiKey)
         ]);
 
-        $response = Http::withHeaders([
+        $http = Http::withHeaders([
             'CG-API-KEY' => $apiKey,
             'Accept' => 'application/json'
-        ])->timeout(30)->get($apiUrl, $queryParams);
+        ])->timeout(30);
+
+        // Allow local/staging without strict SSL
+        if (! app()->environment('production')) {
+            $http = $http->withOptions(['verify' => false]);
+        }
+
+        $response = $http->get($apiUrl, $queryParams);
 
         if ($response->successful()) {
             return $response->json();
@@ -393,4 +412,3 @@ class MacroOverlayController extends Controller
         return (float) $value;
     }
 }
-

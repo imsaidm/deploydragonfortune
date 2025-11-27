@@ -30,15 +30,10 @@
                 <div>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <h1 class="mb-0">Macro Overlay</h1>
-                        <span class="pulse-dot pulse-success" x-show="Object.keys(latestData).length > 0 && refreshEnabled"></span>
                         <span class="spinner-border spinner-border-sm text-primary" style="width: 16px; height: 16px;" x-show="Object.keys(latestData).length === 0" x-cloak></span>
-                        <span class="badge text-bg-success" x-show="refreshEnabled" title="Auto-refresh setiap 5 detik">
-                            <i class="fas fa-sync-alt"></i> LIVE
-                        </span>
                     </div>
                     <p class="mb-0 text-secondary">
-                        Monitor key macro economic indicators and their relationship with Bitcoin. 
-                        <span x-show="refreshEnabled" class="text-success">• Auto-refresh aktif (5s)</span>
+                        Monitor key macro economic indicators and their relationship with Bitcoin.
                     </p>
                 </div>
 
@@ -50,6 +45,18 @@
                             <option :value="opt.value" x-text="opt.label"></option>
                         </template>
                     </select>
+
+                    <!-- Manual Refresh -->
+                    <button class="btn btn-outline-primary d-flex align-items-center gap-2" type="button"
+                        @click="loadAllData()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.137-3.36L23 10"/>
+                            <path d="M20.49 15a9 9 0 0 1-14.137 3.36L1 14"/>
+                        </svg>
+                        Refresh
+                    </button>
                 </div>
             </div>
         </div>
@@ -391,4 +398,3 @@
         }
     </style>
 @endsection
-

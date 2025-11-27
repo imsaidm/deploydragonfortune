@@ -29,22 +29,17 @@
         <div class="derivatives-header">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                 <div>
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <h1 class="mb-0">Bitcoin ETF Flows</h1>
-                        <span class="pulse-dot pulse-success" x-show="rawData.length > 0 && refreshEnabled"></span>
-                        <span class="spinner-border spinner-border-sm text-primary" style="width: 16px; height: 16px;" x-show="rawData.length === 0" x-cloak></span>
-                        <span class="badge text-bg-success" x-show="refreshEnabled" title="Auto-refresh setiap 5 detik">
-                            <i class="fas fa-sync-alt"></i> LIVE
-                        </span>
-                    </div>
-                    <p class="mb-0 text-secondary">
-                        Track daily inflows and outflows of Bitcoin ETFs to gauge institutional sentiment. 
-                        <span x-show="refreshEnabled" class="text-success">• Auto-refresh aktif (3s)</span>
-                    </p>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <h1 class="mb-0">Bitcoin ETF Flows</h1>
+                    <span class="spinner-border spinner-border-sm text-primary" style="width: 16px; height: 16px;" x-show="rawData.length === 0" x-cloak></span>
                 </div>
+                <p class="mb-0 text-secondary">
+                    Track daily inflows and outflows of Bitcoin ETFs to gauge institutional sentiment. 
+                </p>
+            </div>
 
-                <!-- Global Controls -->
-                <div class="d-flex gap-2 align-items-center flex-wrap">
+            <!-- Global Controls -->
+            <div class="d-flex gap-2 align-items-center flex-wrap">
                     <!-- Time Range Selector -->
                     <select class="form-select" style="width: 120px;" :value="selectedTimeRange" @change="updateTimeRange($event.target.value)">
                         <template x-for="range in timeRanges" :key="range.value">
@@ -52,7 +47,17 @@
                         </template>
                     </select>
 
-
+                    <!-- Manual Refresh -->
+                    <button class="btn btn-outline-primary d-flex align-items-center gap-2" type="button"
+                        @click="loadData(); loadCmeOpenInterest();">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.137-3.36L23 10"/>
+                            <path d="M20.49 15a9 9 0 0 1-14.137 3.36L1 14"/>
+                        </svg>
+                        Refresh
+                    </button>
                 </div>
             </div>
         </div>
