@@ -109,7 +109,6 @@
                     </div>
                     <p class="mb-0 text-secondary">
                         Analisa mendalam opsi Bitcoin: Implied Volatility Surface, 25D Skew, OI by Strike/Expiry, dan Greeks untuk keputusan trading yang presisi.
-                        <span x-show="refreshEnabled" class="text-success">• Auto-refresh aktif</span>
                     </p>
                 </div>
 

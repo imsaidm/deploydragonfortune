@@ -35,15 +35,10 @@
                 <div>
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <h1 class="mb-0">Liquidations Heatmap</h1>
-                        <span class="pulse-dot pulse-success" x-show="rawData && refreshEnabled" x-cloak></span>
                         <span class="spinner-border spinner-border-sm text-primary" style="width: 16px; height: 16px;" x-show="!rawData" x-cloak></span>
-                        <span class="badge text-bg-success" x-show="refreshEnabled" title="Auto-refresh setiap 15 detik" x-cloak>
-                            <i class="fas fa-sync-alt"></i> LIVE
-                        </span>
                     </div>
                     <p class="mb-0 text-secondary">
-                        Visualisasi area liquidation untuk identifikasi level support/resistance kunci. 
-                        <span x-show="refreshEnabled" class="text-success" x-cloak>• Live update</span>
+                        Visualisasi area liquidation untuk identifikasi level support/resistance kunci.
                     </p>
                 </div>
 
