@@ -267,6 +267,25 @@
                                 <span>₿ Exchange Inflow CDD</span>
                             </a>
                         </li>
+                    </ul>
+                </div>
+
+                <!-- QuantConnect Results Section -->
+                <div class="df-sidebar-group">
+                    <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Algorithmic Trading</div>
+                    <ul class="df-sidebar-menu">
+                        <li class="df-sidebar-menu-item">
+                            <a href="/quantconnect-results" class="df-sidebar-menu-button {{ request()->routeIs('quantconnect-results') ? 'active' : '' }}" @click="closeSidebar()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 3v18h18"/>
+                                    <path d="M7 16l3-3 3 3 5-5"/>
+                                    <circle cx="7" cy="16" r="2"/>
+                                    <circle cx="13" cy="13" r="2"/>
+                                    <circle cx="18" cy="8" r="2"/>
+                                </svg>
+                                <span>QuantConnect Results</span>
+                            </a>
+                        </li>
                         {{-- <li class="df-sidebar-menu-item">
                             <button class="df-sidebar-menu-button" @click="toggleSubmenu('watchlists')">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -495,6 +514,19 @@
     </div>
 
     @livewireScripts
+
+    {{-- Ensure Alpine.js is available --}}
+    <script>
+        // Check if Alpine is loaded, if not wait for it
+        if (!window.Alpine) {
+            console.warn('Alpine.js not immediately available, waiting for Livewire...');
+            document.addEventListener('livewire:init', () => {
+                console.log('Livewire initialized, Alpine should be available now');
+            });
+        } else {
+            console.log('Alpine.js is ready!');
+        }
+    </script>
 
     {{-- Additional Scripts from Views --}}
     @yield('scripts')

@@ -9,15 +9,23 @@ class ModelTrainer
     protected array $featureNames = [
         'funding_heat',
         'funding_trend',
-        'oi_pct_change',
+        'oi_pct_change_24h',
+        'oi_pct_change_6h',
         'whale_pressure',
         'whale_cex_ratio',
-        'etf_flow',
+        'etf_flow_normalized',
         'etf_streak',
-        'sentiment',
+        'sentiment_normalized',
         'taker_ratio',
+        'orderbook_imbalance',
         'liquidation_bias',
         'volatility_24h',
+        'momentum_1d',
+        'momentum_7d',
+        'trend_score',
+        'long_short_global',
+        'long_short_top',
+        'long_short_divergence',
     ];
 
     protected string $modelPath = 'signal-model.json';
@@ -76,40 +84,64 @@ class ModelTrainer
 
     public function extractFeatureVector(array $payload): ?array
     {
+        // Core features
         $funding = data_get($payload, 'funding.heat_score');
         $fundingTrend = data_get($payload, 'funding.trend_pct');
-        $oi = data_get($payload, 'open_interest.pct_change_24h');
+        $oi24h = data_get($payload, 'open_interest.pct_change_24h');
+        $oi6h = data_get($payload, 'open_interest.pct_change_6h');
         $whale = data_get($payload, 'whales.pressure_score');
         $whaleCex = data_get($payload, 'whales.cex_ratio');
         $etf = data_get($payload, 'etf.latest_flow');
         $etfStreak = data_get($payload, 'etf.streak');
         $sentiment = data_get($payload, 'sentiment.value');
         $taker = data_get($payload, 'microstructure.taker_flow.buy_ratio');
+        $orderImbalance = data_get($payload, 'microstructure.orderbook.imbalance');
         $longs = data_get($payload, 'liquidations.sum_24h.longs');
         $shorts = data_get($payload, 'liquidations.sum_24h.shorts');
         $volatility = data_get($payload, 'microstructure.price.volatility_24h');
+        
+        // Momentum features
+        $momentum1d = data_get($payload, 'momentum.momentum_1d_pct');
+        $momentum7d = data_get($payload, 'momentum.momentum_7d_pct');
+        $trendScore = data_get($payload, 'momentum.trend_score');
+        
+        // Long/short features
+        $lsGlobal = data_get($payload, 'long_short.global.net_ratio');
+        $lsTop = data_get($payload, 'long_short.top.net_ratio');
+        $lsDivergence = data_get($payload, 'long_short.divergence');
 
-        if ($funding === null && $oi === null && $whale === null) {
+        // Need at least some core data
+        $hasMinData = $funding !== null || $oi24h !== null || $whale !== null || $trendScore !== null;
+        if (!$hasMinData) {
             return null;
         }
 
-        $liquidationBias = null;
+        // Calculate liquidation bias (positive = more shorts liquidated = bullish)
+        $liquidationBias = 0.0;
         if ($longs !== null && $shorts !== null && ($longs + $shorts) > 0) {
             $liquidationBias = ($shorts - $longs) / ($shorts + $longs);
         }
 
         return [
-            $this->normalize($funding, 3),
-            $this->normalize($fundingTrend, 100),
-            $this->normalize($oi, 50),
-            $this->normalize($whale, 3),
-            $whaleCex ?? 0.5,
-            $this->normalize($etf, 100_000_000),
-            $this->normalize($etfStreak, 10),
-            $this->normalize($sentiment, 100),
-            $taker ?? 0.5,
-            $liquidationBias ?? 0.0,
-            $this->normalize($volatility, 10),
+            $this->normalize($funding, 3),              // funding_heat
+            $this->normalize($fundingTrend, 100),       // funding_trend
+            $this->normalize($oi24h, 50),               // oi_pct_change_24h
+            $this->normalize($oi6h, 30),                // oi_pct_change_6h
+            $this->normalize($whale, 3),                // whale_pressure
+            $whaleCex ?? 0.5,                           // whale_cex_ratio
+            $this->normalize($etf, 500_000_000),        // etf_flow_normalized (scaled for billions)
+            $this->normalize($etfStreak, 10),           // etf_streak
+            $this->normalize($sentiment, 100),          // sentiment_normalized
+            $taker ?? 0.5,                              // taker_ratio
+            $orderImbalance ?? 0.0,                     // orderbook_imbalance
+            $liquidationBias,                           // liquidation_bias
+            $this->normalize($volatility, 10),          // volatility_24h
+            $this->normalize($momentum1d, 10),          // momentum_1d
+            $this->normalize($momentum7d, 30),          // momentum_7d
+            $this->normalize($trendScore, 5),           // trend_score
+            $this->normalize($lsGlobal, 0.2),           // long_short_global
+            $this->normalize($lsTop, 0.2),              // long_short_top
+            $this->normalize($lsDivergence, 0.15),      // long_short_divergence
         ];
     }
 

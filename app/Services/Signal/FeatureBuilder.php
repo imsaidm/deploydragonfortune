@@ -5,6 +5,7 @@ namespace App\Services\Signal;
 use App\Repositories\MarketDataRepository;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class FeatureBuilder
@@ -16,21 +17,23 @@ class FeatureBuilder
 
     /**
      * Build a complete feature snapshot ready for scoring.
+     * Now uses REAL database data for accurate signals.
      */
     public function build(string $symbol = 'BTC', string $pair = 'BTCUSDT', string $interval = '1h', ?int $timestampMs = null): array
     {
         $timestampMs = $timestampMs ?? now('UTC')->valueOf();
         $now = Carbon::createFromTimestampMs($timestampMs)->setTimezone('UTC');
 
-        $funding = $this->buildFundingFeatures($pair, $timestampMs);
-        $openInterest = $this->buildOpenInterestFeatures($symbol, $interval, $timestampMs);
-        $whale = $this->buildWhaleFeatures($symbol, $now, $timestampMs);
-        $etf = $this->buildEtfFeatures($timestampMs);
-        $sentiment = $this->buildSentimentFeatures($timestampMs);
-        $micro = $this->buildMicrostructureFeatures($symbol, $pair, $interval, $timestampMs);
-        $liquidations = $this->buildLiquidationFeatures($symbol, $interval, $timestampMs);
-        $longShort = $this->buildLongShortFeatures($symbol, $interval, $timestampMs);
-        $momentum = $this->buildMomentumFeatures($pair, $interval, $timestampMs);
+        // Build each section independently - don't let one failure kill everything
+        $funding = $this->safeBuilder(fn() => $this->buildFundingFeatures($pair, $timestampMs), 'funding');
+        $openInterest = $this->safeBuilder(fn() => $this->buildOpenInterestFeatures($symbol, $interval, $timestampMs), 'open_interest');
+        $whale = $this->safeBuilder(fn() => $this->buildWhaleFeatures($symbol, $now, $timestampMs), 'whales');
+        $etf = $this->safeBuilder(fn() => $this->buildEtfFeatures($timestampMs), 'etf');
+        $sentiment = $this->safeBuilder(fn() => $this->buildSentimentFeatures($timestampMs), 'sentiment');
+        $micro = $this->safeBuilder(fn() => $this->buildMicrostructureFeatures($symbol, $pair, $interval, $timestampMs), 'microstructure');
+        $liquidations = $this->safeBuilder(fn() => $this->buildLiquidationFeatures($symbol, $interval, $timestampMs), 'liquidations');
+        $longShort = $this->safeBuilder(fn() => $this->buildLongShortFeatures($symbol, $interval, $timestampMs), 'long_short');
+        $momentum = $this->safeBuilder(fn() => $this->buildMomentumFeatures($pair, $interval, $timestampMs), 'momentum');
 
         $sections = [
             'funding' => $funding,
@@ -44,6 +47,15 @@ class FeatureBuilder
             'momentum' => $momentum,
         ];
         $health = $this->buildHealthSnapshot($sections);
+
+        // If data completeness is very low, log warning but still use real data
+        if (($health['completeness'] ?? 0) < 0.35) {
+            Log::warning('Signal data completeness below 35%', [
+                'symbol' => $symbol,
+                'completeness' => $health['completeness'] ?? 0,
+                'missing' => $health['missing_sections'] ?? [],
+            ]);
+        }
 
         return [
             'symbol' => strtoupper($symbol),
@@ -61,6 +73,21 @@ class FeatureBuilder
             'momentum' => $momentum,
             'health' => $health,
         ];
+    }
+
+    /**
+     * Safely build a feature section - returns empty array on failure instead of throwing
+     */
+    protected function safeBuilder(callable $builder, string $sectionName): array
+    {
+        try {
+            return $builder();
+        } catch (\Throwable $e) {
+            Log::warning("FeatureBuilder {$sectionName} failed", [
+                'message' => $e->getMessage(),
+            ]);
+            return [];
+        }
     }
 
     protected function buildFundingFeatures(string $pair, ?int $timestampMs = null): array
@@ -247,7 +274,14 @@ class FeatureBuilder
 
     protected function buildMicrostructureFeatures(string $symbol, string $pair, string $interval, ?int $timestampMs = null): array
     {
-        $orderbook = $this->marketData->latestSpotOrderbook($symbol, '1m', 120, $timestampMs);
+        // Orderbook table may not exist - handle gracefully
+        $orderbook = collect();
+        try {
+            $orderbook = $this->marketData->latestSpotOrderbook($symbol, '1m', 120, $timestampMs);
+        } catch (\Throwable $e) {
+            // Table doesn't exist, continue without orderbook
+        }
+        
         $taker = $this->marketData->latestSpotTakerVolume($symbol, $interval, [], 120, $timestampMs);
         $prices = $this->marketData->latestSpotPrices($pair, $interval, 120, $timestampMs);
 
@@ -763,5 +797,102 @@ class FeatureBuilder
         }
 
         return false;
+    }
+
+    /**
+     * Build mock features for development/testing
+     */
+    protected function buildMockFeatures(string $symbol, string $pair, string $interval, Carbon $now): array
+    {
+        $price = $symbol === 'BTC' ? 96500 : ($symbol === 'ETH' ? 3600 : 180);
+        $volatility = 2.5 + (rand(-10, 10) / 10);
+        
+        return [
+            'symbol' => strtoupper($symbol),
+            'pair' => strtoupper($pair),
+            'interval' => $interval,
+            'generated_at' => $now->toIso8601ZuluString(),
+            'funding' => [
+                'heat_score' => 0.35 + (rand(-20, 20) / 100),
+                'latest_consensus' => 0.0085,
+                'trend_pct' => rand(-5, 5),
+                'is_stale' => false,
+            ],
+            'open_interest' => [
+                'pct_change_24h' => rand(-3, 5),
+                'total_oi_usd' => 12500000000 + rand(-1000000000, 2000000000),
+                'is_stale' => false,
+            ],
+            'whales' => [
+                'pressure_score' => rand(-15, 15) / 10,
+                'cex_ratio' => 0.45 + (rand(-10, 10) / 100),
+                'is_stale' => false,
+                'window_24h' => [
+                    'inflow_usd' => 125000000 + rand(-20000000, 50000000),
+                    'outflow_usd' => 98000000 + rand(-15000000, 40000000),
+                    'net_usd' => 27000000 + rand(-10000000, 20000000),
+                    'count_inflow' => rand(15, 45),
+                    'count_outflow' => rand(12, 38),
+                ],
+            ],
+            'etf' => [
+                'latest_flow' => rand(-500, 800) * 1000000,
+                'streak' => rand(-4, 6),
+                'is_stale' => false,
+            ],
+            'sentiment' => [
+                'value' => rand(35, 75),
+                'label' => rand(0, 1) ? 'Fear' : 'Greed',
+                'is_stale' => false,
+            ],
+            'microstructure' => [
+                'price' => [
+                    'last_close' => $price + rand(-500, 500),
+                    'volatility_24h' => $volatility,
+                    'volume_24h' => 28500000000 + rand(-2000000000, 5000000000),
+                    'pct_change_24h' => rand(-5, 6),
+                ],
+                'taker_flow' => [
+                    'buy_ratio' => 0.48 + (rand(-5, 10) / 100),
+                    'sell_ratio' => 0.52 + (rand(-10, 5) / 100),
+                ],
+                'is_stale' => false,
+            ],
+            'liquidations' => [
+                'sum_24h' => [
+                    'longs' => 85000000 + rand(-10000000, 30000000),
+                    'shorts' => 67000000 + rand(-8000000, 25000000),
+                ],
+                'is_stale' => false,
+            ],
+            'long_short' => [
+                'global' => [
+                    'long_pct' => 0.48 + (rand(-5, 10) / 100),
+                    'short_pct' => 0.52 + (rand(-10, 5) / 100),
+                    'net_ratio' => rand(-8, 8) / 100,
+                ],
+                'top' => [
+                    'long_pct' => 0.52 + (rand(-5, 8) / 100),
+                    'short_pct' => 0.48 + (rand(-8, 5) / 100),
+                    'net_ratio' => rand(-5, 12) / 100,
+                ],
+                'divergence' => rand(-8, 12) / 100,
+                'is_stale' => false,
+            ],
+            'momentum' => [
+                'trend_score' => rand(-15, 25) / 10,
+                'momentum_1d_pct' => rand(-4, 6),
+                'momentum_7d_pct' => rand(-10, 15),
+                'regime_reason' => rand(0, 1) ? 'Bull momentum detected' : 'Range-bound market',
+                'range' => [
+                    'width_pct' => rand(2, 8),
+                ],
+            ],
+            'health' => [
+                'completeness' => 0.95,
+                'missing_sections' => [],
+                'is_degraded' => false,
+            ],
+        ];
     }
 }

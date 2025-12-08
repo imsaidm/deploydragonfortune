@@ -418,19 +418,32 @@ class SignalEngine
             ['range_width_pct' => $rangeWidth, 'trend_score' => $momentumTrend]
         );
 
-        $signal = $this->determineSignal($score);
-        $confidence = min(abs($score) / 5, 1);
-        $quality = $this->buildQualitySummary($score, $features, $volatility);
+        // Apply confluence bonus - signals are stronger when multiple factors align
+        $confluenceBonus = $this->calculateConfluenceBonus($factors);
+        $adjustedScore = $score + $confluenceBonus;
+
+        $signal = $this->determineSignal($adjustedScore, $volatility, $features);
+        $confidence = min(abs($adjustedScore) / 5, 1);
+        
+        // Boost confidence when high-quality confluence exists
+        if (count($factors) >= 5 && abs($adjustedScore) >= 2.5) {
+            $confidence = min($confidence * 1.15, 1.0);
+        }
+        
+        $quality = $this->buildQualitySummary($adjustedScore, $features, $volatility);
         $meta = [
             'regime' => $momentumRegime,
             'regime_reason' => data_get($features, 'momentum.regime_reason'),
             'long_short_bias' => data_get($features, 'long_short.bias.global'),
             'top_trader_bias' => data_get($features, 'long_short.bias.top'),
+            'confluence_factors' => count($factors),
+            'confluence_bonus' => $confluenceBonus,
         ];
 
         return [
             'signal' => $signal,
-            'score' => round($score, 2),
+            'score' => round($adjustedScore, 2),
+            'raw_score' => round($score, 2),
             'confidence' => round($confidence, 3),
             'reasons' => $reasons,
             'factors' => $factors,
@@ -439,13 +452,69 @@ class SignalEngine
         ];
     }
 
-    protected function determineSignal(float $score): string
+    /**
+     * Calculate bonus score when multiple high-quality factors align
+     */
+    protected function calculateConfluenceBonus(array $factors): float
     {
-        if ($score >= 1.5) {
+        $bullishCount = 0;
+        $bearishCount = 0;
+        $strongBullish = 0;
+        $strongBearish = 0;
+        
+        foreach ($factors as $factor) {
+            $weight = $factor['weight'] ?? 0;
+            if ($weight > 0) {
+                $bullishCount++;
+                if ($weight >= 1.0) $strongBullish++;
+            } elseif ($weight < 0) {
+                $bearishCount++;
+                if ($weight <= -1.0) $strongBearish++;
+            }
+        }
+        
+        $bonus = 0.0;
+        
+        // Strong confluence bonus (5+ factors in same direction with 2+ strong)
+        if ($bullishCount >= 5 && $strongBullish >= 2 && $bearishCount <= 1) {
+            $bonus = 0.8;
+        } elseif ($bearishCount >= 5 && $strongBearish >= 2 && $bullishCount <= 1) {
+            $bonus = -0.8;
+        }
+        // Medium confluence (4+ factors with 1+ strong)
+        elseif ($bullishCount >= 4 && $strongBullish >= 1 && $bearishCount <= 2) {
+            $bonus = 0.4;
+        } elseif ($bearishCount >= 4 && $strongBearish >= 1 && $bullishCount <= 2) {
+            $bonus = -0.4;
+        }
+        
+        return $bonus;
+    }
+
+    protected function determineSignal(float $score, ?float $volatility = null, array $features = []): string
+    {
+        // Stricter thresholds for higher winrate
+        $buyThreshold = 1.8;
+        $sellThreshold = -1.8;
+        
+        // In high volatility regime, require stronger conviction
+        if ($volatility !== null && $volatility > 5) {
+            $buyThreshold = 2.2;
+            $sellThreshold = -2.2;
+        }
+        
+        // In ranging market, be more conservative
+        $regime = data_get($features, 'momentum.regime');
+        if ($regime === 'RANGE' || $regime === 'HIGH VOL CHOP') {
+            $buyThreshold = 2.0;
+            $sellThreshold = -2.0;
+        }
+        
+        if ($score >= $buyThreshold) {
             return 'BUY';
         }
 
-        if ($score <= -1.5) {
+        if ($score <= $sellThreshold) {
             return 'SELL';
         }
 

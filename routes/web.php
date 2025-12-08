@@ -59,6 +59,9 @@ Route::view('/sentiment-flow/dashboard', 'sentiment-flow.dashboard')->name('sent
 // Signal & Analytics Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');
 
+// QuantConnect Results
+Route::view('/quantconnect-results', 'quantconnect.results')->name('quantconnect-results');
+
 // CryptoQuant API Proxy Routes
 Route::get('/api/cryptoquant/exchange-inflow-cdd', [App\Http\Controllers\CryptoQuantController::class, 'getExchangeInflowCDD'])->name('api.cryptoquant.exchange-inflow-cdd');
 Route::get('/api/cryptoquant/btc-market-price', [App\Http\Controllers\CryptoQuantController::class, 'getBitcoinPrice'])->name('api.cryptoquant.btc-market-price');
@@ -72,6 +75,16 @@ Route::get('/api/cryptoquant/funding-rates-comparison', [App\Http\Controllers\Cr
 Route::get('/api/signal/analytics', [SignalController::class, 'show'])->name('api.signal.analytics');
 Route::get('/api/signal/backtest', [SignalController::class, 'backtest'])->name('api.signal.backtest');
 Route::get('/api/signal/history', [SignalController::class, 'history'])->name('api.signal.history');
+
+// QuantConnect Backtest API
+Route::prefix('api/quantconnect')->group(function () {
+    Route::get('/backtests', [App\Http\Controllers\QuantConnectController::class, 'index'])->name('api.quantconnect.index');
+    Route::get('/backtests/{id}', [App\Http\Controllers\QuantConnectController::class, 'show'])->name('api.quantconnect.show');
+    Route::post('/backtests/import', [App\Http\Controllers\QuantConnectController::class, 'import'])->name('api.quantconnect.import');
+    Route::post('/backtests/import-api', [App\Http\Controllers\QuantConnectController::class, 'importFromApi'])->name('api.quantconnect.import-api');
+    Route::delete('/backtests/{id}', [App\Http\Controllers\QuantConnectController::class, 'destroy'])->name('api.quantconnect.destroy');
+    Route::post('/webhook', [App\Http\Controllers\QuantConnectController::class, 'webhook'])->name('api.quantconnect.webhook');
+});
 
 // Coinglass API Proxy Routes
 

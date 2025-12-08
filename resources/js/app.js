@@ -14,6 +14,12 @@ if (typeof window !== "undefined" && !window.__AUTO_REFRESH_DISABLED__) {
     window.__ORIGINAL_CLEAR_INTERVAL__ = originalClearInterval;
 
     window.setInterval = (...args) => {
+        // Allow setInterval in specific contexts (like Signal Analytics polling)
+        const stackTrace = new Error().stack;
+        if (stackTrace && (stackTrace.includes('signalAnalytics') || stackTrace.includes('quantConnect'))) {
+            console.log('Allowing setInterval for Signal Analytics/QuantConnect');
+            return originalSetInterval(...args);
+        }
         console.warn("Auto refresh blocked (setInterval disabled)", { args });
         return -1;
     };
@@ -78,7 +84,7 @@ if (typeof window !== "undefined" && !window.__AUTO_REFRESH_DISABLED__) {
                 }
             });
         });
-    };
+    });
 
     if (document.readyState === "complete" || document.readyState === "interactive") {
         removeAutoRefreshArtifacts();
