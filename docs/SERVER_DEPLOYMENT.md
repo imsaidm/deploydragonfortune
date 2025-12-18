@@ -21,7 +21,7 @@ sudo rm -rf /var/www/dragonfortune
 
 You need:
 
-- PHP 8.2+ (recommended 8.3) + extensions: `mbstring`, `xml`, `curl`, `sqlite3` (or `mysql`), `zip`
+- PHP 8.2+ (recommended 8.3) + extensions: `fileinfo`, `mbstring`, `xml`, `curl`, `sqlite3` + `pdo_sqlite` (or `mysql` + `pdo_mysql`), `zip`
 - Composer 2.x
 - Node.js 18+ (recommended 20) + npm
 - A web server: Nginx or Apache
@@ -120,4 +120,3 @@ For scheduler (cron):
 - Visit `APP_URL`
 - Check logs: `storage/logs/laravel.log`
 - If assets look broken, ensure you ran `npm run build` and that `public/build/` exists on the server.
-
