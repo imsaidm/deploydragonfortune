@@ -35,6 +35,8 @@ if ! grep -qE '^APP_KEY=' .env || grep -qE '^APP_KEY=$' .env; then
   php artisan key:generate --ansi
 fi
 
+php artisan vendor:publish --tag=livewire:assets --force
+
 php artisan migrate --force
 php artisan config:cache
 php artisan route:cache

@@ -111,9 +111,12 @@ If you deploy on aaPanel/BtPanel-style servers:
   - In the panel, update/disable open_basedir restriction for the site, OR
   - Ensure `.user.ini` allows the real project path (example: `open_basedir=/www/wwwroot/dragonfortune/:/tmp/`).
 - If the UI feels "dead" (sidebar not clickable) and you see `livewire.js` 404 in the browser console:
-  - aaPanel default Nginx configs may treat `*.js` as static files, which blocks Livewire's dynamic script route (`/livewire/livewire.js`).
-  - Fix by adding this before your `location /` rule:
-    - `location ^~ /livewire/ { try_files $uri $uri/ /index.php?$query_string; }`
+  - Fast fix (recommended): publish Livewire assets so Livewire loads from `/vendor/livewire/...` (static) instead of `/livewire/...` (dynamic):
+    - `php artisan vendor:publish --tag=livewire:assets --force`
+    - Hard refresh the page (Ctrl+F5) to bypass cache.
+  - If you still get a `404`, aaPanel default Nginx configs may treat `*.js` as static files which blocks Livewire's dynamic script route (`/livewire/livewire.js`).
+    - Add this before your `location /` rule:
+      - `location ^~ /livewire/ { try_files $uri $uri/ /index.php?$query_string; }`
 
 ## 7) Queue & Scheduler (optional)
 
