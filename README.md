@@ -39,6 +39,8 @@ Ensure `storage/` and `bootstrap/cache/` are writable by the web user, and set `
 
 Optional: `chmod +x scripts/server-setup.sh && ./scripts/server-setup.sh`
 
+See `docs/SERVER_DEPLOYMENT.md` for a full clean server walkthrough.
+
 ## Notes
 
 - This repo does **not** commit `vendor/`, `node_modules/`, `storage/*` runtime files, or `public/build/`. After cloning, always run installs/build.
