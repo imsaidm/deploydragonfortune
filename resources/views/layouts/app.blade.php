@@ -171,7 +171,7 @@
                                 <a href="/derivatives/liquidations-stream" class="df-submenu-item {{ request()->routeIs('derivatives.liquidations-stream') ? 'active' : '' }}" style="color: var(--foreground);" @click="closeSidebar()">Liquidation Order Stream</a>
                                 <a href="/derivatives/liquidations-aggregated" class="df-submenu-item {{ request()->routeIs('derivatives.liquidations-aggregated') ? 'active' : '' }}" style="color: var(--foreground);" @click="closeSidebar()">Aggregated Liquidations</a>
                                 <a href="/derivatives/basis-term-structure" class="df-submenu-item {{ request()->routeIs('derivatives.basis-term-structure') ? 'active' : '' }}" style="color: var(--foreground);" @click="closeSidebar()">Basis & Term Structure</a>
-                                <!-- <a href="/derivatives/perp-quarterly-spread" class="df-submenu-item {{ request()->routeIs('derivatives.perp-quarterly-spread') ? 'active' : '' }}" style="color: var(--foreground);" @click="closeSidebar()">Perp–Quarterly Spread</a> -->
+                                <!-- <a href="/derivatives/perp-quarterly-spread" class="df-submenu-item {{ request()->routeIs('derivatives.perp-quarterly-spread') ? 'active' : '' }}" style="color: var(--foreground);" @click="closeSidebar()">Perp-Quarterly Spread</a> -->
                             </div>
                         </li>
                         <li class="df-sidebar-menu-item">
@@ -193,16 +193,6 @@
                                     <path d="M12 8v8"/>
                                 </svg>
                                 <span>On-Chain Metrics</span>
-                            </a>
-                        </li>
-                        <li class="df-sidebar-menu-item">
-                            <a href="/derivatives/options-metrics" class="df-sidebar-menu-button {{ request()->routeIs('derivatives.options-metrics') ? 'active' : '' }}" @click="closeSidebar()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                                    <path d="M8 12h8"/>
-                                    <path d="M12 8v8"/>
-                                </svg>
-                                <span>Options Metrics</span>
                             </a>
                         </li>
                         <li class="df-sidebar-menu-item">

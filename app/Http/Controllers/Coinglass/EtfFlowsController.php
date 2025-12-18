@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
 use App\Services\CoinglassClient;
 
 class EtfFlowsController extends Controller
@@ -160,25 +159,20 @@ class EtfFlowsController extends Controller
 
     private function callCoinglassApi(string $endpoint, array $queryParams = []): array
     {
-        $apiUrl = env('COINGLASS_API_URL') . $endpoint;
-                $apiKey = env('COINGLASS_API_KEY');
-                
-                Log::info('ETF API Call', [
+        Log::info('ETF API Call', [
             'endpoint' => $endpoint,
             'params' => $queryParams,
-                    'has_key' => !empty($apiKey)
-                ]);
+            'has_key' => !empty(env('COINGLASS_API_KEY')),
+        ]);
 
-                $response = Http::withHeaders([
-                    'CG-API-KEY' => $apiKey,
-                    'Accept' => 'application/json'
-        ])->timeout(30)->get($apiUrl, $queryParams);
+        $data = $this->client->get($endpoint, $queryParams);
 
-                if ($response->successful()) {
-                    return $response->json();
-                }
+        if (is_array($data) && ($data['success'] ?? true) === false) {
+            $message = $data['error']['message'] ?? 'Coinglass API request failed';
+            throw new \Exception($message);
+        }
 
-                throw new \Exception('API call failed: ' . $response->status() . ' - ' . $response->body());
+        return $data;
     }
 
     private function errorResponse(\Exception $e)
@@ -437,5 +431,4 @@ class EtfFlowsController extends Controller
         ];
     }
 }
-
 

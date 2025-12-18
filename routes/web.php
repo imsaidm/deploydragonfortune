@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\BacktestResultController;
+use App\Http\Controllers\Auth\LogoutController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'workspace')->name('workspace');
@@ -8,19 +9,13 @@ Route::view('/login', 'auth.login')->name('login');
 
 // Profile & Auth Routes
 Route::view('/profile', 'profile.show')->name('profile.show');
-Route::post('/logout', function () {
-    // Logout logic akan ditambahkan nanti
-    return redirect()->route('login');
-})->name('logout');
+Route::post('/logout', LogoutController::class)->name('logout');
 
 // Derivatives Core Routes
 Route::view('/derivatives/funding-rate', 'derivatives.funding-rate')->name('derivatives.funding-rate');
 Route::view('/derivatives/open-interest', 'derivatives.open-interest')->name('derivatives.open-interest');
 Route::view('/derivatives/open-interest-old', 'derivatives.open-interest-old')->name('derivatives.open-interest-old');
 Route::view('/derivatives/long-short-ratio', 'derivatives.long-short-ratio-new')->name('derivatives.long-short-ratio');
-
-// Options Metrics (Blueprint from Open Interest)
-Route::view('/derivatives/options-metrics', 'derivatives.options-metrics')->name('derivatives.options-metrics');
 
 Route::view('/derivatives/liquidations', 'derivatives.liquidations-new')->name('derivatives.liquidations');
 Route::view('/derivatives/liquidations-stream', 'derivatives.liquidations-stream')->name('derivatives.liquidations-stream');
@@ -82,12 +77,6 @@ Route::prefix('api/onchain')->group(function () {
     Route::get('/network-activity', [App\Http\Controllers\OnChainMetricsController::class, 'networkActivity'])->name('api.onchain.network-activity');
     Route::get('/market-data', [App\Http\Controllers\OnChainMetricsController::class, 'marketData'])->name('api.onchain.market-data');
 });
-Route::get('/api/coinglass/global-account-ratio', [App\Http\Controllers\CoinglassController::class, 'getGlobalAccountRatio'])->name('api.coinglass.global-account-ratio');
-Route::get('/api/coinglass/top-account-ratio', [App\Http\Controllers\CoinglassController::class, 'getTopAccountRatio'])->name('api.coinglass.top-account-ratio');
-Route::get('/api/coinglass/top-position-ratio', [App\Http\Controllers\CoinglassController::class, 'getTopPositionRatio'])->name('api.coinglass.top-position-ratio');
-Route::get('/api/coinglass/net-position', [App\Http\Controllers\CoinglassController::class, 'getNetPosition'])->name('api.coinglass.net-position');
-Route::get('/api/coinglass/taker-buy-sell', [App\Http\Controllers\CoinglassController::class, 'getTakerBuySell'])->name('api.coinglass.taker-buy-sell');
-Route::get('/api/coinglass/liquidation-coin-list', [App\Http\Controllers\CoinglassController::class, 'getLiquidationCoinList'])->name('api.coinglass.liquidation-coin-list');
 
 // Coinglass Open Interest (new proxy endpoints)
 Route::prefix('api/coinglass/open-interest')->group(function () {
@@ -208,293 +197,172 @@ Route::prefix('api/coinglass/macro-overlay')->group(function () {
     Route::get('/bitcoin-m2', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'bitcoinVsM2']);
 });
 
-Route::get('/api/coinglass/liquidation-aggregated-history', [App\Http\Controllers\CoinglassController::class, 'getLiquidationAggregatedHistory'])->name('api.coinglass.liquidation-aggregated-history');
-Route::get('/api/coinglass/liquidation-exchange-list', [App\Http\Controllers\CoinglassController::class, 'getLiquidationExchangeList'])->name('api.coinglass.liquidation-exchange-list');
-Route::get('/api/coinglass/liquidation-history', [App\Http\Controllers\CoinglassController::class, 'getLiquidationHistory'])->name('api.coinglass.liquidation-history');
-Route::get('/api/coinglass/liquidation-summary', [App\Http\Controllers\CoinglassController::class, 'getLiquidationSummary'])->name('api.coinglass.liquidation-summary');
-
 // Chart Components Demo
 Route::view('/examples/chart-components', 'examples.chart-components-demo')->name('examples.chart-components');
 
-// Test Funding Rates API
-Route::get('/test/funding-rates-debug', function() {
-    try {
-        $controller = new App\Http\Controllers\CryptoQuantController();
-        $request = new Illuminate\Http\Request([
-            'start_date' => now()->subDays(7)->format('Y-m-d'),
-            'end_date' => now()->format('Y-m-d'),
-            'exchange' => 'binance'
-        ]);
-        
-        return $controller->getFundingRates($request);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => 'Test failed',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-})->name('test.funding-rates-debug');
-
-// Test Open Interest API
-Route::get('/test/open-interest-debug', function() {
-    try {
-        $controller = new App\Http\Controllers\CryptoQuantController();
-        $request = new Illuminate\Http\Request([
-            'start_date' => now()->subDays(7)->format('Y-m-d'),
-            'end_date' => now()->format('Y-m-d'),
-            'exchange' => 'binance'
-        ]);
-        
-        return $controller->getOpenInterest($request);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => 'Test failed',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-})->name('test.open-interest-debug');
-
-// Test CDD API
-Route::get('/test/cdd-debug', function() {
-    try {
-        $controller = new App\Http\Controllers\CryptoQuantController();
-        $request = new Illuminate\Http\Request([
-            'start_date' => now()->subDays(7)->format('Y-m-d'),
-            'end_date' => now()->format('Y-m-d'),
-            'exchange' => 'binance'
-        ]);
-        
-        return $controller->getExchangeInflowCDD($request);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => 'Test failed',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-})->name('test.cdd-debug');
-
-// Test CoinGlass API Integration
-Route::get('/test/coinglass-integration', function() {
-    try {
-        $controller = new App\Http\Controllers\SpotMicrostructureController();
-        $results = [];
-        
-        // Test large trades
-        $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5]);
-        $largeTrades = $controller->getCoinglassLargeTrades($request);
-        $results['large_trades'] = $largeTrades->getData(true);
-        
-        // Test spot flow
-        $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5]);
-        $spotFlow = $controller->getCoinglassSpotFlow($request);
-        $results['spot_flow'] = $spotFlow->getData(true);
-        
-        // Test hybrid large orders
-        $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5, 'min_notional' => 100000]);
-        $hybridOrders = $controller->getLargeOrders($request);
-        $results['hybrid_orders'] = $hybridOrders->getData(true);
-        
-        return response()->json([
-            'success' => true,
-            'test_results' => $results,
-            'summary' => [
-                'coinglass_large_trades_count' => count($results['large_trades']['data'] ?? []),
-                'coinglass_spot_flow_count' => count($results['spot_flow']['data'] ?? []),
-                'hybrid_orders_count' => count($results['hybrid_orders']['data'] ?? []),
-                'coinglass_enabled' => env('SPOT_USE_COINGLASS', true),
-                'stub_data_enabled' => env('SPOT_STUB_DATA', true),
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => 'CoinGlass integration test failed',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-})->name('test.coinglass-integration');
-
-// Test CDD API with different exchanges
-Route::get('/test/cdd-all-exchanges', function() {
-    try {
-        $controller = new App\Http\Controllers\CryptoQuantController();
-        $exchanges = ['binance', 'coinbase', 'kraken', 'bitfinex', 'huobi', 'okex', 'bybit', 'bitstamp', 'gemini'];
-        $results = [];
-        
-        foreach ($exchanges as $exchange) {
+if (app()->isLocal()) {
+    // Test Funding Rates API
+    Route::get('/test/funding-rates-debug', function() {
+        try {
+            $controller = new App\Http\Controllers\CryptoQuantController();
             $request = new Illuminate\Http\Request([
-                'start_date' => '2025-10-22',
-                'end_date' => '2025-10-23',
-                'exchange' => $exchange
+                'start_date' => now()->subDays(7)->format('Y-m-d'),
+                'end_date' => now()->format('Y-m-d'),
+                'exchange' => 'binance'
             ]);
             
-            try {
-                $response = $controller->getExchangeInflowCDD($request);
-                $data = $response->getData(true);
+            return $controller->getFundingRates($request);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Test failed',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    })->name('test.funding-rates-debug');
+
+    // Test Open Interest API
+    Route::get('/test/open-interest-debug', function() {
+        try {
+            $controller = new App\Http\Controllers\CryptoQuantController();
+            $request = new Illuminate\Http\Request([
+                'start_date' => now()->subDays(7)->format('Y-m-d'),
+                'end_date' => now()->format('Y-m-d'),
+                'exchange' => 'binance'
+            ]);
+            
+            return $controller->getOpenInterest($request);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Test failed',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    })->name('test.open-interest-debug');
+
+    // Test CDD API
+    Route::get('/test/cdd-debug', function() {
+        try {
+            $controller = new App\Http\Controllers\CryptoQuantController();
+            $request = new Illuminate\Http\Request([
+                'start_date' => now()->subDays(7)->format('Y-m-d'),
+                'end_date' => now()->format('Y-m-d'),
+                'exchange' => 'binance'
+            ]);
+            
+            return $controller->getExchangeInflowCDD($request);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Test failed',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    })->name('test.cdd-debug');
+
+    // Test CoinGlass API Integration
+    Route::get('/test/coinglass-integration', function() {
+        try {
+            $controller = new App\Http\Controllers\SpotMicrostructureController();
+            $results = [];
+            
+            // Test large trades
+            $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5]);
+            $largeTrades = $controller->getCoinglassLargeTrades($request);
+            $results['large_trades'] = $largeTrades->getData(true);
+            
+            // Test spot flow
+            $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5]);
+            $spotFlow = $controller->getCoinglassSpotFlow($request);
+            $results['spot_flow'] = $spotFlow->getData(true);
+            
+            // Test hybrid large orders
+            $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5, 'min_notional' => 100000]);
+            $hybridOrders = $controller->getLargeOrders($request);
+            $results['hybrid_orders'] = $hybridOrders->getData(true);
+            
+            return response()->json([
+                'success' => true,
+                'test_results' => $results,
+                'summary' => [
+                    'coinglass_large_trades_count' => count($results['large_trades']['data'] ?? []),
+                    'coinglass_spot_flow_count' => count($results['spot_flow']['data'] ?? []),
+                    'hybrid_orders_count' => count($results['hybrid_orders']['data'] ?? []),
+                    'coinglass_enabled' => env('SPOT_USE_COINGLASS', true),
+                    'stub_data_enabled' => env('SPOT_STUB_DATA', true),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'CoinGlass integration test failed',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    })->name('test.coinglass-integration');
+
+    // Test CDD API with different exchanges
+    Route::get('/test/cdd-all-exchanges', function() {
+        try {
+            $controller = new App\Http\Controllers\CryptoQuantController();
+            $exchanges = ['binance', 'coinbase', 'kraken', 'bitfinex', 'huobi', 'okex', 'bybit', 'bitstamp', 'gemini'];
+            $results = [];
+            
+            foreach ($exchanges as $exchange) {
+                $request = new Illuminate\Http\Request([
+                    'start_date' => '2025-10-22',
+                    'end_date' => '2025-10-23',
+                    'exchange' => $exchange
+                ]);
                 
-                if ($data['success'] && !empty($data['data'])) {
-                    $oct22Data = collect($data['data'])->firstWhere('date', '2025-10-22');
-                    $results[$exchange] = [
-                        'success' => true,
-                        'oct_22_value' => $oct22Data['value'] ?? 'No data',
-                        'total_points' => count($data['data'])
-                    ];
-                } else {
+                try {
+                    $response = $controller->getExchangeInflowCDD($request);
+                    $data = $response->getData(true);
+                    
+                    if ($data['success'] && !empty($data['data'])) {
+                        $oct22Data = collect($data['data'])->firstWhere('date', '2025-10-22');
+                        $results[$exchange] = [
+                            'success' => true,
+                            'oct_22_value' => $oct22Data['value'] ?? 'No data',
+                            'total_points' => count($data['data'])
+                        ];
+                    } else {
+                        $results[$exchange] = [
+                            'success' => false,
+                            'error' => 'No data returned'
+                        ];
+                    }
+                } catch (\Exception $e) {
                     $results[$exchange] = [
                         'success' => false,
-                        'error' => 'No data returned'
+                        'error' => $e->getMessage()
                     ];
                 }
-            } catch (\Exception $e) {
-                $results[$exchange] = [
-                    'success' => false,
-                    'error' => $e->getMessage()
-                ];
             }
+            
+            return response()->json([
+                'success' => true,
+                'comparison_date' => '2025-10-22',
+                'cryptoquant_web_value' => '193.2K',
+                'our_values' => $results,
+                'analysis' => [
+                    'note' => 'Comparing Oct 22 values across exchanges',
+                    'web_vs_api_difference' => 'CryptoQuant web shows 193.2K, our API shows much lower values'
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Test failed',
+                'message' => $e->getMessage()
+            ], 500);
         }
-        
-        return response()->json([
-            'success' => true,
-            'comparison_date' => '2025-10-22',
-            'cryptoquant_web_value' => '193.2K',
-            'our_values' => $results,
-            'analysis' => [
-                'note' => 'Comparing Oct 22 values across exchanges',
-                'web_vs_api_difference' => 'CryptoQuant web shows 193.2K, our API shows much lower values'
-            ]
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => 'Test failed',
-            'message' => $e->getMessage()
-        ], 500);
-    }
-})->name('test.cdd-all-exchanges');
-
-
-
-// Test Liquidation Summary
-Route::get('/test/liquidation-summary', function() {
-    try {
-        $controller = new App\Http\Controllers\CoinglassController();
-        $request = new Illuminate\Http\Request([
-            'symbol' => 'BTC'
-        ]);
-        
-        return $controller->getLiquidationSummary($request);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => 'Test failed',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-})->name('test.liquidation-summary');
-
-// Test Coinglass API endpoints
-Route::get('/test/coinglass-debug', function() {
-    try {
-        $controller = new App\Http\Controllers\CoinglassController();
-        
-        $results = [];
-        
-        // Test Global Account Ratio
-        $request1 = new Illuminate\Http\Request([
-            'exchange' => 'Binance',
-            'symbol' => 'BTCUSDT',
-            'interval' => '1h',
-            'limit' => 50
-        ]);
-        $results['global_account'] = $controller->getGlobalAccountRatio($request1)->getData(true);
-        
-        // Test Top Account Ratio
-        $request2 = new Illuminate\Http\Request([
-            'exchange' => 'Binance',
-            'symbol' => 'BTCUSDT',
-            'interval' => '1h',
-            'limit' => 5
-        ]);
-        $results['top_account'] = $controller->getTopAccountRatio($request2)->getData(true);
-        
-        // Test Top Position Ratio
-        $request3 = new Illuminate\Http\Request([
-            'exchange' => 'Binance',
-            'symbol' => 'BTCUSDT',
-            'interval' => '1h',
-            'limit' => 5
-        ]);
-        $results['top_position'] = $controller->getTopPositionRatio($request3)->getData(true);
-        
-        // Test Net Position
-        $request4 = new Illuminate\Http\Request([
-            'exchange' => 'Binance',
-            'symbol' => 'BTCUSDT',
-            'interval' => '1h',
-            'limit' => 5
-        ]);
-        $results['net_position'] = $controller->getNetPosition($request4)->getData(true);
-        
-        // Test Taker Buy/Sell
-        $request5 = new Illuminate\Http\Request([
-            'symbol' => 'BTC',
-            'range' => '1h'
-        ]);
-        $results['taker_buysell'] = $controller->getTakerBuySell($request5)->getData(true);
-        
-        // Test Liquidation Coin List
-        $request6 = new Illuminate\Http\Request([
-            'exchange' => 'Binance'
-        ]);
-        $results['liquidation_coinlist'] = $controller->getLiquidationCoinList($request6)->getData(true);
-        
-        // Test Liquidation Aggregated History
-        $request7 = new Illuminate\Http\Request([
-            'exchange_list' => 'Binance',
-            'symbol' => 'BTC',
-            'interval' => '1h',
-            'limit' => 10
-        ]);
-        $results['liquidation_aggregated'] = $controller->getLiquidationAggregatedHistory($request7)->getData(true);
-        
-        // Test Liquidation Exchange List
-        $request8 = new Illuminate\Http\Request([
-            'symbol' => 'BTC',
-            'range' => '1h'
-        ]);
-        $results['liquidation_exchange'] = $controller->getLiquidationExchangeList($request8)->getData(true);
-        
-        // Test Liquidation History
-        $request9 = new Illuminate\Http\Request([
-            'exchange' => 'Binance',
-            'symbol' => 'BTCUSDT',
-            'interval' => '1h',
-            'limit' => 10
-        ]);
-        $results['liquidation_history'] = $controller->getLiquidationHistory($request9)->getData(true);
-        
-        return response()->json([
-            'success' => true,
-            'timestamp' => now()->toISOString(),
-            'results' => $results
-        ]);
-        
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error' => 'Test failed',
-            'message' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ], 500);
-    }
-})->name('test.coinglass-debug');
+    })->name('test.cdd-all-exchanges');
+}
 
 // API consumption happens directly from frontend using meta api-base-url

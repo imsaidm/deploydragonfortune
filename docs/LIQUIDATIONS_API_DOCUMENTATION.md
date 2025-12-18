@@ -303,9 +303,9 @@ const liquidationsData = {
   - ✅ Professional styling matching CryptoQuant/TradingView theme
 
 ### Total Liquidations Table - IMPLEMENTED ✅
-- **Backend Endpoint:** `/api/coinglass/liquidation-coin-list`
-- **Laravel Controller:** `CoinglassController@getLiquidationCoinList`
-- **Coinglass API:** `/api/futures/liquidation/coin-list`
+- **Backend Endpoint (current):** `/api/coinglass/liquidation/aggregated-history`
+- **Laravel Controller (current):** `App\Http\Controllers\Coinglass\LiquidationsController@aggregatedHistory`
+- **Coinglass API:** `/api/futures/liquidation/aggregated-history`
 - **Features Implemented:**
   - ✅ Ranking table with top liquidated coins
   - ✅ Exchange filter (Binance, OKX, Bybit, BitMEX, Bitfinex)
@@ -319,7 +319,7 @@ const liquidationsData = {
   - ✅ Responsive design with mobile support
 
 ### Backend Integration
-- **Laravel Controller:** `app/Http/Controllers/CoinglassController.php`
+- **Laravel Controller:** `app/Http/Controllers/Coinglass/LiquidationsController.php`
 - **Route:** `/derivatives/liquidations`
 - **API Method:** `getLiquidationsData()`
 
