@@ -110,6 +110,10 @@ If you deploy on aaPanel/BtPanel-style servers:
 - If you get `404` for every PHP route but static files work, check **open_basedir**:
   - In the panel, update/disable open_basedir restriction for the site, OR
   - Ensure `.user.ini` allows the real project path (example: `open_basedir=/www/wwwroot/dragonfortune/:/tmp/`).
+- If the UI feels "dead" (sidebar not clickable) and you see `livewire.js` 404 in the browser console:
+  - aaPanel default Nginx configs may treat `*.js` as static files, which blocks Livewire's dynamic script route (`/livewire/livewire.js`).
+  - Fix by adding this before your `location /` rule:
+    - `location ^~ /livewire/ { try_files $uri $uri/ /index.php?$query_string; }`
 
 ## 7) Queue & Scheduler (optional)
 
