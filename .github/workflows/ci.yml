@@ -37,11 +37,11 @@ jobs:
           php artisan migrate --ansi --force
           php artisan package:discover --ansi
 
-      - name: Run PHPUnit
-        run: php vendor/bin/phpunit
-
       - name: Install Node dependencies
         run: npm ci
 
       - name: Build assets
         run: npm run build
+
+      - name: Run PHPUnit
+        run: php vendor/bin/phpunit
