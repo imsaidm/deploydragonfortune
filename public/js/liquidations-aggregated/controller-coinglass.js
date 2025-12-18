@@ -172,6 +172,12 @@ export function createLiquidationsAggregatedController() {
             this.startAutoRefresh();
         },
 
+        // Blade templates expect `refreshAll()` for manual refresh buttons.
+        async refreshAll() {
+            console.log('🔄 Manual refresh triggered');
+            await this.instantLoadData();
+        },
+
         // Auto-refresh
         startAutoRefresh() {
             if (this.refreshInterval) {

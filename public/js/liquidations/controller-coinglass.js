@@ -168,6 +168,13 @@ export function createLiquidationsController() {
             this.loadData(); // Load immediately
         },
 
+        // Blade templates expect `refreshAll()` for manual refresh buttons.
+        refreshAll() {
+            console.log('🔄 Manual refresh triggered');
+            this.errorCount = 0;
+            this.instantLoadData();
+        },
+
         setTimeRange(value) {
             console.log('🎯 setTimeRange called with:', value, 'current:', this.selectedRange);
             if (this.selectedRange === value) {
