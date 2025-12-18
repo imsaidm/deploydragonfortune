@@ -101,6 +101,16 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+## aaPanel notes (common gotchas)
+
+If you deploy on aaPanel/BtPanel-style servers:
+
+- Set the site **Document Root** to the Laravel `public/` directory (example: `/www/wwwroot/dragonfortune/public`).
+- Ensure the site rewrite rules are set to **Laravel** (Nginx `try_files ... /index.php?$query_string;`).
+- If you get `404` for every PHP route but static files work, check **open_basedir**:
+  - In the panel, update/disable open_basedir restriction for the site, OR
+  - Ensure `.user.ini` allows the real project path (example: `open_basedir=/www/wwwroot/dragonfortune/:/tmp/`).
+
 ## 7) Queue & Scheduler (optional)
 
 If you use queues:
