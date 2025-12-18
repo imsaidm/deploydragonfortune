@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\SignalController;
+use App\Http\Controllers\BacktestResultController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'workspace')->name('workspace');
@@ -56,11 +56,12 @@ Route::view('/macro-overlay/dashboard-legacy', 'macro-overlay.dashboard-legacy')
 // Sentiment & Flow Routes
 Route::view('/sentiment-flow/dashboard', 'sentiment-flow.dashboard')->name('sentiment-flow.dashboard');
 
-// Signal & Analytics Routes
+// Backtest & Signal Placeholder Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');
-
-// QuantConnect Results
-Route::view('/quantconnect-results', 'quantconnect.results')->name('quantconnect-results');
+Route::get('/backtest-result', [BacktestResultController::class, 'index'])->name('backtest-result.index');
+Route::get('/backtest-result/{file}', [BacktestResultController::class, 'show'])
+    ->where('file', '[A-Za-z0-9._-]+')
+    ->name('backtest-result.show');
 
 // CryptoQuant API Proxy Routes
 Route::get('/api/cryptoquant/exchange-inflow-cdd', [App\Http\Controllers\CryptoQuantController::class, 'getExchangeInflowCDD'])->name('api.cryptoquant.exchange-inflow-cdd');
@@ -70,21 +71,6 @@ Route::get('/api/cryptoquant/funding-rate', [App\Http\Controllers\CryptoQuantCon
 Route::get('/api/cryptoquant/funding-rates', [App\Http\Controllers\CryptoQuantController::class, 'getFundingRates'])->name('api.cryptoquant.funding-rates');
 Route::get('/api/cryptoquant/open-interest', [App\Http\Controllers\CryptoQuantController::class, 'getOpenInterest'])->name('api.cryptoquant.open-interest');
 Route::get('/api/cryptoquant/funding-rates-comparison', [App\Http\Controllers\CryptoQuantController::class, 'getFundingRatesComparison'])->name('api.cryptoquant.funding-rates-comparison');
-
-// Internal Signal API
-Route::get('/api/signal/analytics', [SignalController::class, 'show'])->name('api.signal.analytics');
-Route::get('/api/signal/backtest', [SignalController::class, 'backtest'])->name('api.signal.backtest');
-Route::get('/api/signal/history', [SignalController::class, 'history'])->name('api.signal.history');
-
-// QuantConnect Backtest API
-Route::prefix('api/quantconnect')->group(function () {
-    Route::get('/backtests', [App\Http\Controllers\QuantConnectController::class, 'index'])->name('api.quantconnect.index');
-    Route::get('/backtests/{id}', [App\Http\Controllers\QuantConnectController::class, 'show'])->name('api.quantconnect.show');
-    Route::post('/backtests/import', [App\Http\Controllers\QuantConnectController::class, 'import'])->name('api.quantconnect.import');
-    Route::post('/backtests/import-api', [App\Http\Controllers\QuantConnectController::class, 'importFromApi'])->name('api.quantconnect.import-api');
-    Route::delete('/backtests/{id}', [App\Http\Controllers\QuantConnectController::class, 'destroy'])->name('api.quantconnect.destroy');
-    Route::post('/webhook', [App\Http\Controllers\QuantConnectController::class, 'webhook'])->name('api.quantconnect.webhook');
-});
 
 // Coinglass API Proxy Routes
 

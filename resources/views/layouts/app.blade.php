@@ -140,34 +140,22 @@
                 <div class="df-sidebar-group">
                     <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Navigation</div>
                     <ul class="df-sidebar-menu">
-                        <li class="df-sidebar-menu-item">
-                            <a href="/" class="df-sidebar-menu-button {{ request()->routeIs('workspace') ? 'active' : '' }}" @click="closeSidebar()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="3" width="7" height="7"/>
-                                    <rect x="14" y="3" width="7" height="7"/>
-                                    <rect x="14" y="14" width="7" height="7"/>
-                                    <rect x="3" y="14" width="7" height="7"/>
-                                </svg>
-                                <span>Dashboard</span>
-                            </a>
-                        </li>
-                        <li class="df-sidebar-menu-item">
-                            <a href="/signal-analytics" class="df-sidebar-menu-button {{ request()->routeIs('signal-analytics.*') ? 'active' : '' }}" @click="closeSidebar()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M3 3v18h18"/>
-                                    <path d="M7 14l3-3 4 4 6-6"/>
-                                    <circle cx="7" cy="14" r="1.5"/>
-                                    <circle cx="14" cy="15" r="1.5"/>
-                                    <circle cx="20" cy="9" r="1.5"/>
-                                </svg>
-                                <span>Signal and Analytics</span>
-                            </a>
-                        </li>
-                        <li class="df-sidebar-menu-item">
-                            <button class="df-sidebar-menu-button" @click="toggleSubmenu('derivatives')">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                                    <path d="M8 12h8"/>
+	                        <li class="df-sidebar-menu-item">
+	                            <a href="/" class="df-sidebar-menu-button {{ request()->routeIs('workspace') ? 'active' : '' }}" @click="closeSidebar()">
+	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                    <rect x="3" y="3" width="7" height="7"/>
+	                                    <rect x="14" y="3" width="7" height="7"/>
+	                                    <rect x="14" y="14" width="7" height="7"/>
+	                                    <rect x="3" y="14" width="7" height="7"/>
+	                                </svg>
+	                                <span>Dashboard</span>
+	                            </a>
+	                        </li>
+	                        <li class="df-sidebar-menu-item">
+	                            <button class="df-sidebar-menu-button" @click="toggleSubmenu('derivatives')">
+	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+	                                    <path d="M8 12h8"/>
                                     <path d="M12 8v8"/>
                                 </svg>
                                 <span>Derivatives Core</span>
@@ -267,101 +255,43 @@
                                 <span>₿ Exchange Inflow CDD</span>
                             </a>
                         </li>
-                    </ul>
-                </div>
+	                    </ul>
+	                </div>
 
-                <!-- QuantConnect Results Section -->
-                <div class="df-sidebar-group">
-                    <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Algorithmic Trading</div>
-                    <ul class="df-sidebar-menu">
-                        <li class="df-sidebar-menu-item">
-                            <a href="/quantconnect-results" class="df-sidebar-menu-button {{ request()->routeIs('quantconnect-results') ? 'active' : '' }}" @click="closeSidebar()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M3 3v18h18"/>
-                                    <path d="M7 16l3-3 3 3 5-5"/>
-                                    <circle cx="7" cy="16" r="2"/>
-                                    <circle cx="13" cy="13" r="2"/>
-                                    <circle cx="18" cy="8" r="2"/>
-                                </svg>
-                                <span>QuantConnect Results</span>
-                            </a>
-                        </li>
-                        {{-- <li class="df-sidebar-menu-item">
-                            <button class="df-sidebar-menu-button" @click="toggleSubmenu('watchlists')">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="3" width="7" height="7"/>
-                                    <rect x="14" y="3" width="7" height="7"/>
-                                    <rect x="14" y="14" width="7" height="7"/>
-                                    <rect x="3" y="14" width="7" height="7"/>
-                                </svg>
-                                <span>Watchlists</span>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ms-auto" :class="{ 'rotate-90': openSubmenus['watchlists'] }">
-                                    <path d="M9 18l6-6-6-6"/>
-                                </svg>
-                            </button>
-                            <div class="df-submenu" :class="{ 'show': openSubmenus['watchlists'] }">
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Crypto</a>
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Stocks</a>
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Forex</a>
-                            </div>
-                        </li> --}}
-                        {{-- <li class="df-sidebar-menu-item">
-                            <button class="df-sidebar-menu-button" @click="toggleSubmenu('screeners')">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M3 6h18"/>
-                                    <path d="M3 12h18"/>
-                                    <path d="M3 18h18"/>
-                                </svg>
-                                <span>Screeners</span>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ms-auto" :class="{ 'rotate-90': openSubmenus['screeners'] }">
-                                    <path d="M9 18l6-6-6-6"/>
-                                </svg>
-                            </button>
-                            <div class="df-submenu" :class="{ 'show': openSubmenus['screeners'] }">
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Crypto Screener</a>
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Stock Screener</a>
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Strategy Builder</a>
-                            </div>
-                        </li> --}}
-                        {{-- <li class="df-sidebar-menu-item">
-                            <button class="df-sidebar-menu-button" @click="toggleSubmenu('activity')">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                                </svg>
-                                <span>Activity</span>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ms-auto" :class="{ 'rotate-90': openSubmenus['activity'] }">
-                                    <path d="M9 18l6-6-6-6"/>
-                                </svg>
-                            </button>
-                            <div class="df-submenu" :class="{ 'show': openSubmenus['activity'] }">
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Alerts</a>
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Orders</a>
-                            </div>
-                        </li> --}}
-                        {{-- <li class="df-sidebar-menu-item">
-                            <button class="df-sidebar-menu-button" @click="toggleSubmenu('settings')">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <circle cx="12" cy="12" r="3"/>
-                                    <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
-                                </svg>
-                                <span>Settings</span>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ms-auto" :class="{ 'rotate-90': openSubmenus['settings'] }">
-                                    <path d="M9 18l6-6-6-6"/>
-                                </svg>
-                            </button>
-                            <div class="df-submenu" :class="{ 'show': openSubmenus['settings'] }">
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Account</a>
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Appearance</a>
-                                <a href="#" class="df-submenu-item" style="color: var(--foreground);">Billing</a>
-                            </div>
-                        </li> --}}
-                    </ul>
-                </div>
-
-                {{-- <!-- Watchlist Section -->
-                <div class="df-sidebar-group">
-                    <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Watchlist</div>
-                    <ul class="df-sidebar-menu">
+	                <div class="df-sidebar-group">
+	                    <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Research</div>
+	                    <ul class="df-sidebar-menu">
+	                        <li class="df-sidebar-menu-item">
+	                            <a href="/backtest-result" class="df-sidebar-menu-button {{ request()->routeIs('backtest-result.*') ? 'active' : '' }}" @click="closeSidebar()">
+	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                    <path d="M3 3v18h18"/>
+	                                    <path d="M7 16l3-3 3 3 5-5"/>
+	                                    <circle cx="7" cy="16" r="2"/>
+	                                    <circle cx="13" cy="13" r="2"/>
+	                                    <circle cx="18" cy="8" r="2"/>
+	                                </svg>
+	                                <span>Backtest Result</span>
+	                            </a>
+	                        </li>
+	                        <li class="df-sidebar-menu-item">
+	                            <a href="/signal-analytics" class="df-sidebar-menu-button {{ request()->routeIs('signal-analytics.*') ? 'active' : '' }}" @click="closeSidebar()">
+	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                    <path d="M3 3v18h18"/>
+	                                    <path d="M7 14l3-3 4 4 6-6"/>
+	                                    <circle cx="7" cy="14" r="1.5"/>
+	                                    <circle cx="14" cy="15" r="1.5"/>
+	                                    <circle cx="20" cy="9" r="1.5"/>
+	                                </svg>
+	                                <span>Signal and Analytics</span>
+	                            </a>
+	                        </li>
+	                    </ul>
+	                </div>
+	
+	                {{-- <!-- Watchlist Section -->
+	                <div class="df-sidebar-group">
+	                    <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Watchlist</div>
+	                    <ul class="df-sidebar-menu">
                         <li class="df-sidebar-menu-item">
                             <a href="#" class="df-sidebar-menu-button">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
