@@ -142,6 +142,11 @@
                 </div>
 
                 <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span id="sa-data-mode" class="badge text-bg-secondary">Live</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="sa-simulate-toggle">
+                        <label class="form-check-label small text-secondary" for="sa-simulate-toggle">Simulated</label>
+                    </div>
                     <button id="sa-refresh-all" class="btn btn-outline-primary btn-sm">Refresh All</button>
                     <div id="sa-last-refresh" class="small text-secondary"></div>
                 </div>
@@ -262,6 +267,7 @@
                         </div>
                         <button id="sa-orders-refresh" class="btn btn-outline-primary btn-sm" type="button">Refresh</button>
                         <div id="sa-orders-status" class="small text-secondary"></div>
+                        <div class="small text-secondary">TP/SL di row Exit = P/L.</div>
                     </div>
 
                     <div class="table-responsive">
