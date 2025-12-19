@@ -84,9 +84,15 @@ CRYPTOQUANT_API_KEY=
 # FRED (opsional, macro overlay)
 FRED_API_KEY=
 
+# QuantConnect (opsional, Backtest Result)
+QC_BASE_URL=https://www.quantconnect.com/api/v2
+QC_USER_ID=CHANGE_ME
+QC_API_TOKEN=CHANGE_ME
+QC_ORGANIZATION_ID=
+QC_TIMEOUT=15
+
 # External API base URL (opsional)
 API_BASE_URL=
 SPOT_MICROSTRUCTURE_API_URL=
 SPOT_USE_COINGLASS=true
 SPOT_STUB_DATA=false
-

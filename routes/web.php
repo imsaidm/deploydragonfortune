@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BacktestResultController;
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\QuantConnectController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'workspace')->name('workspace');
@@ -66,6 +67,65 @@ Route::get('/api/cryptoquant/funding-rate', [App\Http\Controllers\CryptoQuantCon
 Route::get('/api/cryptoquant/funding-rates', [App\Http\Controllers\CryptoQuantController::class, 'getFundingRates'])->name('api.cryptoquant.funding-rates');
 Route::get('/api/cryptoquant/open-interest', [App\Http\Controllers\CryptoQuantController::class, 'getOpenInterest'])->name('api.cryptoquant.open-interest');
 Route::get('/api/cryptoquant/funding-rates-comparison', [App\Http\Controllers\CryptoQuantController::class, 'getFundingRatesComparison'])->name('api.cryptoquant.funding-rates-comparison');
+
+// QuantConnect API Proxy Routes (Backtest management)
+Route::prefix('api/quantconnect')->group(function () {
+    Route::get('/authenticate', [QuantConnectController::class, 'authenticate'])
+        ->middleware('throttle:10,1')
+        ->name('api.quantconnect.authenticate');
+
+    Route::get('/projects', [QuantConnectController::class, 'projects'])
+        ->middleware('throttle:20,1')
+        ->name('api.quantconnect.projects');
+
+    Route::get('/backtests', [QuantConnectController::class, 'backtests'])
+        ->middleware('throttle:20,1')
+        ->name('api.quantconnect.backtests');
+
+    // Compile
+    Route::post('/compile/create', [QuantConnectController::class, 'compileCreate'])
+        ->middleware('throttle:10,1')
+        ->name('api.quantconnect.compile.create');
+    Route::get('/compile/read', [QuantConnectController::class, 'compileRead'])
+        ->middleware('throttle:30,1')
+        ->name('api.quantconnect.compile.read');
+
+    // Files
+    Route::get('/files', [QuantConnectController::class, 'files'])
+        ->middleware('throttle:30,1')
+        ->name('api.quantconnect.files.read');
+    Route::post('/files/create', [QuantConnectController::class, 'filesCreate'])
+        ->middleware('throttle:20,1')
+        ->name('api.quantconnect.files.create');
+    Route::post('/files/update', [QuantConnectController::class, 'filesUpdate'])
+        ->middleware('throttle:20,1')
+        ->name('api.quantconnect.files.update');
+    Route::post('/files/rename', [QuantConnectController::class, 'filesRename'])
+        ->middleware('throttle:20,1')
+        ->name('api.quantconnect.files.rename');
+    Route::post('/files/delete', [QuantConnectController::class, 'filesDelete'])
+        ->middleware('throttle:20,1')
+        ->name('api.quantconnect.files.delete');
+
+    // Backtests
+    Route::post('/backtests/create', [QuantConnectController::class, 'backtestsCreate'])
+        ->middleware('throttle:10,1')
+        ->name('api.quantconnect.backtests.create');
+    Route::get('/backtests/read', [QuantConnectController::class, 'backtestsRead'])
+        ->middleware('throttle:30,1')
+        ->name('api.quantconnect.backtests.read');
+    Route::post('/backtests/update', [QuantConnectController::class, 'backtestsUpdate'])
+        ->middleware('throttle:20,1')
+        ->name('api.quantconnect.backtests.update');
+    Route::post('/backtests/delete', [QuantConnectController::class, 'backtestsDelete'])
+        ->middleware('throttle:20,1')
+        ->name('api.quantconnect.backtests.delete');
+
+    // Reports
+    Route::get('/reports/backtest', [QuantConnectController::class, 'backtestReport'])
+        ->middleware('throttle:10,1')
+        ->name('api.quantconnect.reports.backtest');
+});
 
 // Coinglass API Proxy Routes
 

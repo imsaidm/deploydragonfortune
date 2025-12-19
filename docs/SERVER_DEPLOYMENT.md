@@ -48,7 +48,8 @@ Edit `.env`:
 - Configure DB:
   - **SQLite (simplest):** `DB_CONNECTION=sqlite` and ensure `database/database.sqlite` exists
   - **MySQL:** set `DB_CONNECTION=mysql` + host/user/password/dbname
-- Set integration keys as needed (Coinglass/CryptoQuant/FRED, etc)
+- Set integration keys as needed (Coinglass/CryptoQuant/FRED, QuantConnect, etc)
+  - QuantConnect (Backtest Result): set `QC_USER_ID` + `QC_API_TOKEN`
 
 ## 4) One-command setup (recommended)
 

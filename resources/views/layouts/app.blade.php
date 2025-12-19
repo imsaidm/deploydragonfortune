@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', config('app.name', 'DragonFortune AI'))</title>
 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="api-base-url" content="{{ config('services.api.base_url') }}">
     <meta name="spot-microstructure-api" content="{{ config('services.spot_microstructure.base_url') }}">
 

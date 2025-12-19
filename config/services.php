@@ -79,4 +79,13 @@ return [
         'key' => env('FRED_API_KEY', ''),
     ],
 
+    // QuantConnect Cloud Platform API (backtest management, projects, etc)
+    'quantconnect' => [
+        'base_url' => env('QC_BASE_URL', 'https://www.quantconnect.com/api/v2'),
+        'user_id' => env('QC_USER_ID', ''),
+        'api_token' => env('QC_API_TOKEN', ''),
+        'organization_id' => env('QC_ORGANIZATION_ID', ''),
+        'timeout' => (int) env('QC_TIMEOUT', 15),
+    ],
+
 ];
