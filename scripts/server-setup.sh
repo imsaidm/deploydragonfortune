@@ -42,4 +42,24 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-echo "Done. Ensure storage/ and bootstrap/cache/ are writable by your web server user."
+echo "Fixing permissions (storage/ and bootstrap/cache/ must be writable)..."
+
+mkdir -p storage/framework/{cache,views,sessions} storage/logs bootstrap/cache
+
+web_user="www"
+if ! id -u "${web_user}" >/dev/null 2>&1; then
+  web_user="www-data"
+fi
+
+# Make sure directories/files are group writable.
+chmod -R ug+rwX storage bootstrap/cache || true
+find storage bootstrap/cache -type d -exec chmod 775 {} \; 2>/dev/null || true
+find storage bootstrap/cache -type f -exec chmod 664 {} \; 2>/dev/null || true
+
+if [[ "$(id -u)" == "0" ]]; then
+  chown -R "${web_user}:${web_user}" storage bootstrap/cache 2>/dev/null || true
+else
+  echo "Not running as root; skipping chown. Ensure ownership allows PHP to write."
+fi
+
+echo "Done."
