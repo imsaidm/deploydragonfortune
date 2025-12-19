@@ -16,7 +16,7 @@ class OpenInterestController extends Controller
     public function __construct(CoinglassClient $client)
     {
         $this->client = $client;
-        $this->cacheTtlSeconds = (int) env('COINGLASS_OI_CACHE_TTL', 10);
+        $this->cacheTtlSeconds = (int) config('services.coinglass.cache_ttl.open_interest', 10);
     }
 
     // GET /api/coinglass/open-interest/exchanges
@@ -153,5 +153,4 @@ class OpenInterestController extends Controller
         return $exchange ? strtolower($exchange) : $exchange;
     }
 }
-
 

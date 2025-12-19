@@ -28,7 +28,7 @@ class BasisController extends Controller
     {
         $this->client = $client;
         // Use same cache TTL as Open Interest for consistency
-        $this->cacheTtlSeconds = (int) env('COINGLASS_BASIS_CACHE_TTL', 10);
+        $this->cacheTtlSeconds = (int) config('services.coinglass.cache_ttl.basis', 10);
     }
 
     /**

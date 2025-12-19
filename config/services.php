@@ -46,4 +46,37 @@ return [
         'base_url' => env('SPOT_MICROSTRUCTURE_API_URL', env('API_BASE_URL', 'https://test.dragonfortune.ai')),
     ],
 
+    // CoinGlass (market data)
+    'coinglass' => [
+        'base_url' => env('COINGLASS_API_URL', 'https://open-api-v4.coinglass.com/api'),
+        'key' => env('COINGLASS_API_KEY', ''),
+        'timeout' => (int) env('COINGLASS_TIMEOUT', 15),
+        'retries' => (int) env('COINGLASS_RETRIES', 2),
+        // Cache TTLs (seconds unless stated otherwise)
+        'cache_ttl_minutes' => (int) env('COINGLASS_CACHE_TTL', 15), // minutes (macro overlay)
+        'cache_ttl' => [
+            'etf' => (int) env('COINGLASS_ETF_CACHE_TTL', 30),
+            'volatility' => (int) env('COINGLASS_VOLATILITY_CACHE_TTL', 30),
+            'funding_rate' => (int) env('COINGLASS_FR_CACHE_TTL', 10),
+            'open_interest' => (int) env('COINGLASS_OI_CACHE_TTL', 10),
+            'long_short_ratio' => (int) env('COINGLASS_LSR_CACHE_TTL', 10),
+            'liquidations' => (int) env('COINGLASS_LIQUIDATIONS_CACHE_TTL', 10),
+            'basis' => (int) env('COINGLASS_BASIS_CACHE_TTL', 10),
+            'sentiment' => (int) env('COINGLASS_SENTIMENT_CACHE_TTL', 10),
+        ],
+    ],
+
+    // CryptoQuant (market data)
+    'cryptoquant' => [
+        'base_url' => env('CRYPTOQUANT_API_URL', 'https://api.cryptoquant.com/v1'),
+        'key' => env('CRYPTOQUANT_API_KEY', ''),
+        'timeout' => (int) env('CRYPTOQUANT_TIMEOUT', 30),
+    ],
+
+    // FRED (macro data)
+    'fred' => [
+        'base_url' => env('FRED_API_URL', 'https://api.stlouisfed.org/fred/series/observations'),
+        'key' => env('FRED_API_KEY', ''),
+    ],
+
 ];

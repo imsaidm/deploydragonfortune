@@ -9,11 +9,13 @@ use Illuminate\Support\Facades\Log;
 class CryptoQuantController extends Controller
 {
     private $apiKey;
-    private $baseUrl = 'https://api.cryptoquant.com/v1';
+    private string $baseUrl = 'https://api.cryptoquant.com/v1';
 
     public function __construct()
     {
-        $this->apiKey = env('CRYPTOQUANT_API_KEY');
+        // NOTE: Do not call env() here (breaks when config is cached). Use config() only.
+        $this->apiKey = config('services.cryptoquant.key', '');
+        $this->baseUrl = rtrim((string) config('services.cryptoquant.base_url', $this->baseUrl), '/');
     }
 
     /**

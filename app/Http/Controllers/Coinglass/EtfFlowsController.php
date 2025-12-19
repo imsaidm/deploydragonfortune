@@ -16,7 +16,7 @@ class EtfFlowsController extends Controller
     public function __construct(CoinglassClient $client)
     {
         $this->client = $client;
-        $this->cacheTtlSeconds = (int) env('COINGLASS_ETF_CACHE_TTL', 30);
+        $this->cacheTtlSeconds = (int) config('services.coinglass.cache_ttl.etf', 30);
     }
 
     // ========================================================================
@@ -162,7 +162,7 @@ class EtfFlowsController extends Controller
         Log::info('ETF API Call', [
             'endpoint' => $endpoint,
             'params' => $queryParams,
-            'has_key' => !empty(env('COINGLASS_API_KEY')),
+            'has_key' => !empty(config('services.coinglass.key')),
         ]);
 
         $data = $this->client->get($endpoint, $queryParams);
@@ -431,4 +431,3 @@ class EtfFlowsController extends Controller
         ];
     }
 }
-

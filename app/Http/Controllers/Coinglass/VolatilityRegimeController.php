@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
 use App\Services\CoinglassClient;
 
 class VolatilityRegimeController extends Controller
@@ -17,7 +16,7 @@ class VolatilityRegimeController extends Controller
     public function __construct(CoinglassClient $client)
     {
         $this->client = $client;
-        $this->cacheTtlSeconds = (int) env('COINGLASS_VOLATILITY_CACHE_TTL', 30);
+        $this->cacheTtlSeconds = (int) config('services.coinglass.cache_ttl.volatility', 30);
     }
 
     // ========================================================================
@@ -145,39 +144,14 @@ class VolatilityRegimeController extends Controller
     {
         Log::info("[Volatility] API call", ['endpoint' => $endpoint, 'params' => $queryParams]);
 
-        $url = 'https://open-api-v4.coinglass.com/api' . $endpoint;
-        $apiKey = env('COINGLASS_API_KEY');
+        $json = $this->client->get($endpoint, $queryParams);
 
-        if (empty($apiKey)) {
-            throw new \Exception('COINGLASS_API_KEY not configured');
+        if (is_array($json) && ($json['success'] ?? true) === false) {
+            $message = $json['error']['message'] ?? 'Coinglass API request failed';
+            throw new \Exception($message);
         }
 
-        $http = Http::timeout(15)
-            ->withHeaders([
-                'CG-API-KEY' => $apiKey,
-                'accept' => 'application/json',
-            ]);
-
-        // In non-production environments, allow self-signed/mitm certs to avoid local SSL trust issues.
-        if (! app()->environment('production')) {
-            $http = $http->withOptions(['verify' => false]);
-        }
-
-        $response = $http->get($url, $queryParams);
-
-        if (!$response->successful()) {
-            throw new \Exception(
-                sprintf(
-                    'Coinglass API error: %s (HTTP %d)',
-                    $response->body(),
-                    $response->status()
-                )
-            );
-        }
-
-        $json = $response->json();
-
-        if (!isset($json['code']) || $json['code'] !== '0') {
+        if (!isset($json['code']) || (string) $json['code'] !== '0') {
             throw new \Exception(
                 sprintf(
                     'Coinglass API returned error code: %s',

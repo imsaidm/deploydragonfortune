@@ -19,9 +19,9 @@ class MacroOverlayController extends Controller
     public function __construct(CoinglassClient $client)
     {
         $this->client = $client;
-        $this->fredApiKey = env('FRED_API_KEY');
-        $this->fredBaseUrl = 'https://api.stlouisfed.org/fred/series/observations';
-        $this->cacheTtlMinutes = (int) env('COINGLASS_CACHE_TTL', 15);
+        $this->fredApiKey = (string) config('services.fred.key', '');
+        $this->fredBaseUrl = (string) config('services.fred.base_url', 'https://api.stlouisfed.org/fred/series/observations');
+        $this->cacheTtlMinutes = (int) config('services.coinglass.cache_ttl_minutes', 15);
     }
 
     // ========================================================================
@@ -257,32 +257,22 @@ class MacroOverlayController extends Controller
      */
     private function callCoinglassApi(string $endpoint, array $queryParams = []): array
     {
-        $apiUrl = env('COINGLASS_API_URL') . $endpoint;
-        $apiKey = env('COINGLASS_API_KEY');
-        
+        $apiKey = config('services.coinglass.key');
+
         Log::info('Coinglass Macro API Call', [
             'endpoint' => $endpoint,
             'params' => $queryParams,
             'has_key' => !empty($apiKey)
         ]);
 
-        $http = Http::withHeaders([
-            'CG-API-KEY' => $apiKey,
-            'Accept' => 'application/json'
-        ])->timeout(30);
+        $data = $this->client->get($endpoint, $queryParams);
 
-        // Allow local/staging without strict SSL
-        if (! app()->environment('production')) {
-            $http = $http->withOptions(['verify' => false]);
+        if (is_array($data) && ($data['success'] ?? true) === false) {
+            $message = $data['error']['message'] ?? 'Coinglass API request failed';
+            throw new \Exception($message);
         }
 
-        $response = $http->get($apiUrl, $queryParams);
-
-        if ($response->successful()) {
-            return $response->json();
-        }
-
-        throw new \Exception('Coinglass API call failed: ' . $response->status() . ' - ' . $response->body());
+        return $data;
     }
 
     private function errorResponse(\Exception $e)

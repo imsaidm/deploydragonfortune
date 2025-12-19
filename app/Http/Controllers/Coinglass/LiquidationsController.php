@@ -16,7 +16,7 @@ class LiquidationsController extends Controller
     public function __construct(CoinglassClient $client)
     {
         $this->client = $client;
-        $this->cacheTtlSeconds = (int) env('COINGLASS_LIQUIDATIONS_CACHE_TTL', 10);
+        $this->cacheTtlSeconds = (int) config('services.coinglass.cache_ttl.liquidations', 10);
     }
 
     /**

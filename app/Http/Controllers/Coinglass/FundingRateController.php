@@ -16,7 +16,7 @@ class FundingRateController extends Controller
     public function __construct(CoinglassClient $client)
     {
         $this->client = $client;
-        $this->cacheTtlSeconds = (int) env('COINGLASS_FR_CACHE_TTL', 10);
+        $this->cacheTtlSeconds = (int) config('services.coinglass.cache_ttl.funding_rate', 10);
     }
 
     // GET /api/coinglass/funding-rate/exchanges

@@ -26,7 +26,7 @@ class LongShortRatioController extends Controller
     {
         $this->client = $client;
         // Use same cache TTL as Open Interest for consistency
-        $this->cacheTtlSeconds = (int) env('COINGLASS_LSR_CACHE_TTL', 10);
+        $this->cacheTtlSeconds = (int) config('services.coinglass.cache_ttl.long_short_ratio', 10);
     }
 
     /**

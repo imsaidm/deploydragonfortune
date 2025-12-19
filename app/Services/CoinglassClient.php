@@ -18,11 +18,17 @@ class CoinglassClient
         ?int $timeoutSeconds = null,
         ?int $maxRetries = null
     ) {
-        // Prefer existing env COINGLASS_API_URL (which may already include '/api')
-        $this->baseUrl = rtrim($baseUrl ?? config('services.coinglass.base_url', env('COINGLASS_API_URL', 'https://open-api-v4.coinglass.com/api')), '/');
-        $this->apiKey = $apiKey ?? config('services.coinglass.key', env('COINGLASS_API_KEY', ''));
-        $this->timeoutSeconds = $timeoutSeconds ?? (int) (config('services.coinglass.timeout', env('COINGLASS_TIMEOUT', 15)));
-        $this->maxRetries = $maxRetries ?? (int) (config('services.coinglass.retries', env('COINGLASS_RETRIES', 2)));
+        // NOTE: Do not call env() here (breaks when config is cached). Use config() only.
+        $this->baseUrl = rtrim(
+            $baseUrl
+                ?? config('services.coinglass.base_url')
+                ?? config('app.api_urls.coinglass')
+                ?? 'https://open-api-v4.coinglass.com/api',
+            '/'
+        );
+        $this->apiKey = (string) ($apiKey ?? config('services.coinglass.key', ''));
+        $this->timeoutSeconds = $timeoutSeconds ?? (int) config('services.coinglass.timeout', 15);
+        $this->maxRetries = $maxRetries ?? (int) config('services.coinglass.retries', 2);
     }
 
     public function get(string $path, array $query = [])
@@ -38,7 +44,7 @@ class CoinglassClient
                 $response = Http::timeout($this->timeoutSeconds)
                     ->withHeaders($this->getAuthHeaders())
                     ->withOptions([
-                        'verify' => config('app.env') === 'production'
+                        'verify' => app()->environment('production')
                     ])
                     ->acceptJson()
                     ->get($url);
@@ -107,5 +113,4 @@ class CoinglassClient
         ];
     }
 }
-
 

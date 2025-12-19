@@ -16,7 +16,7 @@ class SentimentFlowController extends Controller
     public function __construct(CoinglassClient $client)
     {
         $this->client = $client;
-        $this->cacheTtlSeconds = (int) env('COINGLASS_SENTIMENT_CACHE_TTL', 10);
+        $this->cacheTtlSeconds = (int) config('services.coinglass.cache_ttl.sentiment', 10);
     }
 
     /**
@@ -374,4 +374,3 @@ class SentimentFlowController extends Controller
         return $rate * $intervalsPerYear * 100; // Convert to percentage
     }
 }
-
