@@ -599,5 +599,10 @@
 @endsection
 
 @section('scripts')
-    <script src="{{ asset('js/signal-analytics/dashboard.js') }}" defer></script>
+    @php
+        $saDashboardJsPath = public_path('js/signal-analytics/dashboard.js');
+        $saDashboardJsVersion = file_exists($saDashboardJsPath) ? filemtime($saDashboardJsPath) : null;
+        $saDashboardJsSrc = asset('js/signal-analytics/dashboard.js') . ($saDashboardJsVersion ? ('?v=' . $saDashboardJsVersion) : '');
+    @endphp
+    <script src="{{ $saDashboardJsSrc }}" defer></script>
 @endsection
