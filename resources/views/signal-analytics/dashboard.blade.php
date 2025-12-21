@@ -114,11 +114,27 @@
             word-break: break-word;
         }
 
-        .sa-status-badge {
-            padding: 6px 10px;
+        .sa-status-text {
             font-weight: 800;
             font-size: 12px;
             letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .sa-status-text.is-running {
+            color: #22c55e;
+        }
+
+        .sa-status-text.is-stopped {
+            color: #ef4444;
+        }
+
+        .sa-status-text.is-unknown {
+            color: rgba(100, 116, 139, 1);
+        }
+
+        .dark .sa-status-text.is-unknown {
+            color: rgba(148, 163, 184, 1);
         }
 
         .sa-binance-logo {
@@ -295,7 +311,7 @@
                 <div class="sa-method-right">
                     <div class="small text-secondary">Status</div>
                     <div class="d-flex align-items-center gap-2">
-                        <span id="sa-method-running" class="badge rounded-pill sa-status-badge text-bg-secondary">UNKNOWN</span>
+                        <span id="sa-method-running" class="sa-status-text is-unknown">UNKNOWN</span>
                         <span id="sa-method-status" class="small text-secondary"></span>
                         <a id="sa-method-backtest" href="#" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm" style="display:none;">Preview</a>
                     </div>
@@ -306,7 +322,7 @@
                     <div class="sa-card d-flex flex-column h-100">
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <div class="fw-semibold">QuantConnect KPI</div>
-                        <span id="sa-qc-running-badge" class="badge rounded-pill sa-status-badge text-bg-secondary">UNKNOWN</span>
+                        <span id="sa-qc-running-badge" class="sa-status-text is-unknown">UNKNOWN</span>
                     </div>
                     <div id="sa-kpi-grid" class="sa-kpi-grid"></div>
                     <div class="mt-auto pt-3">

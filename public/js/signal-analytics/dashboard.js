@@ -650,8 +650,14 @@
 
       const applyRunningBadge = (el) => {
         if (!el) return;
-        el.textContent = running.label.toUpperCase();
-        el.className = `badge rounded-pill sa-status-badge ${running.className}`;
+        const kind =
+          running.label === 'Running'
+            ? 'is-running'
+            : running.label === 'Not Running'
+              ? 'is-stopped'
+              : 'is-unknown';
+        el.textContent = running.label;
+        el.className = `sa-status-text ${kind}`;
       };
 
       applyRunningBadge(methodRunningEl);
