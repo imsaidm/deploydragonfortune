@@ -91,6 +91,15 @@
     apiBaseEl.textContent = apiBase;
     if (docsLinkEl) docsLinkEl.href = apiBase + '/docs';
 
+    const storageKeys = {
+      binanceAccount: 'sa_binance_account',
+      binanceAccountLocked: 'sa_binance_account_locked',
+    };
+    const storedBinanceAccount =
+      localStorage.getItem(storageKeys.binanceAccount) || '';
+    const storedBinanceAccountLocked =
+      localStorage.getItem(storageKeys.binanceAccountLocked) === '1';
+
     const state = {
       methods: [],
       selectedMethodId: null,
@@ -105,7 +114,8 @@
       binanceHint: null,
       binanceMode: null,
       binanceBaseUrl: null,
-      binanceAccount: localStorage.getItem('sa_binance_account') || '',
+      binanceAccount: storedBinanceAccount,
+      binanceAccountLocked: storedBinanceAccountLocked,
       binanceAccounts: [],
       detailSource: null,
       binanceTab: 'assets',
@@ -176,10 +186,14 @@
       return dt.toISOString().replace('T', ' ').replace('Z', '');
     };
 
-    const setBinanceAccount = (key) => {
+    const setBinanceAccount = (key, locked = false) => {
       const next = String(key || '').trim();
       state.binanceAccount = next;
-      localStorage.setItem('sa_binance_account', next);
+      localStorage.setItem(storageKeys.binanceAccount, next);
+      if (locked) {
+        state.binanceAccountLocked = true;
+        localStorage.setItem(storageKeys.binanceAccountLocked, '1');
+      }
     };
 
     const buildBinanceUrl = (path, params = {}) => {
@@ -782,7 +796,7 @@
       if (binanceUpdatedEl) binanceUpdatedEl.textContent = updated ? String(updated) : '-';
     };
 
-    const loadBinanceSpot = async () => {
+    const loadBinanceSpot = async (attempt = 0) => {
       if (!binanceTotalEl) return;
       if (binanceLiveEl) {
         binanceLiveEl.textContent = 'Loading';
@@ -810,7 +824,24 @@
         }
         renderBinanceAccountSelect();
 
-        if (!res.ok || (data && data.success === false)) {
+        const failed = !res.ok || (data && data.success === false);
+        if (failed && attempt === 0 && !state.binanceAccountLocked) {
+          const currentKey = String(data?.account?.key || state.binanceAccount || '').trim();
+          const fallback = state.binanceAccounts.find(
+            (acc) =>
+              acc &&
+              acc.configured &&
+              String(acc.key || '').trim() !== '' &&
+              String(acc.key || '').trim() !== currentKey,
+          );
+          if (fallback?.key) {
+            setBinanceAccount(String(fallback.key));
+            await loadBinanceSpot(1);
+            return;
+          }
+        }
+
+        if (failed) {
           state.binanceSummary = null;
           state.binanceError = data?.error || data?.message || text || `HTTP ${res.status}`;
           state.binanceHint = data?.hint || null;
@@ -1685,7 +1716,7 @@
 
     if (binanceAccountSelect) {
       binanceAccountSelect.addEventListener('change', () => {
-        setBinanceAccount(binanceAccountSelect.value);
+        setBinanceAccount(binanceAccountSelect.value, true);
         loadBinanceSpot();
         if (state.detailSource === 'binance') refreshBinanceDetail();
       });

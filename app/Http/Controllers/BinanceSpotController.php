@@ -423,6 +423,7 @@ class BinanceSpotController extends Controller
     private function getSpotConfig(?Request $request = null): array
     {
         $config = config('services.binance.spot', []);
+        $clean = fn ($value) => trim((string) $value, " \t\n\r\0\x0B\"'");
         $mode = strtolower(trim((string) ($config['mode'] ?? 'auto')));
         if ($mode === '') {
             $mode = 'auto';
@@ -464,15 +465,15 @@ class BinanceSpotController extends Controller
             $accountKey = 'v1';
         }
 
-        $globalBaseUrl = rtrim((string) ($config['base_url'] ?? 'https://api.binance.com'), '/');
-        $legacyKey = (string) ($config['api_key'] ?? '');
-        $legacySecret = (string) ($config['api_secret'] ?? '');
+        $globalBaseUrl = rtrim($clean($config['base_url'] ?? 'https://api.binance.com'), '/');
+        $legacyKey = $clean($config['api_key'] ?? '');
+        $legacySecret = $clean($config['api_secret'] ?? '');
         $hasLegacyCredentials = $legacyKey !== '' && $legacySecret !== '';
 
         $baseUrl = $globalBaseUrl;
         $apiKey = '';
         $apiSecret = '';
-        $accountLabel = $accountKey;
+        $accountLabel = $clean($accountKey);
 
         if ($accountsArray) {
             if (! array_key_exists($accountKey, $accountsArray) || ! is_array($accountsArray[$accountKey])) {
@@ -487,9 +488,9 @@ class BinanceSpotController extends Controller
             }
 
             $accountConfig = is_array($accountsArray[$accountKey] ?? null) ? $accountsArray[$accountKey] : [];
-            $accountLabel = (string) ($accountConfig['label'] ?? $accountKey);
+            $accountLabel = $clean($accountConfig['label'] ?? $accountKey);
 
-            $accountBaseUrl = rtrim((string) ($accountConfig['base_url'] ?? ''), '/');
+            $accountBaseUrl = rtrim($clean($accountConfig['base_url'] ?? ''), '/');
             if ($accountBaseUrl !== '') {
                 $baseUrl = $accountBaseUrl;
             }
@@ -499,8 +500,8 @@ class BinanceSpotController extends Controller
                 $apiSecret = $legacySecret;
             }
 
-            $accountApiKey = (string) ($accountConfig['api_key'] ?? '');
-            $accountApiSecret = (string) ($accountConfig['api_secret'] ?? '');
+            $accountApiKey = $clean($accountConfig['api_key'] ?? '');
+            $accountApiSecret = $clean($accountConfig['api_secret'] ?? '');
             if ($accountApiKey !== '') {
                 $apiKey = $accountApiKey;
             }
@@ -518,10 +519,10 @@ class BinanceSpotController extends Controller
                 if (! is_array($account)) {
                     continue;
                 }
-                $label = (string) ($account['label'] ?? $key);
-                $hasKey = (string) ($account['api_key'] ?? '') !== '';
-                $hasSecret = (string) ($account['api_secret'] ?? '') !== '';
-                $accBaseUrl = rtrim((string) ($account['base_url'] ?? $globalBaseUrl), '/');
+                $label = $clean($account['label'] ?? $key);
+                $hasKey = $clean($account['api_key'] ?? '') !== '';
+                $hasSecret = $clean($account['api_secret'] ?? '') !== '';
+                $accBaseUrl = rtrim($clean($account['base_url'] ?? $globalBaseUrl), '/');
                 if ($accBaseUrl === '') {
                     $accBaseUrl = $globalBaseUrl;
                 }
@@ -680,14 +681,14 @@ class BinanceSpotController extends Controller
             if (str_contains($baseUrl, 'testnet.binance.vision')) {
                 return 'You are calling Binance Spot TESTNET. Use TESTNET API keys (generated on testnet.binance.vision), or switch BINANCE_SPOT_BASE_URL to mainnet.';
             }
-            return 'Check API key permissions (SPOT + read), IP whitelist, and BINANCE_SPOT_BASE_URL.';
+            return 'Check Binance API key permissions (Enable Reading + Spot), IP restriction/whitelist, and BINANCE_SPOT_BASE_URL.';
         }
 
         if ($code === -1021 || str_contains(strtolower($msg), 'timestamp')) {
             return 'Timestamp is out of sync. The app auto-syncs using /api/v3/time; ensure that endpoint is reachable.';
         }
 
-        return 'Check API key permissions (SPOT + read), IP whitelist, and BINANCE_SPOT_BASE_URL.';
+        return 'Check Binance API key permissions (Enable Reading + Spot), IP restriction/whitelist, and BINANCE_SPOT_BASE_URL.';
     }
 
     private function publicAccountMeta(array $spot): array
