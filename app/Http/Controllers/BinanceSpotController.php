@@ -30,7 +30,7 @@ class BinanceSpotController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Binance API credentials are not configured for the selected account.',
-                'hint' => 'Set BINANCE_SPOT_V1_API_KEY/SECRET or BINANCE_SPOT_V2_API_KEY/SECRET in your .env (or use legacy BINANCE_SPOT_API_KEY/SECRET for v1).',
+                'hint' => 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET in your .env.',
                 'base_url' => $baseUrl,
                 'mode' => $spot['mode'] ?? null,
                 'account' => $this->publicAccountMeta($spot),
@@ -38,18 +38,31 @@ class BinanceSpotController extends Controller
         }
 
         $http = $this->buildHttpClient($timeout, $verify);
-        $timestamp = $this->getSignedTimestampMs($http, $baseUrl);
-        $query = http_build_query([
-            'timestamp' => $timestamp,
-            'recvWindow' => $recvWindow,
-        ]);
-        $signature = hash_hmac('sha256', $query, $apiSecret);
-        $accountUrl = $baseUrl . '/api/v3/account?' . $query . '&signature=' . $signature;
+        $accountRes = null;
 
         try {
-            $accountRes = $http
-                ->withHeaders(['X-MBX-APIKEY' => $apiKey])
-                ->get($accountUrl);
+            for ($attempt = 0; $attempt < 2; $attempt++) {
+                $timestamp = $this->getSignedTimestampMs($http, $baseUrl);
+                $query = http_build_query([
+                    'timestamp' => $timestamp,
+                    'recvWindow' => $recvWindow,
+                ]);
+                $signature = hash_hmac('sha256', $query, $apiSecret);
+                $accountUrl = $baseUrl . '/api/v3/account?' . $query . '&signature=' . $signature;
+
+                $accountRes = $http
+                    ->withHeaders(['X-MBX-APIKEY' => $apiKey])
+                    ->get($accountUrl);
+
+                $body = $accountRes->json();
+                $code = is_array($body) && isset($body['code']) ? (int) $body['code'] : null;
+                if ($attempt === 0 && $code === -1021) {
+                    $this->clearTimeOffsetCache($baseUrl);
+                    continue;
+                }
+
+                break;
+            }
         } catch (ConnectionException $e) {
             return response()->json([
                 'success' => false,
@@ -179,10 +192,7 @@ class BinanceSpotController extends Controller
             'account' => [
                 'type' => $account['accountType'] ?? 'SPOT',
                 'can_trade' => $account['canTrade'] ?? null,
-                'key' => $spot['account_key'] ?? null,
-                'label' => $spot['account_label'] ?? null,
-                'default_account' => $spot['default_account'] ?? null,
-                'available_accounts' => $spot['accounts_meta'] ?? [],
+                'label' => $spot['label'] ?? null,
             ],
             'summary' => [
                 'total_usdt' => round($totalUsdt, 6),
@@ -308,7 +318,7 @@ class BinanceSpotController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Binance API credentials are not configured for the selected account.',
-                'hint' => 'Set BINANCE_SPOT_V1_API_KEY/SECRET or BINANCE_SPOT_V2_API_KEY/SECRET in your .env (or use legacy BINANCE_SPOT_API_KEY/SECRET for v1).',
+                'hint' => 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET in your .env.',
                 'base_url' => $baseUrl,
                 'mode' => $spot['mode'] ?? null,
                 'account' => $this->publicAccountMeta($spot),
@@ -316,24 +326,37 @@ class BinanceSpotController extends Controller
         }
 
         $http = $this->buildHttpClient($timeout, $verify);
-        $timestamp = $this->getSignedTimestampMs($http, $baseUrl);
-
-        $queryParams = array_merge(
-            array_filter($params, fn($v) => $v !== null && $v !== ''),
-            [
-                'timestamp' => $timestamp,
-                'recvWindow' => $recvWindow,
-            ],
-        );
-
-        $query = http_build_query($queryParams);
-        $signature = hash_hmac('sha256', $query, $apiSecret);
-        $url = $baseUrl . $path . '?' . $query . '&signature=' . $signature;
+        $res = null;
 
         try {
-            $res = $http
-                ->withHeaders(['X-MBX-APIKEY' => $apiKey])
-                ->get($url);
+            for ($attempt = 0; $attempt < 2; $attempt++) {
+                $timestamp = $this->getSignedTimestampMs($http, $baseUrl);
+
+                $queryParams = array_merge(
+                    array_filter($params, fn($v) => $v !== null && $v !== ''),
+                    [
+                        'timestamp' => $timestamp,
+                        'recvWindow' => $recvWindow,
+                    ],
+                );
+
+                $query = http_build_query($queryParams);
+                $signature = hash_hmac('sha256', $query, $apiSecret);
+                $url = $baseUrl . $path . '?' . $query . '&signature=' . $signature;
+
+                $res = $http
+                    ->withHeaders(['X-MBX-APIKEY' => $apiKey])
+                    ->get($url);
+
+                $body = $res->json();
+                $code = is_array($body) && isset($body['code']) ? (int) $body['code'] : null;
+                if ($attempt === 0 && $code === -1021) {
+                    $this->clearTimeOffsetCache($baseUrl);
+                    continue;
+                }
+
+                break;
+            }
         } catch (ConnectionException $e) {
             return response()->json([
                 'success' => false,
@@ -395,10 +418,20 @@ class BinanceSpotController extends Controller
         ]);
     }
 
+    private function timeOffsetCacheKey(string $baseUrl): string
+    {
+        return 'binance:spot:time_offset:' . md5($baseUrl);
+    }
+
+    private function clearTimeOffsetCache(string $baseUrl): void
+    {
+        Cache::forget($this->timeOffsetCacheKey($baseUrl));
+    }
+
     private function getSignedTimestampMs($http, string $baseUrl): int
     {
         $localNow = (int) floor(microtime(true) * 1000);
-        $cacheKey = 'binance:spot:time_offset:' . md5($baseUrl);
+        $cacheKey = $this->timeOffsetCacheKey($baseUrl);
         $cachedOffset = Cache::get($cacheKey);
         if (is_numeric($cachedOffset)) {
             return $localNow + (int) $cachedOffset;
@@ -424,6 +457,7 @@ class BinanceSpotController extends Controller
     {
         $config = config('services.binance.spot', []);
         $clean = fn ($value) => trim((string) $value, " \t\n\r\0\x0B\"'");
+
         $mode = strtolower(trim((string) ($config['mode'] ?? 'auto')));
         if ($mode === '') {
             $mode = 'auto';
@@ -447,115 +481,29 @@ class BinanceSpotController extends Controller
             $stubData = $stubData === null ? false : $stubData;
         }
 
-        $defaultAccount = strtolower(trim((string) ($config['default_account'] ?? 'v1')));
-        if ($defaultAccount === '') {
-            $defaultAccount = 'v1';
+        $baseUrl = rtrim($clean($config['base_url'] ?? 'https://api.binance.com'), '/');
+        if ($baseUrl === '') {
+            $baseUrl = 'https://api.binance.com';
         }
 
-        $requestedAccount = '';
-        if ($request) {
-            $requestedAccount = strtolower(trim((string) $request->query('account', $request->query('account_id', ''))));
-        }
-
-        $accounts = $config['accounts'] ?? null;
-        $accountsArray = is_array($accounts) ? $accounts : [];
-
-        $accountKey = $requestedAccount !== '' ? $requestedAccount : $defaultAccount;
-        if ($accountKey === '') {
-            $accountKey = 'v1';
-        }
-
-        $globalBaseUrl = rtrim($clean($config['base_url'] ?? 'https://api.binance.com'), '/');
-        $legacyKey = $clean($config['api_key'] ?? '');
-        $legacySecret = $clean($config['api_secret'] ?? '');
-        $hasLegacyCredentials = $legacyKey !== '' && $legacySecret !== '';
-
-        $baseUrl = $globalBaseUrl;
-        $apiKey = '';
-        $apiSecret = '';
-        $accountLabel = $clean($accountKey);
-
-        if ($accountsArray) {
-            if (! array_key_exists($accountKey, $accountsArray) || ! is_array($accountsArray[$accountKey])) {
-                $fallback = $defaultAccount;
-                if (! array_key_exists($fallback, $accountsArray) || ! is_array($accountsArray[$fallback])) {
-                    $firstKey = array_key_first($accountsArray);
-                    if (is_string($firstKey) && $firstKey !== '') {
-                        $fallback = $firstKey;
-                    }
-                }
-                $accountKey = $fallback;
-            }
-
-            $accountConfig = is_array($accountsArray[$accountKey] ?? null) ? $accountsArray[$accountKey] : [];
-            $accountLabel = $clean($accountConfig['label'] ?? $accountKey);
-
-            $accountBaseUrl = rtrim($clean($accountConfig['base_url'] ?? ''), '/');
-            if ($accountBaseUrl !== '') {
-                $baseUrl = $accountBaseUrl;
-            }
-
-            if ($accountKey === 'v1') {
-                $apiKey = $legacyKey;
-                $apiSecret = $legacySecret;
-            }
-
-            $accountApiKey = $clean($accountConfig['api_key'] ?? '');
-            $accountApiSecret = $clean($accountConfig['api_secret'] ?? '');
-            if ($accountApiKey !== '') {
-                $apiKey = $accountApiKey;
-            }
-            if ($accountApiSecret !== '') {
-                $apiSecret = $accountApiSecret;
-            }
-        } else {
-            $apiKey = $legacyKey;
-            $apiSecret = $legacySecret;
-        }
-
-        $accountsMeta = [];
-        if ($accountsArray) {
-            foreach ($accountsArray as $key => $account) {
-                if (! is_array($account)) {
-                    continue;
-                }
-                $label = $clean($account['label'] ?? $key);
-                $hasKey = $clean($account['api_key'] ?? '') !== '';
-                $hasSecret = $clean($account['api_secret'] ?? '') !== '';
-                $accBaseUrl = rtrim($clean($account['base_url'] ?? $globalBaseUrl), '/');
-                if ($accBaseUrl === '') {
-                    $accBaseUrl = $globalBaseUrl;
-                }
-
-                $configured = $hasKey && $hasSecret;
-                if (! $configured && (string) $key === 'v1' && $hasLegacyCredentials) {
-                    $configured = true;
-                }
-                $accountsMeta[] = [
-                    'key' => (string) $key,
-                    'label' => $label !== '' ? $label : (string) $key,
-                    'configured' => $configured,
-                    'base_url' => $accBaseUrl,
-                ];
-            }
+        $label = $clean($config['label'] ?? 'Binance Spot');
+        if ($label === '') {
+            $label = 'Binance Spot';
         }
 
         return [
             'mode' => $mode,
             'base_url' => $baseUrl,
-            'api_key' => $apiKey,
-            'api_secret' => $apiSecret,
+            'label' => $label,
+            'api_key' => $clean($config['api_key'] ?? ''),
+            'api_secret' => $clean($config['api_secret'] ?? ''),
             'timeout' => (int) ($config['timeout'] ?? 10),
             'recv_window' => (int) ($config['recv_window'] ?? 5000),
             'verify_ssl' => $verify,
-            'proxy_base_url' => rtrim((string) ($config['proxy_base_url'] ?? ''), '/'),
-            'proxy_token' => (string) ($config['proxy_token'] ?? ''),
+            'proxy_base_url' => rtrim($clean($config['proxy_base_url'] ?? ''), '/'),
+            'proxy_token' => $clean($config['proxy_token'] ?? ''),
             'proxy_verify_ssl' => $proxyVerify,
             'stub_data' => $stubData,
-            'default_account' => $defaultAccount,
-            'account_key' => $accountKey,
-            'account_label' => $accountLabel,
-            'accounts_meta' => $accountsMeta,
         ];
     }
 
@@ -694,10 +642,7 @@ class BinanceSpotController extends Controller
     private function publicAccountMeta(array $spot): array
     {
         return array_filter([
-            'key' => $spot['account_key'] ?? null,
-            'label' => $spot['account_label'] ?? null,
-            'default_account' => $spot['default_account'] ?? null,
-            'available_accounts' => $spot['accounts_meta'] ?? [],
+            'label' => $spot['label'] ?? null,
         ], fn ($v) => $v !== null);
     }
 
@@ -724,10 +669,7 @@ class BinanceSpotController extends Controller
             'account' => [
                 'type' => 'SPOT',
                 'can_trade' => false,
-                'key' => $spot['account_key'] ?? null,
-                'label' => $spot['account_label'] ?? 'SIMULATED',
-                'default_account' => $spot['default_account'] ?? null,
-                'available_accounts' => $spot['accounts_meta'] ?? [],
+                'label' => $spot['label'] ?? 'SIMULATED',
             ],
             'summary' => [
                 'total_usdt' => round($totalUsdt, 6),

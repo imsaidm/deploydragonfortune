@@ -279,9 +279,6 @@
                     </div>
                     <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
                         <div id="sa-binance-account" class="small text-secondary">Account: -</div>
-                        <select id="sa-binance-account-select" class="form-select form-select-sm" style="width: 220px;">
-                            <option value="">Loading...</option>
-                        </select>
                     </div>
                     <div id="sa-binance-hint" class="small text-secondary mt-1"></div>
                     <div class="sa-binance-grid">
@@ -318,14 +315,14 @@
         </div>
 
         <div id="sa-detail" class="df-panel p-4" style="display:none;">
-            <div id="sa-detail-qc" style="display:none;">
+                <div id="sa-detail-qc" style="display:none;">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <button class="btn btn-outline-secondary btn-sm sa-tab is-active" data-tab="positions" type="button">Positions</button>
-                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="orders" type="button">Order History</button>
-                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="signals" type="button">Signals</button>
-                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="reminders" type="button">Reminders</button>
-                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="logs" type="button">Logs</button>
+                    <button class="btn btn-outline-secondary btn-sm sa-tab is-active" data-tab="positions" type="button">Positions <span id="sa-count-positions" class="ms-1 text-secondary"></span></button>
+                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="orders" type="button">Order History <span id="sa-count-orders" class="ms-1 text-secondary"></span></button>
+                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="signals" type="button">Signals <span id="sa-count-signals" class="ms-1 text-secondary"></span></button>
+                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="reminders" type="button">Reminders <span id="sa-count-reminders" class="ms-1 text-secondary"></span></button>
+                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="logs" type="button">Logs <span id="sa-count-logs" class="ms-1 text-secondary"></span></button>
                 </div>
                 <div class="small text-secondary">Klik row untuk lihat detail (GET by id).</div>
             </div>
@@ -480,10 +477,10 @@
             <div id="sa-detail-binance" style="display:none;">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <button class="btn btn-outline-secondary btn-sm sa-binance-tab is-active" data-tab="assets" type="button">Positions / Assets</button>
-                    <button class="btn btn-outline-secondary btn-sm sa-binance-tab" data-tab="open-orders" type="button">Open Orders</button>
-                    <button class="btn btn-outline-secondary btn-sm sa-binance-tab" data-tab="orders" type="button">Order History</button>
-                    <button class="btn btn-outline-secondary btn-sm sa-binance-tab" data-tab="trades" type="button">Trades</button>
+                    <button class="btn btn-outline-secondary btn-sm sa-binance-tab is-active" data-tab="assets" type="button">Positions / Assets <span id="sa-count-binance-assets" class="ms-1 text-secondary"></span></button>
+                    <button class="btn btn-outline-secondary btn-sm sa-binance-tab" data-tab="open-orders" type="button">Open Orders <span id="sa-count-binance-open-orders" class="ms-1 text-secondary"></span></button>
+                    <button class="btn btn-outline-secondary btn-sm sa-binance-tab" data-tab="orders" type="button">Order History <span id="sa-count-binance-orders" class="ms-1 text-secondary"></span></button>
+                    <button class="btn btn-outline-secondary btn-sm sa-binance-tab" data-tab="trades" type="button">Trades <span id="sa-count-binance-trades" class="ms-1 text-secondary"></span></button>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     <div class="small text-secondary">Symbol</div>

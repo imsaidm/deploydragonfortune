@@ -44,7 +44,6 @@
     const binanceAssetsEl = byId('sa-binance-assets');
     const binanceUpdatedEl = byId('sa-binance-updated');
     const binanceHintEl = byId('sa-binance-hint');
-    const binanceAccountSelect = byId('sa-binance-account-select');
 
     const binanceSymbolInput = byId('sa-binance-symbol');
     const binanceAssetsStatus = byId('sa-binance-assets-status');
@@ -75,6 +74,16 @@
     const logsStatus = byId('sa-logs-status');
     const logsBody = byId('sa-logs-body');
 
+    const countPositionsEl = byId('sa-count-positions');
+    const countOrdersEl = byId('sa-count-orders');
+    const countSignalsEl = byId('sa-count-signals');
+    const countRemindersEl = byId('sa-count-reminders');
+    const countLogsEl = byId('sa-count-logs');
+    const countBinanceAssetsEl = byId('sa-count-binance-assets');
+    const countBinanceOpenOrdersEl = byId('sa-count-binance-open-orders');
+    const countBinanceOrdersEl = byId('sa-count-binance-orders');
+    const countBinanceTradesEl = byId('sa-count-binance-trades');
+
     const modalEl = byId('sa-modal');
     const modalTitleEl = byId('sa-modal-title');
     const modalPreEl = byId('sa-modal-pre');
@@ -91,15 +100,6 @@
     apiBaseEl.textContent = apiBase;
     if (docsLinkEl) docsLinkEl.href = apiBase + '/docs';
 
-    const storageKeys = {
-      binanceAccount: 'sa_binance_account',
-      binanceAccountLocked: 'sa_binance_account_locked',
-    };
-    const storedBinanceAccount =
-      localStorage.getItem(storageKeys.binanceAccount) || '';
-    const storedBinanceAccountLocked =
-      localStorage.getItem(storageKeys.binanceAccountLocked) === '1';
-
     const state = {
       methods: [],
       selectedMethodId: null,
@@ -109,14 +109,13 @@
       latestSignals: [],
       latestTrades: [],
       latestPositions: [],
+      latestReminders: [],
+      latestLogs: [],
       binanceSummary: null,
       binanceError: null,
       binanceHint: null,
       binanceMode: null,
       binanceBaseUrl: null,
-      binanceAccount: storedBinanceAccount,
-      binanceAccountLocked: storedBinanceAccountLocked,
-      binanceAccounts: [],
       detailSource: null,
       binanceTab: 'assets',
       binanceOpenOrders: [],
@@ -186,21 +185,43 @@
       return dt.toISOString().replace('T', ' ').replace('Z', '');
     };
 
-    const setBinanceAccount = (key, locked = false) => {
-      const next = String(key || '').trim();
-      state.binanceAccount = next;
-      localStorage.setItem(storageKeys.binanceAccount, next);
-      if (locked) {
-        state.binanceAccountLocked = true;
-        localStorage.setItem(storageKeys.binanceAccountLocked, '1');
-      }
+    const renderCount = (el, value) => {
+      if (!el) return;
+      const n = Number(value);
+      el.textContent = Number.isFinite(n) && n >= 0 ? `(${n})` : '(0)';
+    };
+
+    const updateTabCounts = () => {
+      renderCount(countPositionsEl, Array.isArray(state.latestPositions) ? state.latestPositions.length : 0);
+      renderCount(countOrdersEl, Array.isArray(state.latestOrders) ? state.latestOrders.length : 0);
+      renderCount(countSignalsEl, Array.isArray(state.latestSignals) ? state.latestSignals.length : 0);
+      renderCount(countRemindersEl, Array.isArray(state.latestReminders) ? state.latestReminders.length : 0);
+      renderCount(countLogsEl, Array.isArray(state.latestLogs) ? state.latestLogs.length : 0);
+
+      const assetCountFromSummary = Number(state.binanceSummary?.summary?.asset_count);
+      const assetsCount = Number.isFinite(assetCountFromSummary)
+        ? assetCountFromSummary
+        : Array.isArray(state.binanceSummary?.assets)
+          ? state.binanceSummary.assets.length
+          : 0;
+
+      renderCount(countBinanceAssetsEl, assetsCount);
+      renderCount(
+        countBinanceOpenOrdersEl,
+        Array.isArray(state.binanceOpenOrders) ? state.binanceOpenOrders.length : 0,
+      );
+      renderCount(
+        countBinanceOrdersEl,
+        Array.isArray(state.binanceOrders) ? state.binanceOrders.length : 0,
+      );
+      renderCount(
+        countBinanceTradesEl,
+        Array.isArray(state.binanceTrades) ? state.binanceTrades.length : 0,
+      );
     };
 
     const buildBinanceUrl = (path, params = {}) => {
       const url = new URL(window.location.origin + path);
-
-      const account = String(state.binanceAccount || '').trim();
-      if (account) url.searchParams.set('account', account);
 
       Object.entries(params || {}).forEach(([key, value]) => {
         if (value === null || value === undefined) return;
@@ -711,54 +732,6 @@
       }
     };
 
-    const renderBinanceAccountSelect = () => {
-      if (!binanceAccountSelect) return;
-
-      const accounts = Array.isArray(state.binanceAccounts) ? state.binanceAccounts : [];
-      binanceAccountSelect.innerHTML = '';
-
-      if (accounts.length === 0) {
-        const opt = document.createElement('option');
-        opt.value = '';
-        opt.textContent = '(default)';
-        binanceAccountSelect.appendChild(opt);
-        binanceAccountSelect.disabled = true;
-        return;
-      }
-
-      accounts.forEach((acc) => {
-        const key = String(acc?.key ?? '').trim();
-        if (!key) return;
-        const label = String(acc?.label ?? key).trim() || key;
-        const configured = acc?.configured === undefined ? true : Boolean(acc.configured);
-
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.textContent = configured ? label : `${label} (not configured)`;
-        opt.disabled = !configured;
-        binanceAccountSelect.appendChild(opt);
-      });
-
-      binanceAccountSelect.disabled = false;
-
-      const enabled = Array.from(binanceAccountSelect.options).filter(
-        (o) => !o.disabled && o.value,
-      );
-      if (enabled.length === 0) {
-        binanceAccountSelect.disabled = true;
-        return;
-      }
-
-      let selected = String(state.binanceAccount || '').trim();
-      const valid = enabled.some((o) => o.value === selected);
-      if (!valid) {
-        selected = enabled[0].value;
-        setBinanceAccount(selected);
-      }
-
-      binanceAccountSelect.value = selected;
-    };
-
     const renderBinanceSummary = () => {
       const summary = state.binanceSummary?.summary ?? {};
       const account = state.binanceSummary?.account ?? {};
@@ -794,9 +767,11 @@
       if (binanceBtcEl) binanceBtcEl.textContent = Number.isFinite(Number(btcValue)) ? formatNumber(btcValue, 6) : '-';
       if (binanceAssetsEl) binanceAssetsEl.textContent = Number.isFinite(Number(assetCount)) ? String(assetCount) : '-';
       if (binanceUpdatedEl) binanceUpdatedEl.textContent = updated ? String(updated) : '-';
+
+      updateTabCounts();
     };
 
-    const loadBinanceSpot = async (attempt = 0) => {
+    const loadBinanceSpot = async () => {
       if (!binanceTotalEl) return;
       if (binanceLiveEl) {
         binanceLiveEl.textContent = 'Loading';
@@ -815,33 +790,8 @@
 
         state.binanceMode = data?.mode ?? null;
         state.binanceBaseUrl = data?.base_url ?? null;
-        state.binanceAccounts = Array.isArray(data?.account?.available_accounts)
-          ? data.account.available_accounts
-          : state.binanceAccounts;
 
-        if (!state.binanceAccount && data?.account?.key) {
-          setBinanceAccount(String(data.account.key));
-        }
-        renderBinanceAccountSelect();
-
-        const failed = !res.ok || (data && data.success === false);
-        if (failed && attempt === 0 && !state.binanceAccountLocked) {
-          const currentKey = String(data?.account?.key || state.binanceAccount || '').trim();
-          const fallback = state.binanceAccounts.find(
-            (acc) =>
-              acc &&
-              acc.configured &&
-              String(acc.key || '').trim() !== '' &&
-              String(acc.key || '').trim() !== currentKey,
-          );
-          if (fallback?.key) {
-            setBinanceAccount(String(fallback.key));
-            await loadBinanceSpot(1);
-            return;
-          }
-        }
-
-        if (failed) {
+        if (!res.ok || (data && data.success === false)) {
           state.binanceSummary = null;
           state.binanceError = data?.error || data?.message || text || `HTTP ${res.status}`;
           state.binanceHint = data?.hint || null;
@@ -1029,10 +979,12 @@
         const res = await fetchLocalJson(buildBinanceUrl('/api/binance/spot/open-orders', { symbol }));
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOpenOrders = items;
+        updateTabCounts();
         renderBinanceOrdersTable(binanceOpenOrdersBody, items, 'No open orders.');
         setTableStatus(binanceOpenOrdersStatus, `Loaded ${items.length} open orders.`);
       } catch (err) {
         state.binanceOpenOrders = [];
+        updateTabCounts();
         clearTbody(binanceOpenOrdersBody, 8, 'Failed to load open orders.');
         setTableStatus(
           binanceOpenOrdersStatus,
@@ -1051,10 +1003,12 @@
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOrders = items;
+        updateTabCounts();
         renderBinanceOrdersTable(binanceOrdersBody, items, 'No orders.');
         setTableStatus(binanceOrdersStatus, `Loaded ${items.length} orders.`);
       } catch (err) {
         state.binanceOrders = [];
+        updateTabCounts();
         clearTbody(binanceOrdersBody, 8, 'Failed to load orders.');
         setTableStatus(binanceOrdersStatus, 'Error: ' + (err?.message || String(err)));
       }
@@ -1070,10 +1024,12 @@
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceTrades = items;
+        updateTabCounts();
         renderBinanceTradesTable(binanceTradesBody, items, 'No trades.');
         setTableStatus(binanceTradesStatus, `Loaded ${items.length} trades.`);
       } catch (err) {
         state.binanceTrades = [];
+        updateTabCounts();
         clearTbody(binanceTradesBody, 6, 'Failed to load trades.');
         setTableStatus(binanceTradesStatus, 'Error: ' + (err?.message || String(err)));
       }
@@ -1419,6 +1375,10 @@
           state.latestOrders = [];
           state.latestTrades = [];
           state.latestPositions = [];
+          state.latestSignals = [];
+          state.latestReminders = [];
+          state.latestLogs = [];
+          updateTabCounts();
           renderMethodCard();
           renderKpiGrid();
           renderBinanceSummary();
@@ -1429,6 +1389,13 @@
         state.methods = [];
         renderMethods();
         state.methodDetail = null;
+        state.latestOrders = [];
+        state.latestTrades = [];
+        state.latestPositions = [];
+        state.latestSignals = [];
+        state.latestReminders = [];
+        state.latestLogs = [];
+        updateTabCounts();
         renderMethodCard();
         renderKpiGrid();
         renderBinanceSummary();
@@ -1450,6 +1417,10 @@
         state.latestOrders = [];
         state.latestTrades = [];
         state.latestPositions = [];
+        state.latestSignals = [];
+        state.latestReminders = [];
+        state.latestLogs = [];
+        updateTabCounts();
         renderPositions([]);
         renderKpiGrid();
         renderBinanceSummary();
@@ -1476,11 +1447,13 @@
         renderOrders(orders, tradeData.plByExitId);
         renderKpiGrid();
         renderBinanceSummary();
+        updateTabCounts();
         setTableStatus(ordersStatus, `Loaded ${orders.length} orders.`);
       } catch (err) {
         state.latestOrders = [];
         state.latestTrades = [];
         state.latestPositions = [];
+        updateTabCounts();
         renderPositions([]);
         renderKpiGrid();
         renderBinanceSummary();
@@ -1492,6 +1465,7 @@
     const loadSignals = async () => {
       if (!state.selectedMethodId) {
         state.latestSignals = [];
+        updateTabCounts();
         clearTbody(signalsBody, 9, 'Select a method to load signals.');
         setTableStatus(signalsStatus, '');
         return;
@@ -1507,9 +1481,11 @@
         const signals = Array.isArray(items) ? items : [];
         state.latestSignals = signals;
         renderSignals(signals);
+        updateTabCounts();
         setTableStatus(signalsStatus, `Loaded ${signals.length} signals.`);
       } catch (err) {
         state.latestSignals = [];
+        updateTabCounts();
         clearTbody(signalsBody, 9, 'Failed to load signals.');
         setTableStatus(signalsStatus, 'Error: ' + (err?.message || String(err)));
       }
@@ -1517,6 +1493,8 @@
 
     const loadReminders = async () => {
       if (!state.selectedMethodId) {
+        state.latestReminders = [];
+        updateTabCounts();
         clearTbody(remindersBody, 2, 'Select a method to load reminders.');
         setTableStatus(remindersStatus, '');
         return;
@@ -1528,9 +1506,13 @@
       try {
         const items = await fetchJson('/reminders', q);
         const reminders = Array.isArray(items) ? items : [];
+        state.latestReminders = reminders;
         renderReminders(reminders);
+        updateTabCounts();
         setTableStatus(remindersStatus, `Loaded ${reminders.length} reminders.`);
       } catch (err) {
+        state.latestReminders = [];
+        updateTabCounts();
         clearTbody(remindersBody, 2, 'Failed to load reminders.');
         setTableStatus(remindersStatus, 'Error: ' + (err?.message || String(err)));
       }
@@ -1538,6 +1520,8 @@
 
     const loadLogs = async () => {
       if (!state.selectedMethodId) {
+        state.latestLogs = [];
+        updateTabCounts();
         clearTbody(logsBody, 2, 'Select a method to load logs.');
         setTableStatus(logsStatus, '');
         return;
@@ -1549,9 +1533,13 @@
       try {
         const items = await fetchJson('/logs', q);
         const logs = Array.isArray(items) ? items : [];
+        state.latestLogs = logs;
         renderLogs(logs);
+        updateTabCounts();
         setTableStatus(logsStatus, `Loaded ${logs.length} logs.`);
       } catch (err) {
+        state.latestLogs = [];
+        updateTabCounts();
         clearTbody(logsBody, 2, 'Failed to load logs.');
         setTableStatus(logsStatus, 'Error: ' + (err?.message || String(err)));
       }
@@ -1711,14 +1699,6 @@
       binanceSymbolInput.addEventListener('change', () => {
         if (state.detailSource !== 'binance') return;
         showBinanceTab(state.binanceTab);
-      });
-    }
-
-    if (binanceAccountSelect) {
-      binanceAccountSelect.addEventListener('change', () => {
-        setBinanceAccount(binanceAccountSelect.value, true);
-        loadBinanceSpot();
-        if (state.detailSource === 'binance') refreshBinanceDetail();
       });
     }
 
