@@ -4,6 +4,11 @@
 
 @push('head')
     <style>
+        .derivatives-header {
+            margin-bottom: 0 !important;
+            padding: 0.75rem 1rem !important;
+        }
+
         .sa-overview-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
