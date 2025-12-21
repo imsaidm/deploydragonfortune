@@ -465,6 +465,7 @@ class BinanceSpotController extends Controller
         }
 
         // Base legacy credentials
+        $baseUrl = rtrim((string) ($config['base_url'] ?? 'https://api.binance.com'), '/');
         $apiKey = (string) ($config['api_key'] ?? '');
         $apiSecret = (string) ($config['api_secret'] ?? '');
         $accountLabel = $accountKey;
@@ -483,6 +484,7 @@ class BinanceSpotController extends Controller
 
             $accountConfig = is_array($accountsArray[$accountKey] ?? null) ? $accountsArray[$accountKey] : [];
             $accountLabel = (string) ($accountConfig['label'] ?? $accountKey);
+            $baseUrl = rtrim((string) ($accountConfig['base_url'] ?? $baseUrl), '/');
             $apiKey = (string) ($accountConfig['api_key'] ?? $apiKey);
             $apiSecret = (string) ($accountConfig['api_secret'] ?? $apiSecret);
         }
@@ -496,17 +498,19 @@ class BinanceSpotController extends Controller
                 $label = (string) ($account['label'] ?? $key);
                 $hasKey = (string) ($account['api_key'] ?? '') !== '';
                 $hasSecret = (string) ($account['api_secret'] ?? '') !== '';
+                $accBaseUrl = rtrim((string) ($account['base_url'] ?? $baseUrl), '/');
                 $accountsMeta[] = [
                     'key' => (string) $key,
                     'label' => $label !== '' ? $label : (string) $key,
                     'configured' => $hasKey && $hasSecret,
+                    'base_url' => $accBaseUrl,
                 ];
             }
         }
 
         return [
             'mode' => $mode,
-            'base_url' => rtrim((string) ($config['base_url'] ?? 'https://api.binance.com'), '/'),
+            'base_url' => $baseUrl,
             'api_key' => $apiKey,
             'api_secret' => $apiSecret,
             'timeout' => (int) ($config['timeout'] ?? 10),

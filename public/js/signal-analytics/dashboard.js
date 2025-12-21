@@ -176,11 +176,6 @@
       return dt.toISOString().replace('T', ' ').replace('Z', '');
     };
 
-    const isLocalHost = () => {
-      const host = String(window.location.hostname || '').trim().toLowerCase();
-      return host === '127.0.0.1' || host === 'localhost';
-    };
-
     const setBinanceAccount = (key) => {
       const next = String(key || '').trim();
       state.binanceAccount = next;
@@ -192,7 +187,6 @@
 
       const account = String(state.binanceAccount || '').trim();
       if (account) url.searchParams.set('account', account);
-      if (isLocalHost()) url.searchParams.set('stub', '1');
 
       Object.entries(params || {}).forEach(([key, value]) => {
         if (value === null || value === undefined) return;

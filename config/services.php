@@ -104,11 +104,13 @@ return [
             'accounts' => [
                 'v1' => [
                     'label' => env('BINANCE_SPOT_V1_LABEL', 'Spot v1 - Dragon Fortune'),
+                    'base_url' => env('BINANCE_SPOT_V1_BASE_URL', env('BINANCE_SPOT_BASE_URL', 'https://api.binance.com')),
                     'api_key' => env('BINANCE_SPOT_V1_API_KEY', env('BINANCE_SPOT_API_KEY', '')),
                     'api_secret' => env('BINANCE_SPOT_V1_API_SECRET', env('BINANCE_SPOT_API_SECRET', '')),
                 ],
                 'v2' => [
                     'label' => env('BINANCE_SPOT_V2_LABEL', 'Spot v2 - Dragon Fortune'),
+                    'base_url' => env('BINANCE_SPOT_V2_BASE_URL', env('BINANCE_SPOT_BASE_URL', 'https://api.binance.com')),
                     'api_key' => env('BINANCE_SPOT_V2_API_KEY', ''),
                     'api_secret' => env('BINANCE_SPOT_V2_API_SECRET', ''),
                 ],
