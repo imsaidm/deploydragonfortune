@@ -22,6 +22,12 @@ composer run dev
 
 Open `http://127.0.0.1:8000`.
 
+If you ever see inconsistent behavior (e.g. different responses between requests), make sure you don’t have multiple `php artisan serve` processes running on the same port. On Windows you can start a clean single server with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/dev-serve.ps1
+```
+
 ## Server / production (typical)
 
 ```bash
