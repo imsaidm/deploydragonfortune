@@ -343,7 +343,13 @@
       state.methods.forEach((m) => {
         const opt = document.createElement('option');
         opt.value = String(m.id);
-        opt.textContent = `${escapeText(m.nama_metode || 'Method')} (#${m.id})`;
+
+        const extra = parseExtra(m?.kpi_extra);
+        const extraMap = buildExtraMap(extra);
+        const running = resolveRunningStatus(m, extraMap).label;
+        const tag = running === 'Running' ? 'RUN' : running === 'Not Running' ? 'OFF' : 'UNK';
+
+        opt.textContent = `[${tag}] ${escapeText(m.nama_metode || 'Method')} (#${m.id})`;
         methodSelect.appendChild(opt);
       });
 
@@ -406,17 +412,20 @@
 
     const resolveRunningStatus = (method, extraMap) => {
       const onactiveRaw = method?.onactive;
+      const onactiveVal = normalize(onactiveRaw);
       if (
         onactiveRaw === true ||
         onactiveRaw === 1 ||
-        String(onactiveRaw).trim() === '1'
+        ['1', 'true', 'yes', 'y', 'running', 'active', 'on'].includes(onactiveVal)
       ) {
         return { label: 'Running', className: 'text-bg-success' };
       }
       if (
         onactiveRaw === false ||
         onactiveRaw === 0 ||
-        String(onactiveRaw).trim() === '0'
+        ['0', 'false', 'no', 'n', 'not running', 'stopped', 'inactive', 'off', 'pause', 'paused'].includes(
+          onactiveVal,
+        )
       ) {
         return { label: 'Not Running', className: 'text-bg-secondary' };
       }
@@ -426,14 +435,18 @@
         method?.running ??
         method?.status ??
         method?.state ??
-        pickExtra(extraMap, 'running', 'is_running', 'status');
+        pickExtra(extraMap, 'running', 'is_running', 'status', 'state');
 
       const val = normalize(raw);
-      if (raw === true || raw === 1 || ['running', 'live', 'active', 'on'].includes(val)) {
+      if (raw === true || raw === 1 || ['running', 'live', 'active', 'on', 'true'].includes(val)) {
         return { label: 'Running', className: 'text-bg-success' };
       }
-      if (raw === false || raw === 0 || ['paused', 'stopped', 'inactive', 'off'].includes(val)) {
-        return { label: 'Paused', className: 'text-bg-warning' };
+      if (
+        raw === false ||
+        raw === 0 ||
+        ['paused', 'stopped', 'inactive', 'off', 'false', 'not running'].includes(val)
+      ) {
+        return { label: 'Not Running', className: 'text-bg-secondary' };
       }
       return { label: 'Unknown', className: 'text-bg-secondary' };
     };
