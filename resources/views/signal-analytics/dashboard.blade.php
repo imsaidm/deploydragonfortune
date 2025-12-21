@@ -37,7 +37,7 @@
         }
 
         .sa-card {
-            padding: 14px;
+            padding: 12px;
             border-radius: 12px;
             background: rgba(0, 0, 0, 0.03);
         }
@@ -154,6 +154,27 @@
         }
 
         .sa-binance-logo svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .sa-qc-logo {
+            width: 44px;
+            height: 44px;
+            flex: 0 0 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #F0B90B;
+            border-radius: 12px;
+            background: rgba(240, 185, 11, 0.12);
+        }
+
+        .dark .sa-qc-logo {
+            background: rgba(240, 185, 11, 0.18);
+        }
+
+        .sa-qc-logo svg {
             width: 100%;
             height: 100%;
         }
@@ -290,7 +311,7 @@
             </div>
         </div>
 
-        <div class="df-panel p-4">
+        <div class="df-panel p-3">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                 <div>
                     <div class="fw-semibold">Realtime Overview</div>
@@ -327,8 +348,23 @@
 
             <div class="sa-overview-grid mt-3">
                 <div class="sa-card d-flex flex-column h-100">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <div class="fw-semibold">QuantConnect KPI</div>
+                    <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                        <div class="d-flex align-items-start gap-2">
+                            <div class="sa-qc-logo" title="QuantConnect" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" role="img">
+                                    <g fill="currentColor">
+                                        <polygon points="12,4 14,6 12,8 10,6"/>
+                                        <polygon points="18,10 20,12 18,14 16,12"/>
+                                        <polygon points="12,16 14,18 12,20 10,18"/>
+                                        <polygon points="6,10 8,12 6,14 4,12"/>
+                                        <polygon points="12,10 14,12 12,14 10,12"/>
+                                    </g>
+                                </svg>
+                            </div>
+                            <div class="d-flex flex-column">
+                                <div class="fw-semibold">QuantConnect KPI</div>
+                            </div>
+                        </div>
                         <button id="sa-qc-detail" class="btn btn-outline-primary btn-sm" type="button">Detail</button>
                     </div>
                     <div id="sa-kpi-grid" class="sa-kpi-grid"></div>
@@ -353,7 +389,6 @@
                                     <div class="fw-semibold">Binance Spot</div>
                                     <span id="sa-binance-live" class="badge text-bg-success">Live</span>
                                 </div>
-                                <div id="sa-binance-account" class="small text-secondary">Account: -</div>
                             </div>
                         </div>
                         <button id="sa-binance-detail" class="btn btn-outline-primary btn-sm" type="button">Detail</button>
@@ -389,7 +424,7 @@
             </div>
         </div>
 
-        <div id="sa-detail" class="df-panel p-4" style="display:none;">
+        <div id="sa-detail" class="df-panel p-3" style="display:none;">
             <div id="sa-detail-qc" style="display:none;">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
