@@ -114,6 +114,34 @@
             word-break: break-word;
         }
 
+        .sa-status-badge {
+            padding: 6px 10px;
+            font-weight: 800;
+            font-size: 12px;
+            letter-spacing: 0.03em;
+        }
+
+        .sa-binance-logo {
+            width: 44px;
+            height: 44px;
+            flex: 0 0 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #F0B90B;
+            border-radius: 12px;
+            background: rgba(240, 185, 11, 0.12);
+        }
+
+        .dark .sa-binance-logo {
+            background: rgba(240, 185, 11, 0.18);
+        }
+
+        .sa-binance-logo svg {
+            width: 100%;
+            height: 100%;
+        }
+
         @media (max-width: 992px) {
             .sa-overview-grid {
                 grid-template-columns: 1fr;
@@ -267,7 +295,7 @@
                 <div class="sa-method-right">
                     <div class="small text-secondary">Status</div>
                     <div class="d-flex align-items-center gap-2">
-                        <span id="sa-method-running" class="badge text-bg-secondary">Unknown</span>
+                        <span id="sa-method-running" class="badge rounded-pill sa-status-badge text-bg-secondary">UNKNOWN</span>
                         <span id="sa-method-status" class="small text-secondary"></span>
                         <a id="sa-method-backtest" href="#" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm" style="display:none;">Preview</a>
                     </div>
@@ -284,22 +312,26 @@
                 </div>
 
                 <div class="sa-card d-flex flex-column h-100">
-                    <div class="d-flex align-items-center justify-content-between mb-1">
-                        <div class="fw-semibold">Binance Spot</div>
-                        <span id="sa-binance-live" class="badge text-bg-success">Live</span>
-                    </div>
-                    <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-                        <div id="sa-binance-account" class="small text-secondary">Account: -</div>
-                        <div class="d-flex align-items-center" title="Binance" aria-hidden="true" style="color:#F0B90B;">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" role="img">
-                                <g fill="currentColor">
-                                    <polygon points="12,4 14,6 12,8 10,6"/>
-                                    <polygon points="18,10 20,12 18,14 16,12"/>
-                                    <polygon points="12,16 14,18 12,20 10,18"/>
-                                    <polygon points="6,10 8,12 6,14 4,12"/>
-                                    <polygon points="12,10 14,12 12,14 10,12"/>
-                                </g>
-                            </svg>
+                    <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
+                        <div class="d-flex align-items-start gap-2">
+                            <div class="sa-binance-logo" title="Binance" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" role="img">
+                                    <g fill="currentColor">
+                                        <polygon points="12,4 14,6 12,8 10,6"/>
+                                        <polygon points="18,10 20,12 18,14 16,12"/>
+                                        <polygon points="12,16 14,18 12,20 10,18"/>
+                                        <polygon points="6,10 8,12 6,14 4,12"/>
+                                        <polygon points="12,10 14,12 12,14 10,12"/>
+                                    </g>
+                                </svg>
+                            </div>
+                            <div class="d-flex flex-column">
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="fw-semibold">Binance Spot</div>
+                                    <span id="sa-binance-live" class="badge text-bg-success">Live</span>
+                                </div>
+                                <div id="sa-binance-account" class="small text-secondary">Account: -</div>
+                            </div>
                         </div>
                     </div>
                     <div id="sa-binance-hint" class="small text-secondary mt-1"></div>

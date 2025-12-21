@@ -427,7 +427,7 @@
           onactiveVal,
         )
       ) {
-        return { label: 'Not Running', className: 'text-bg-secondary' };
+        return { label: 'Not Running', className: 'text-bg-danger' };
       }
 
       const raw =
@@ -446,7 +446,7 @@
         raw === 0 ||
         ['paused', 'stopped', 'inactive', 'off', 'false', 'not running'].includes(val)
       ) {
-        return { label: 'Not Running', className: 'text-bg-secondary' };
+        return { label: 'Not Running', className: 'text-bg-danger' };
       }
       return { label: 'Unknown', className: 'text-bg-secondary' };
     };
@@ -648,8 +648,8 @@
       const running = resolveRunningStatus(method, extraMap);
 
       if (methodRunningEl) {
-        methodRunningEl.textContent = running.label;
-        methodRunningEl.className = `badge ${running.className}`;
+        methodRunningEl.textContent = running.label.toUpperCase();
+        methodRunningEl.className = `badge rounded-pill sa-status-badge ${running.className}`;
       }
 
       const meta = extractMethodMeta(method);
@@ -1503,7 +1503,6 @@
         renderMethodCard();
         renderBinanceSummary();
         renderKpiGrid();
-        setMethodStatus(`Selected method #${state.selectedMethodId}`);
       } else {
         state.methodDetail = null;
         renderMethodCard();
