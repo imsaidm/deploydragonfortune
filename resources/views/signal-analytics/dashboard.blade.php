@@ -302,9 +302,12 @@
                 </div>
             </div>
 
-            <div class="sa-overview-grid mt-3">
-                <div class="sa-card d-flex flex-column h-100">
-                    <div class="fw-semibold mb-2">QuantConnect KPI</div>
+                <div class="sa-overview-grid mt-3">
+                    <div class="sa-card d-flex flex-column h-100">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div class="fw-semibold">QuantConnect KPI</div>
+                        <span id="sa-qc-running-badge" class="badge rounded-pill sa-status-badge text-bg-secondary">UNKNOWN</span>
+                    </div>
                     <div id="sa-kpi-grid" class="sa-kpi-grid"></div>
                     <div class="mt-auto pt-3">
                         <button id="sa-qc-detail" class="btn btn-outline-primary w-100" type="button">Detail</button>

@@ -23,6 +23,7 @@
     const methodRunningEl = byId('sa-method-running');
     const methodMetaEl = byId('sa-method-meta');
     const methodBacktestEl = byId('sa-method-backtest');
+    const qcRunningBadgeEl = byId('sa-qc-running-badge');
 
     const healthEl = byId('sa-health');
     const healthMetaEl = byId('sa-health-meta');
@@ -647,10 +648,14 @@
       const extraMap = buildExtraMap(extra);
       const running = resolveRunningStatus(method, extraMap);
 
-      if (methodRunningEl) {
-        methodRunningEl.textContent = running.label.toUpperCase();
-        methodRunningEl.className = `badge rounded-pill sa-status-badge ${running.className}`;
-      }
+      const applyRunningBadge = (el) => {
+        if (!el) return;
+        el.textContent = running.label.toUpperCase();
+        el.className = `badge rounded-pill sa-status-badge ${running.className}`;
+      };
+
+      applyRunningBadge(methodRunningEl);
+      applyRunningBadge(qcRunningBadgeEl);
 
       const meta = extractMethodMeta(method);
       state.methodMeta = meta;
