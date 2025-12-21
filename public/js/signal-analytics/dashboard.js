@@ -1103,13 +1103,6 @@
               : '-',
         },
         {
-          label: 'Information Ratio',
-          value:
-            method.information_ratio !== undefined && method.information_ratio !== null
-              ? formatNumber(method.information_ratio, 2)
-              : '-',
-        },
-        {
           label: 'CAGR',
           value:
             method.cagr !== undefined && method.cagr !== null ? formatPercent(method.cagr) : '-',

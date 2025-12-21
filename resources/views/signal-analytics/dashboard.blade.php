@@ -7,21 +7,21 @@
         .sa-overview-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
+            gap: 10px;
         }
 
         .sa-method-bar {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 16px;
+            gap: 12px;
             flex-wrap: wrap;
         }
 
         .sa-method-left {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             min-width: 220px;
         }
 
@@ -33,11 +33,11 @@
         .sa-method-right {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .sa-card {
-            padding: 12px;
+            padding: 10px;
             border-radius: 12px;
             background: rgba(0, 0, 0, 0.03);
         }
@@ -49,12 +49,12 @@
         .sa-binance-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
-            margin-top: 10px;
+            gap: 8px;
+            margin-top: 6px;
         }
 
         .sa-stat {
-            padding: 8px 10px;
+            padding: 6px 8px;
             border-radius: 10px;
             background: rgba(2, 6, 23, 0.04);
         }
@@ -76,22 +76,22 @@
 
         .sa-stat .value {
             font-weight: 700;
-            font-size: 16px;
-            margin-top: 2px;
+            font-size: 15px;
+            margin-top: 1px;
         }
 
         .sa-kpi-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 8px;
+            gap: 6px;
         }
 
         .sa-kpi-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
-            padding: 8px 10px;
+            gap: 8px;
+            padding: 6px 8px;
             border-radius: 10px;
             background: rgba(2, 6, 23, 0.04);
         }
@@ -286,33 +286,23 @@
 @endpush
 
 @section('content')
-    <div class="d-flex flex-column h-100 gap-3">
+    <div class="d-flex flex-column h-100 gap-2">
         <div class="derivatives-header">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                <div>
-                    <div class="d-flex align-items-center gap-2 mb-2">
-                        <h1 class="mb-0">Signal & Analytics</h1>
-                    </div>
-                    <p class="mb-0 text-secondary">
-                        Dashboard untuk memantau metode, positions, orders, signals, reminders, logs, dan data Binance Spot.
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <div class="df-panel p-3">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                <div>
-                    <div class="fw-semibold">Realtime Overview</div>
-                    <div class="visually-hidden">
-                        <code id="sa-api-base">-</code>
-                        <a id="sa-open-docs" href="#" target="_blank" rel="noopener">Docs</a>
-                    </div>
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <h1 class="mb-0">Signal & Analytics</h1>
                 </div>
                 <div class="small text-secondary">
                     Status: <span id="sa-health" class="fw-semibold">-</span>
                     <span id="sa-health-meta" class="ms-2"></span>
                 </div>
+            </div>
+        </div>
+
+        <div class="df-panel p-2">
+            <div class="visually-hidden">
+                <code id="sa-api-base">-</code>
+                <a id="sa-open-docs" href="#" target="_blank" rel="noopener">Docs</a>
             </div>
 
             <div class="sa-card sa-method-bar">
@@ -335,9 +325,9 @@
                 </div>
             </div>
 
-            <div class="sa-overview-grid mt-3">
+            <div class="sa-overview-grid mt-2">
                 <div class="sa-card d-flex flex-column h-100">
-                    <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
+                    <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
                         <div class="d-flex align-items-start gap-2">
                             <div class="sa-qc-logo" title="QuantConnect" aria-hidden="true">
                                 <img class="sa-logo-img" src="{{ asset('images/qclogo.png') }}" alt="QuantConnect" />
@@ -397,7 +387,7 @@
             </div>
         </div>
 
-        <div id="sa-detail" class="df-panel p-3" style="display:none;">
+        <div id="sa-detail" class="df-panel p-2" style="display:none;">
             <div id="sa-detail-qc" style="display:none;">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div class="d-flex align-items-center gap-2 flex-wrap">
