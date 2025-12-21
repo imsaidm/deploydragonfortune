@@ -44,6 +44,7 @@
     const binanceAssetsEl = byId('sa-binance-assets');
     const binanceUpdatedEl = byId('sa-binance-updated');
     const binanceHintEl = byId('sa-binance-hint');
+    const binanceAccountSelect = byId('sa-binance-account-select');
 
     const binanceSymbolInput = byId('sa-binance-symbol');
     const binanceAssetsStatus = byId('sa-binance-assets-status');
@@ -104,6 +105,8 @@
       binanceHint: null,
       binanceMode: null,
       binanceBaseUrl: null,
+      binanceAccount: localStorage.getItem('sa_binance_account') || '',
+      binanceAccounts: [],
       detailSource: null,
       binanceTab: 'assets',
       binanceOpenOrders: [],
@@ -178,9 +181,27 @@
       return host === '127.0.0.1' || host === 'localhost';
     };
 
-    const withLocalBinanceStub = (path) => {
-      if (!isLocalHost()) return path;
-      return `${path}${path.includes('?') ? '&' : '?'}stub=1`;
+    const setBinanceAccount = (key) => {
+      const next = String(key || '').trim();
+      state.binanceAccount = next;
+      localStorage.setItem('sa_binance_account', next);
+    };
+
+    const buildBinanceUrl = (path, params = {}) => {
+      const url = new URL(window.location.origin + path);
+
+      const account = String(state.binanceAccount || '').trim();
+      if (account) url.searchParams.set('account', account);
+      if (isLocalHost()) url.searchParams.set('stub', '1');
+
+      Object.entries(params || {}).forEach(([key, value]) => {
+        if (value === null || value === undefined) return;
+        const vv = String(value).trim();
+        if (vv === '') return;
+        url.searchParams.set(key, vv);
+      });
+
+      return url.toString();
     };
 
     const fetchJson = async (path, params = {}) => {
@@ -682,6 +703,45 @@
       }
     };
 
+    const renderBinanceAccountSelect = () => {
+      if (!binanceAccountSelect) return;
+
+      const accounts = Array.isArray(state.binanceAccounts) ? state.binanceAccounts : [];
+      binanceAccountSelect.innerHTML = '';
+
+      if (accounts.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '(default)';
+        binanceAccountSelect.appendChild(opt);
+        binanceAccountSelect.disabled = true;
+        return;
+      }
+
+      accounts.forEach((acc) => {
+        const key = String(acc?.key ?? '').trim();
+        if (!key) return;
+        const label = String(acc?.label ?? key).trim() || key;
+        const configured = acc?.configured === undefined ? true : Boolean(acc.configured);
+
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = configured ? label : `${label} (not configured)`;
+        binanceAccountSelect.appendChild(opt);
+      });
+
+      binanceAccountSelect.disabled = false;
+
+      let selected = String(state.binanceAccount || '').trim();
+      const valid = Array.from(binanceAccountSelect.options).some((o) => o.value === selected);
+      if (!valid) {
+        selected = binanceAccountSelect.options[0]?.value || '';
+        setBinanceAccount(selected);
+      }
+
+      binanceAccountSelect.value = selected;
+    };
+
     const renderBinanceSummary = () => {
       const summary = state.binanceSummary?.summary ?? {};
       const account = state.binanceSummary?.account ?? {};
@@ -725,7 +785,7 @@
         binanceLiveEl.textContent = 'Loading';
         binanceLiveEl.className = 'badge text-bg-secondary';
       }
-      const url = `${window.location.origin}${withLocalBinanceStub('/api/binance/spot/summary')}`;
+      const url = buildBinanceUrl('/api/binance/spot/summary');
       try {
         const res = await fetch(url, { headers: { Accept: 'application/json' } });
         const text = await res.text();
@@ -738,6 +798,14 @@
 
         state.binanceMode = data?.mode ?? null;
         state.binanceBaseUrl = data?.base_url ?? null;
+        state.binanceAccounts = Array.isArray(data?.account?.available_accounts)
+          ? data.account.available_accounts
+          : state.binanceAccounts;
+
+        if (!state.binanceAccount && data?.account?.key) {
+          setBinanceAccount(String(data.account.key));
+        }
+        renderBinanceAccountSelect();
 
         if (!res.ok || (data && data.success === false)) {
           state.binanceSummary = null;
@@ -924,11 +992,7 @@
       const symbol = getBinanceSymbol();
       setTableStatus(binanceOpenOrdersStatus, 'Loading...');
       try {
-        const res = await fetchLocalJson(
-          withLocalBinanceStub(
-            `/api/binance/spot/open-orders?symbol=${encodeURIComponent(symbol)}`,
-          ),
-        );
+        const res = await fetchLocalJson(buildBinanceUrl('/api/binance/spot/open-orders', { symbol }));
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOpenOrders = items;
         renderBinanceOrdersTable(binanceOpenOrdersBody, items, 'No open orders.');
@@ -949,9 +1013,7 @@
       setTableStatus(binanceOrdersStatus, 'Loading...');
       try {
         const res = await fetchLocalJson(
-          withLocalBinanceStub(
-            `/api/binance/spot/orders?symbol=${encodeURIComponent(symbol)}&limit=50`,
-          ),
+          buildBinanceUrl('/api/binance/spot/orders', { symbol, limit: 50 }),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOrders = items;
@@ -970,9 +1032,7 @@
       setTableStatus(binanceTradesStatus, 'Loading...');
       try {
         const res = await fetchLocalJson(
-          withLocalBinanceStub(
-            `/api/binance/spot/trades?symbol=${encodeURIComponent(symbol)}&limit=50`,
-          ),
+          buildBinanceUrl('/api/binance/spot/trades', { symbol, limit: 50 }),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceTrades = items;
@@ -1617,6 +1677,14 @@
       binanceSymbolInput.addEventListener('change', () => {
         if (state.detailSource !== 'binance') return;
         showBinanceTab(state.binanceTab);
+      });
+    }
+
+    if (binanceAccountSelect) {
+      binanceAccountSelect.addEventListener('change', () => {
+        setBinanceAccount(binanceAccountSelect.value);
+        loadBinanceSpot();
+        if (state.detailSource === 'binance') refreshBinanceDetail();
       });
     }
 

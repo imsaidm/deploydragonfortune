@@ -277,7 +277,12 @@
                         <div class="fw-semibold">Binance Spot</div>
                         <span id="sa-binance-live" class="badge text-bg-success">Live</span>
                     </div>
-                    <div id="sa-binance-account" class="small text-secondary">Account: -</div>
+                    <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                        <div id="sa-binance-account" class="small text-secondary">Account: -</div>
+                        <select id="sa-binance-account-select" class="form-select form-select-sm" style="width: 220px;">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
                     <div id="sa-binance-hint" class="small text-secondary mt-1"></div>
                     <div class="sa-binance-grid">
                         <div class="sa-stat">

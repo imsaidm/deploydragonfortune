@@ -11,7 +11,7 @@ class BinanceSpotController extends Controller
 {
     public function summary(Request $request)
     {
-        $spot = $this->getSpotConfig();
+        $spot = $this->getSpotConfig($request);
         if ($this->shouldForceStub($request) || $this->isStubMode($spot)) {
             return $this->stubSummary($spot);
         }
@@ -29,8 +29,11 @@ class BinanceSpotController extends Controller
         if ($apiKey === '' || $apiSecret === '') {
             return response()->json([
                 'success' => false,
-                'error' => 'Binance API credentials are not configured.',
+                'error' => 'Binance API credentials are not configured for the selected account.',
+                'hint' => 'Set BINANCE_SPOT_V1_API_KEY/SECRET or BINANCE_SPOT_V2_API_KEY/SECRET in your .env (or use legacy BINANCE_SPOT_API_KEY/SECRET for v1).',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 500);
         }
 
@@ -53,12 +56,16 @@ class BinanceSpotController extends Controller
                 'error' => 'Unable to connect to Binance API from this network.',
                 'hint' => 'Binance may be blocked by your ISP. Try VPN/another network or run this on the server.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 503);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'error' => 'Unexpected error while calling Binance API.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 500);
         }
 
@@ -68,6 +75,8 @@ class BinanceSpotController extends Controller
                 'error' => 'Binance API is blocked by your ISP (Telkomsel Internet Baik).',
                 'hint' => 'Use VPN/WARP, or run this feature on a server that can reach Binance. Alternatively set BINANCE_SPOT_PROXY_BASE_URL to proxy through your server.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 403);
         }
 
@@ -79,6 +88,8 @@ class BinanceSpotController extends Controller
                     'error' => 'Binance API error: ' . $body['msg'],
                     'hint' => $this->hintForBinanceError($spot, (int) $body['code'], (string) $body['msg']),
                     'base_url' => $baseUrl,
+                    'mode' => $spot['mode'] ?? null,
+                    'account' => $this->publicAccountMeta($spot),
                 ], $accountRes->status() ?: 400);
             }
 
@@ -87,6 +98,8 @@ class BinanceSpotController extends Controller
                 'error' => 'Failed to fetch Binance account.',
                 'hint' => 'Check API key permissions (SPOT + read), IP whitelist, and BINANCE_SPOT_BASE_URL.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], $accountRes->status() ?: 500);
         }
 
@@ -97,6 +110,8 @@ class BinanceSpotController extends Controller
                 'error' => 'Unexpected response from Binance API.',
                 'hint' => 'This usually happens when the API is blocked by ISP or a proxy is intercepting the request.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 502);
         }
 
@@ -106,6 +121,8 @@ class BinanceSpotController extends Controller
                 'error' => 'Binance API error: ' . $account['msg'],
                 'hint' => $this->hintForBinanceError($spot, (int) $account['code'], (string) $account['msg']),
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 400);
         }
 
@@ -157,10 +174,15 @@ class BinanceSpotController extends Controller
 
         return response()->json([
             'success' => true,
+            'mode' => $spot['mode'] ?? 'direct',
             'base_url' => $baseUrl,
             'account' => [
                 'type' => $account['accountType'] ?? 'SPOT',
                 'can_trade' => $account['canTrade'] ?? null,
+                'key' => $spot['account_key'] ?? null,
+                'label' => $spot['account_label'] ?? null,
+                'default_account' => $spot['default_account'] ?? null,
+                'available_accounts' => $spot['accounts_meta'] ?? [],
             ],
             'summary' => [
                 'total_usdt' => round($totalUsdt, 6),
@@ -259,7 +281,7 @@ class BinanceSpotController extends Controller
 
     private function signedGet(Request $request, string $path, array $params)
     {
-        $spot = $this->getSpotConfig();
+        $spot = $this->getSpotConfig($request);
         if ($this->shouldForceStub($request) || $this->isStubMode($spot)) {
             return $this->stubSigned($request, $spot, $path, $params);
         }
@@ -285,8 +307,11 @@ class BinanceSpotController extends Controller
         if ($apiKey === '' || $apiSecret === '') {
             return response()->json([
                 'success' => false,
-                'error' => 'Binance API credentials are not configured.',
+                'error' => 'Binance API credentials are not configured for the selected account.',
+                'hint' => 'Set BINANCE_SPOT_V1_API_KEY/SECRET or BINANCE_SPOT_V2_API_KEY/SECRET in your .env (or use legacy BINANCE_SPOT_API_KEY/SECRET for v1).',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 500);
         }
 
@@ -315,12 +340,16 @@ class BinanceSpotController extends Controller
                 'error' => 'Unable to connect to Binance API from this network.',
                 'hint' => 'Binance may be blocked by your ISP. Try VPN/another network or run this on the server.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 503);
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
                 'error' => 'Unexpected error while calling Binance API.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 500);
         }
 
@@ -330,6 +359,8 @@ class BinanceSpotController extends Controller
                 'error' => 'Binance API is blocked by your ISP (Telkomsel Internet Baik).',
                 'hint' => 'Use VPN/WARP, or run this feature on a server that can reach Binance. Alternatively set BINANCE_SPOT_PROXY_BASE_URL to proxy through your server.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], 403);
         }
 
@@ -340,6 +371,8 @@ class BinanceSpotController extends Controller
                 'error' => 'Binance API error: ' . $body['msg'],
                 'hint' => $this->hintForBinanceError($spot, (int) $body['code'], (string) $body['msg']),
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], $res->status() ?: 400);
         }
 
@@ -348,13 +381,17 @@ class BinanceSpotController extends Controller
                 'success' => false,
                 'error' => 'Binance request failed.',
                 'base_url' => $baseUrl,
+                'mode' => $spot['mode'] ?? null,
+                'account' => $this->publicAccountMeta($spot),
             ], $res->status() ?: 500);
         }
 
         return response()->json([
             'success' => true,
+            'mode' => $spot['mode'] ?? 'direct',
             'base_url' => $baseUrl,
             'data' => $body,
+            'account' => $this->publicAccountMeta($spot),
         ]);
     }
 
@@ -383,7 +420,7 @@ class BinanceSpotController extends Controller
         return $localNow;
     }
 
-    private function getSpotConfig(): array
+    private function getSpotConfig(?Request $request = null): array
     {
         $config = config('services.binance.spot', []);
         $mode = strtolower(trim((string) ($config['mode'] ?? 'auto')));
@@ -409,11 +446,69 @@ class BinanceSpotController extends Controller
             $stubData = $stubData === null ? false : $stubData;
         }
 
+        $defaultAccount = strtolower(trim((string) ($config['default_account'] ?? 'v1')));
+        if ($defaultAccount === '') {
+            $defaultAccount = 'v1';
+        }
+
+        $requestedAccount = '';
+        if ($request) {
+            $requestedAccount = strtolower(trim((string) $request->query('account', $request->query('account_id', ''))));
+        }
+
+        $accounts = $config['accounts'] ?? null;
+        $accountsArray = is_array($accounts) ? $accounts : [];
+
+        $accountKey = $requestedAccount !== '' ? $requestedAccount : $defaultAccount;
+        if ($accountKey === '') {
+            $accountKey = 'v1';
+        }
+
+        // Base legacy credentials
+        $apiKey = (string) ($config['api_key'] ?? '');
+        $apiSecret = (string) ($config['api_secret'] ?? '');
+        $accountLabel = $accountKey;
+
+        if ($accountsArray) {
+            if (! array_key_exists($accountKey, $accountsArray) || ! is_array($accountsArray[$accountKey])) {
+                $fallback = $defaultAccount;
+                if (! array_key_exists($fallback, $accountsArray) || ! is_array($accountsArray[$fallback])) {
+                    $firstKey = array_key_first($accountsArray);
+                    if (is_string($firstKey) && $firstKey !== '') {
+                        $fallback = $firstKey;
+                    }
+                }
+                $accountKey = $fallback;
+            }
+
+            $accountConfig = is_array($accountsArray[$accountKey] ?? null) ? $accountsArray[$accountKey] : [];
+            $accountLabel = (string) ($accountConfig['label'] ?? $accountKey);
+            $apiKey = (string) ($accountConfig['api_key'] ?? $apiKey);
+            $apiSecret = (string) ($accountConfig['api_secret'] ?? $apiSecret);
+        }
+
+        $accountsMeta = [];
+        if ($accountsArray) {
+            foreach ($accountsArray as $key => $account) {
+                if (! is_array($account)) {
+                    continue;
+                }
+                $label = (string) ($account['label'] ?? $key);
+                $hasKey = (string) ($account['api_key'] ?? '') !== '';
+                $hasSecret = (string) ($account['api_secret'] ?? '') !== '';
+                $accountsMeta[] = [
+                    'key' => (string) $key,
+                    'label' => $label !== '' ? $label : (string) $key,
+                    'configured' => $hasKey && $hasSecret,
+                ];
+            }
+        }
+
         return [
             'mode' => $mode,
             'base_url' => rtrim((string) ($config['base_url'] ?? 'https://api.binance.com'), '/'),
-            'api_key' => (string) ($config['api_key'] ?? ''),
-            'api_secret' => (string) ($config['api_secret'] ?? ''),
+            'api_key' => $apiKey,
+            'api_secret' => $apiSecret,
             'timeout' => (int) ($config['timeout'] ?? 10),
             'recv_window' => (int) ($config['recv_window'] ?? 5000),
             'verify_ssl' => $verify,
@@ -421,6 +516,10 @@ class BinanceSpotController extends Controller
             'proxy_token' => (string) ($config['proxy_token'] ?? ''),
             'proxy_verify_ssl' => $proxyVerify,
             'stub_data' => $stubData,
+            'default_account' => $defaultAccount,
+            'account_key' => $accountKey,
+            'account_label' => $accountLabel,
+            'accounts_meta' => $accountsMeta,
         ];
     }
 
@@ -556,6 +655,16 @@ class BinanceSpotController extends Controller
         return 'Check API key permissions (SPOT + read), IP whitelist, and BINANCE_SPOT_BASE_URL.';
     }
 
+    private function publicAccountMeta(array $spot): array
+    {
+        return array_filter([
+            'key' => $spot['account_key'] ?? null,
+            'label' => $spot['account_label'] ?? null,
+            'default_account' => $spot['default_account'] ?? null,
+            'available_accounts' => $spot['accounts_meta'] ?? [],
+        ], fn ($v) => $v !== null);
+    }
+
     private function stubSummary(array $spot)
     {
         $assets = [
@@ -579,7 +688,10 @@ class BinanceSpotController extends Controller
             'account' => [
                 'type' => 'SPOT',
                 'can_trade' => false,
-                'label' => 'SIMULATED',
+                'key' => $spot['account_key'] ?? null,
+                'label' => $spot['account_label'] ?? 'SIMULATED',
+                'default_account' => $spot['default_account'] ?? null,
+                'available_accounts' => $spot['accounts_meta'] ?? [],
             ],
             'summary' => [
                 'total_usdt' => round($totalUsdt, 6),
@@ -689,6 +801,7 @@ class BinanceSpotController extends Controller
             'mode' => 'stub',
             'base_url' => (string) ($spot['base_url'] ?? ''),
             'data' => $data,
+            'account' => $this->publicAccountMeta($spot),
         ]);
     }
 
