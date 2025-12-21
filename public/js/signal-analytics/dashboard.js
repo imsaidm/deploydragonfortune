@@ -7,6 +7,14 @@
     fn();
   };
 
+  const onWindowLoaded = (fn) => {
+    if (document.readyState === 'complete') {
+      setTimeout(fn, 0);
+      return;
+    }
+    window.addEventListener('load', () => setTimeout(fn, 0), { once: true });
+  };
+
   onReady(() => {
     const byId = (id) => document.getElementById(id);
 
@@ -14,6 +22,7 @@
     const docsLinkEl = byId('sa-open-docs');
     const methodRunningEl = byId('sa-method-running');
     const methodMetaEl = byId('sa-method-meta');
+    const methodBacktestEl = byId('sa-method-backtest');
 
     const healthEl = byId('sa-health');
     const healthMetaEl = byId('sa-health-meta');
@@ -168,13 +177,6 @@
       const v = String(dtLocalValue).trim();
       if (!v.includes('T')) return v;
       return v.replace('T', ' ') + ':00';
-    };
-
-    const roundTo = (value, decimals = 2) => {
-      const n = Number(value);
-      if (!Number.isFinite(n)) return 0;
-      const p = 10 ** decimals;
-      return Math.round(n * p) / p;
     };
 
     const formatEpochMs = (value) => {
@@ -354,13 +356,17 @@
     };
 
     const extractMethodMeta = (method) => {
+      const pair = method?.pair ?? method?.symbol ?? method?.ticker ?? null;
+      const tf = method?.tf ?? method?.timeframe ?? method?.interval ?? null;
+      const exchange = method?.exchange ?? method?.broker ?? null;
+
       const extra = method?.kpi_extra;
-      if (!extra) return { symbol: null, timeframe: null, exchange: null, startingBalance: null };
+      if (!extra) return { symbol: pair, timeframe: tf, exchange, startingBalance: null };
 
       try {
         const obj = typeof extra === 'string' ? JSON.parse(extra) : extra;
         if (!obj || typeof obj !== 'object') {
-          return { symbol: null, timeframe: null, exchange: null, startingBalance: null };
+          return { symbol: pair, timeframe: tf, exchange, startingBalance: null };
         }
 
         const normalized = new Map(
@@ -375,13 +381,13 @@
         };
 
         return {
-          symbol: pick('pair', 'symbol', 'ticker', 'instrument'),
-          timeframe: pick('timeframe', 'time frame', 'tf', 'interval'),
-          exchange: pick('exchange', 'broker', 'venue'),
+          symbol: pair ?? pick('pair', 'symbol', 'ticker', 'instrument'),
+          timeframe: tf ?? pick('timeframe', 'time frame', 'tf', 'interval'),
+          exchange: exchange ?? pick('exchange', 'broker', 'venue'),
           startingBalance: pick('starting balance', 'starting_balance', 'saldo', 'balance'),
         };
       } catch {
-        return { symbol: null, timeframe: null, exchange: null, startingBalance: null };
+        return { symbol: pair, timeframe: tf, exchange, startingBalance: null };
       }
     };
 
@@ -412,7 +418,7 @@
         onactiveRaw === 0 ||
         String(onactiveRaw).trim() === '0'
       ) {
-        return { label: 'Paused', className: 'text-bg-warning' };
+        return { label: 'Not Running', className: 'text-bg-secondary' };
       }
 
       const raw =
@@ -618,84 +624,6 @@
       });
     };
 
-    const getBalanceSeries = (orders) => {
-      const sorted = sortOrdersAsc(orders);
-      return sorted
-        .map((row) => ({
-          x: getOrderDatetime(row),
-          y: Number(row.balance),
-        }))
-        .filter((p) => p.x && Number.isFinite(p.y));
-    };
-
-    const parseDate = (value) => {
-      if (!value) return null;
-      const iso = String(value).replace(' ', 'T');
-      const ts = Date.parse(iso);
-      return Number.isNaN(ts) ? null : new Date(ts);
-    };
-
-    const computeReturns = (balances) => {
-      const returns = [];
-      for (let i = 1; i < balances.length; i += 1) {
-        const prev = balances[i - 1].y;
-        const cur = balances[i].y;
-        if (!Number.isFinite(prev) || prev === 0 || !Number.isFinite(cur)) continue;
-        returns.push((cur - prev) / prev);
-      }
-      return returns;
-    };
-
-    const computeStd = (values) => {
-      if (!Array.isArray(values) || values.length < 2) return null;
-      const mean = values.reduce((a, b) => a + b, 0) / values.length;
-      const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (values.length - 1);
-      return Math.sqrt(variance);
-    };
-
-    const computeSharpe = (returns) => {
-      if (!Array.isArray(returns) || returns.length < 2) return null;
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const std = computeStd(returns);
-      if (!std || std === 0) return null;
-      return (mean / std) * Math.sqrt(returns.length);
-    };
-
-    const computeSortino = (returns) => {
-      if (!Array.isArray(returns) || returns.length < 2) return null;
-      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
-      const downside = returns.filter((r) => r < 0);
-      const std = computeStd(downside);
-      if (!std || std === 0) return null;
-      return (mean / std) * Math.sqrt(returns.length);
-    };
-
-    const computeDrawdown = (balances) => {
-      let peak = null;
-      let maxDd = 0;
-      balances.forEach((p) => {
-        if (peak === null || p.y > peak) peak = p.y;
-        if (peak && p.y < peak) {
-          const dd = (peak - p.y) / peak;
-          if (dd > maxDd) maxDd = dd;
-        }
-      });
-      return maxDd;
-    };
-
-    const computeCagr = (balances) => {
-      if (!Array.isArray(balances) || balances.length < 2) return null;
-      const first = balances[0];
-      const last = balances[balances.length - 1];
-      const startDate = parseDate(first.x);
-      const endDate = parseDate(last.x);
-      if (!startDate || !endDate) return null;
-      const days = (endDate - startDate) / (1000 * 60 * 60 * 24);
-      if (!Number.isFinite(days) || days <= 0) return null;
-      if (first.y <= 0 || last.y <= 0) return null;
-      return Math.pow(last.y / first.y, 365 / days) - 1;
-    };
-
     const renderMethodCard = () => {
       const method =
         state.methodDetail ||
@@ -719,6 +647,17 @@
         const tf = meta.timeframe || '-';
         const ex = meta.exchange || '-';
         methodMetaEl.textContent = `Pair: ${pair} | TF: ${tf} | Exchange: ${ex}`;
+      }
+
+      if (methodBacktestEl) {
+        const url = String(method?.url ?? '').trim();
+        if (url) {
+          methodBacktestEl.href = url;
+          methodBacktestEl.style.display = 'inline-flex';
+        } else {
+          methodBacktestEl.href = '#';
+          methodBacktestEl.style.display = 'none';
+        }
       }
 
       if (methodStatusEl) {
@@ -1048,107 +987,66 @@
       const extra = parseExtra(method?.kpi_extra);
       const extraMap = buildExtraMap(extra);
 
-      const orders = state.latestOrders;
-      const trades = state.latestTrades;
-      const balances = getBalanceSeries(orders);
-      const returns = computeReturns(balances);
-
-      const totalOrders = Array.isArray(orders) ? orders.length : 0;
-      const winCount = trades.filter((t) => Number(t.pnl) > 0).length;
-      const lossCount = trades.filter((t) => Number(t.pnl) < 0).length;
-      const tradeCount = Math.max(1, trades.length);
-      const winRate = winCount / tradeCount;
-      const lossRate = lossCount / tradeCount;
-
-      const sharpe =
-        pickExtra(extraMap, 'sharpe', 'sharpe_ratio') ?? computeSharpe(returns);
-      const sortino =
-        pickExtra(extraMap, 'sortino', 'sortino_ratio') ?? computeSortino(returns);
-      const drawdown =
-        pickExtra(extraMap, 'drawdown', 'max_drawdown', 'dd') ?? computeDrawdown(balances);
-      const cagr = pickExtra(extraMap, 'cagr') ?? method.cagr ?? computeCagr(balances);
-      const probSr = pickExtra(extraMap, 'prob_sr', 'psr') ?? method.prob_sr ?? winRate;
-      const infoRatio =
-        pickExtra(extraMap, 'information_ratio', 'info_ratio') ?? computeSharpe(returns);
-
-      const totalNotional = orders.reduce((sum, row) => {
-        const price = Number(row.price ?? row.price_entry ?? row.price_exit);
-        const qty = Number(row.quantity ?? row.qty);
-        if (!Number.isFinite(price) || !Number.isFinite(qty)) return sum;
-        return sum + Math.abs(price * qty);
-      }, 0);
-      const avgBalance =
-        balances.length > 0
-          ? balances.reduce((sum, b) => sum + b.y, 0) / balances.length
-          : null;
-      const turnover =
-        avgBalance && Number.isFinite(avgBalance) && avgBalance > 0
-          ? totalNotional / avgBalance
-          : null;
-
-      const pnls = trades
-        .map((t) => Number(t.pnl))
-        .filter((value) => Number.isFinite(value));
-      const totalPnlCalc = pnls.reduce((sum, value) => sum + value, 0);
-      const wins = pnls.filter((value) => value > 0);
-      const losses = pnls.filter((value) => value < 0);
-      const grossProfit = wins.reduce((sum, value) => sum + value, 0);
-      const grossLoss = losses.reduce((sum, value) => sum + Math.abs(value), 0);
-      const avgPnlCalc = pnls.length > 0 ? totalPnlCalc / pnls.length : null;
-      const avgWin = wins.length > 0 ? grossProfit / wins.length : null;
-      const avgLoss = losses.length > 0 ? grossLoss / losses.length : null;
-      const profitFactorCalc = grossLoss > 0 ? grossProfit / grossLoss : null;
-      const expectancyCalc =
-        avgWin !== null && avgLoss !== null ? winRate * avgWin - lossRate * avgLoss : null;
-      const bestTradeCalc = wins.length > 0 ? Math.max(...wins) : null;
-      const worstTradeCalc = losses.length > 0 ? Math.min(...losses) : null;
-
-      const totalPnl =
-        pickExtra(extraMap, 'total_pnl', 'net_profit', 'net_pnl', 'pnl_total', 'profit_total') ??
-        totalPnlCalc;
-      const avgPnl =
-        pickExtra(extraMap, 'avg_pnl', 'average_pnl', 'avg_profit', 'avg_trade') ?? avgPnlCalc;
-      const profitFactor =
-        pickExtra(extraMap, 'profit_factor', 'pf') ?? profitFactorCalc;
-      const expectancy =
-        pickExtra(extraMap, 'expectancy', 'expected_value') ?? expectancyCalc;
-      const bestTrade =
-        pickExtra(extraMap, 'best_trade', 'max_trade', 'max_profit') ?? bestTradeCalc;
-      const worstTrade =
-        pickExtra(extraMap, 'worst_trade', 'min_trade', 'max_loss') ?? worstTradeCalc;
+      const totalOrders = Number(method?.total_orders ?? extraMap.get('total_orders'));
+      const turnover = Number(method?.turnover ?? extraMap.get('turnover'));
 
       const items = [
-        { label: 'Sharpe Ratio', value: sharpe !== null ? formatNumber(sharpe, 2) : '-' },
-        { label: 'Sortino Ratio', value: sortino !== null ? formatNumber(sortino, 2) : '-' },
-        { label: 'Information Ratio', value: infoRatio !== null ? formatNumber(infoRatio, 2) : '-' },
-        { label: 'CAGR', value: cagr !== null ? formatPercent(cagr) : '-' },
-        { label: 'Drawdown', value: drawdown !== null ? formatPercent(drawdown) : '-' },
+        {
+          label: 'Sharpe Ratio',
+          value:
+            method.sharpen_ratio !== undefined && method.sharpen_ratio !== null
+              ? formatNumber(method.sharpen_ratio, 2)
+              : '-',
+        },
+        {
+          label: 'Sortino Ratio',
+          value:
+            method.sortino_ratio !== undefined && method.sortino_ratio !== null
+              ? formatNumber(method.sortino_ratio, 2)
+              : '-',
+        },
+        {
+          label: 'Information Ratio',
+          value:
+            method.information_ratio !== undefined && method.information_ratio !== null
+              ? formatNumber(method.information_ratio, 2)
+              : '-',
+        },
+        {
+          label: 'CAGR',
+          value:
+            method.cagr !== undefined && method.cagr !== null ? formatPercent(method.cagr) : '-',
+        },
+        {
+          label: 'Drawdown',
+          value:
+            method.drawdown !== undefined && method.drawdown !== null
+              ? formatPercent(method.drawdown)
+              : '-',
+        },
         {
           label: 'Probabilistic SR',
-          value: probSr !== null ? formatPercent(probSr) : '-',
+          value:
+            method.prob_sr !== undefined && method.prob_sr !== null
+              ? formatPercent(method.prob_sr)
+              : '-',
         },
         {
           label: 'Win Rate',
           value:
             method.winrate !== undefined && method.winrate !== null
               ? formatPercent(method.winrate)
-              : formatPercent(winRate),
+              : '-',
         },
         {
           label: 'Loss Rate',
           value:
             method.lossrate !== undefined && method.lossrate !== null
               ? formatPercent(method.lossrate)
-              : formatPercent(lossRate),
+              : '-',
         },
-        { label: 'Profit Factor', value: profitFactor !== null ? formatNumber(profitFactor, 2) : '-' },
-        { label: 'Expectancy', value: expectancy !== null ? formatNumber(expectancy, 2) : '-' },
-        { label: 'Total PnL', value: totalPnl !== null ? formatNumber(totalPnl, 2) : '-' },
-        { label: 'Avg PnL', value: avgPnl !== null ? formatNumber(avgPnl, 2) : '-' },
-        { label: 'Best Trade', value: bestTrade !== null ? formatNumber(bestTrade, 2) : '-' },
-        { label: 'Worst Trade', value: worstTrade !== null ? formatNumber(worstTrade, 2) : '-' },
         { label: 'Total Orders', value: Number.isFinite(totalOrders) ? String(totalOrders) : '-' },
-        { label: 'Turnover', value: turnover !== null ? formatRatioPercent(turnover) : '-' },
+        { label: 'Turnover', value: Number.isFinite(turnover) ? formatPercent(turnover) : '-' },
       ];
 
       kpiGridEl.innerHTML = '';
@@ -1170,11 +1068,31 @@
       });
     };
 
+    const truncateMessage = (value, max = 140) => {
+      const text = escapeText(value ?? '').replace(/\s+/g, ' ').trim();
+      if (!text) return '-';
+      if (text.length <= max) return text;
+      return text.slice(0, Math.max(0, max - 1)) + '…';
+    };
+
+    const createMessageCell = (value) => {
+      const td = document.createElement('td');
+      const full = escapeText(value ?? '');
+      const snippet = truncateMessage(full);
+
+      const div = document.createElement('div');
+      div.className = 'sa-message-snippet';
+      div.textContent = snippet;
+      if (full && snippet !== full) div.title = full;
+      td.appendChild(div);
+      return td;
+    };
+
     const renderOrders = (items, plByExitId = new Map()) => {
       ordersBody.innerHTML = '';
 
       if (!Array.isArray(items) || items.length === 0) {
-        clearTbody(ordersBody, 9, 'No orders.');
+        clearTbody(ordersBody, 10, 'No orders.');
         return [];
       }
 
@@ -1219,6 +1137,8 @@
           tr.appendChild(td);
         });
 
+        tr.appendChild(createMessageCell(row.message));
+
         ordersBody.appendChild(tr);
 
       });
@@ -1227,7 +1147,7 @@
     const renderSignals = (items) => {
       signalsBody.innerHTML = '';
       if (!Array.isArray(items) || items.length === 0) {
-        clearTbody(signalsBody, 9, 'No signals.');
+        clearTbody(signalsBody, 10, 'No signals.');
         return;
       }
 
@@ -1266,6 +1186,8 @@
           tr.appendChild(td);
         });
 
+        tr.appendChild(createMessageCell(row.message));
+
         signalsBody.appendChild(tr);
       });
     };
@@ -1289,16 +1211,10 @@
           }
         });
 
-        const cols = [
-          escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-'),
-          escapeText(row.message ?? '-'),
-        ];
-
-        cols.forEach((text) => {
-          const td = document.createElement('td');
-          td.textContent = text;
-          tr.appendChild(td);
-        });
+        const tdDt = document.createElement('td');
+        tdDt.textContent = escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-');
+        tr.appendChild(tdDt);
+        tr.appendChild(createMessageCell(row.message));
 
         remindersBody.appendChild(tr);
       });
@@ -1323,16 +1239,10 @@
           }
         });
 
-        const cols = [
-          escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-'),
-          escapeText(row.message ?? '-'),
-        ];
-
-        cols.forEach((text) => {
-          const td = document.createElement('td');
-          td.textContent = text;
-          tr.appendChild(td);
-        });
+        const tdDt = document.createElement('td');
+        tdDt.textContent = escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-');
+        tr.appendChild(tdDt);
+        tr.appendChild(createMessageCell(row.message));
 
         logsBody.appendChild(tr);
       });
@@ -1424,7 +1334,7 @@
         renderPositions([]);
         renderKpiGrid();
         renderBinanceSummary();
-        clearTbody(ordersBody, 9, 'Select a method to load orders.');
+        clearTbody(ordersBody, 10, 'Select a method to load orders.');
         setTableStatus(ordersStatus, '');
         return;
       }
@@ -1457,7 +1367,7 @@
         renderPositions([]);
         renderKpiGrid();
         renderBinanceSummary();
-        clearTbody(ordersBody, 9, 'Failed to load orders.');
+        clearTbody(ordersBody, 10, 'Failed to load orders.');
         setTableStatus(ordersStatus, 'Error: ' + (err?.message || String(err)));
       }
     };
@@ -1466,7 +1376,7 @@
       if (!state.selectedMethodId) {
         state.latestSignals = [];
         updateTabCounts();
-        clearTbody(signalsBody, 9, 'Select a method to load signals.');
+        clearTbody(signalsBody, 10, 'Select a method to load signals.');
         setTableStatus(signalsStatus, '');
         return;
       }
@@ -1486,7 +1396,7 @@
       } catch (err) {
         state.latestSignals = [];
         updateTabCounts();
-        clearTbody(signalsBody, 9, 'Failed to load signals.');
+        clearTbody(signalsBody, 10, 'Failed to load signals.');
         setTableStatus(signalsStatus, 'Error: ' + (err?.message || String(err)));
       }
     };
@@ -1653,9 +1563,11 @@
 
       if (next === 'qc') {
         showTab('positions');
-        loadSignals();
-        loadReminders();
-        loadLogs();
+        if (state.selectedMethodId) {
+          loadSignals();
+          loadReminders();
+          loadLogs();
+        }
         detailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
@@ -1717,9 +1629,12 @@
     showTab('positions');
     showBinanceTab('assets');
     setDetailSource('qc');
-    loadMethods();
-    loadHealth();
-    loadBinanceSpot();
-    startAutoRefresh();
+
+    onWindowLoaded(() => {
+      loadMethods();
+      loadHealth();
+      loadBinanceSpot();
+      startAutoRefresh();
+    });
   });
 })();

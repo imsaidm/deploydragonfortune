@@ -104,6 +104,16 @@
             font-weight: 700;
         }
 
+        .sa-message-snippet {
+            max-width: 420px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            white-space: normal;
+            word-break: break-word;
+        }
+
         @media (max-width: 992px) {
             .sa-overview-grid {
                 grid-template-columns: 1fr;
@@ -259,6 +269,7 @@
                     <div class="d-flex align-items-center gap-2">
                         <span id="sa-method-running" class="badge text-bg-secondary">Unknown</span>
                         <span id="sa-method-status" class="small text-secondary"></span>
+                        <a id="sa-method-backtest" href="#" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm" style="display:none;">Backtest</a>
                     </div>
                 </div>
             </div>
@@ -388,6 +399,7 @@
                                     <th style="min-width: 110px;" class="text-end">Total</th>
                                     <th style="min-width: 110px;" class="text-end">TP</th>
                                     <th style="min-width: 110px;" class="text-end">SL</th>
+                                    <th style="min-width: 260px;">Message</th>
                                 </tr>
                             </thead>
                             <tbody id="sa-orders-body" class="small"></tbody>
@@ -431,6 +443,7 @@
                                     <th style="min-width: 120px;" class="text-end">Target SL</th>
                                     <th style="min-width: 130px;" class="text-end">Realisasi TP</th>
                                     <th style="min-width: 130px;" class="text-end">Realisasi SL</th>
+                                    <th style="min-width: 260px;">Message</th>
                                 </tr>
                             </thead>
                             <tbody id="sa-signals-body" class="small"></tbody>
