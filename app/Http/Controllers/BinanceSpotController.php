@@ -12,7 +12,7 @@ class BinanceSpotController extends Controller
     public function summary(Request $request)
     {
         $spot = $this->getSpotConfig();
-        if ($this->isStubMode($spot)) {
+        if ($this->shouldForceStub($request) || $this->isStubMode($spot)) {
             return $this->stubSummary($spot);
         }
         if ($this->shouldProxy($request, $spot)) {
@@ -260,7 +260,7 @@ class BinanceSpotController extends Controller
     private function signedGet(Request $request, string $path, array $params)
     {
         $spot = $this->getSpotConfig();
-        if ($this->isStubMode($spot)) {
+        if ($this->shouldForceStub($request) || $this->isStubMode($spot)) {
             return $this->stubSigned($request, $spot, $path, $params);
         }
         if ($this->shouldProxy($request, $spot)) {
@@ -459,6 +459,20 @@ class BinanceSpotController extends Controller
             return true;
         }
         return ($spot['mode'] ?? 'auto') === 'stub';
+    }
+
+    private function shouldForceStub(Request $request): bool
+    {
+        if (! app()->isLocal()) {
+            return false;
+        }
+
+        if ($request->boolean('stub')) {
+            return true;
+        }
+
+        $header = strtolower(trim((string) $request->header('X-Dragonfortune-Stub', '')));
+        return in_array($header, ['1', 'true', 'yes', 'on'], true);
     }
 
     private function proxySpot(Request $request, array $spot, string $endpoint)

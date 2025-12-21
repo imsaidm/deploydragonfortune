@@ -312,7 +312,8 @@
             </div>
         </div>
 
-        <div id="sa-detail-qc" class="df-panel p-4" style="display:none;">
+        <div id="sa-detail" class="df-panel p-4" style="display:none;">
+            <div id="sa-detail-qc" style="display:none;">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <button class="btn btn-outline-secondary btn-sm sa-tab is-active" data-tab="positions" type="button">Positions</button>
@@ -385,7 +386,6 @@
                                     <th style="min-width: 110px;" class="text-end">Total</th>
                                     <th style="min-width: 110px;" class="text-end">TP</th>
                                     <th style="min-width: 110px;" class="text-end">SL</th>
-                                    <th style="min-width: 120px;" class="text-end">Balance</th>
                                 </tr>
                             </thead>
                             <tbody id="sa-orders-body" class="small"></tbody>
@@ -470,9 +470,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+            </div>
 
-        <div id="sa-detail-binance" class="df-panel p-4" style="display:none;">
+            <div id="sa-detail-binance" style="display:none;">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <button class="btn btn-outline-secondary btn-sm sa-binance-tab is-active" data-tab="assets" type="button">Positions / Assets</button>
@@ -577,6 +577,7 @@
                         </table>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
 

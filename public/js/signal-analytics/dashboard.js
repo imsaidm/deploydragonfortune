@@ -31,6 +31,7 @@
 
     const qcDetailButton = byId('sa-qc-detail');
     const binanceDetailButton = byId('sa-binance-detail');
+    const detailPanel = byId('sa-detail');
     const qcDetailPanel = byId('sa-detail-qc');
     const binanceDetailPanel = byId('sa-detail-binance');
 
@@ -170,6 +171,16 @@
       const dt = new Date(n);
       if (Number.isNaN(dt.getTime())) return '-';
       return dt.toISOString().replace('T', ' ').replace('Z', '');
+    };
+
+    const isLocalHost = () => {
+      const host = String(window.location.hostname || '').trim().toLowerCase();
+      return host === '127.0.0.1' || host === 'localhost';
+    };
+
+    const withLocalBinanceStub = (path) => {
+      if (!isLocalHost()) return path;
+      return `${path}${path.includes('?') ? '&' : '?'}stub=1`;
     };
 
     const fetchJson = async (path, params = {}) => {
@@ -338,6 +349,22 @@
     };
 
     const resolveRunningStatus = (method, extraMap) => {
+      const onactiveRaw = method?.onactive;
+      if (
+        onactiveRaw === true ||
+        onactiveRaw === 1 ||
+        String(onactiveRaw).trim() === '1'
+      ) {
+        return { label: 'Running', className: 'text-bg-success' };
+      }
+      if (
+        onactiveRaw === false ||
+        onactiveRaw === 0 ||
+        String(onactiveRaw).trim() === '0'
+      ) {
+        return { label: 'Paused', className: 'text-bg-warning' };
+      }
+
       const raw =
         method?.is_running ??
         method?.running ??
@@ -698,7 +725,7 @@
         binanceLiveEl.textContent = 'Loading';
         binanceLiveEl.className = 'badge text-bg-secondary';
       }
-      const url = `${window.location.origin}/api/binance/spot/summary`;
+      const url = `${window.location.origin}${withLocalBinanceStub('/api/binance/spot/summary')}`;
       try {
         const res = await fetch(url, { headers: { Accept: 'application/json' } });
         const text = await res.text();
@@ -898,7 +925,9 @@
       setTableStatus(binanceOpenOrdersStatus, 'Loading...');
       try {
         const res = await fetchLocalJson(
-          `/api/binance/spot/open-orders?symbol=${encodeURIComponent(symbol)}`,
+          withLocalBinanceStub(
+            `/api/binance/spot/open-orders?symbol=${encodeURIComponent(symbol)}`,
+          ),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOpenOrders = items;
@@ -920,7 +949,9 @@
       setTableStatus(binanceOrdersStatus, 'Loading...');
       try {
         const res = await fetchLocalJson(
-          `/api/binance/spot/orders?symbol=${encodeURIComponent(symbol)}&limit=50`,
+          withLocalBinanceStub(
+            `/api/binance/spot/orders?symbol=${encodeURIComponent(symbol)}&limit=50`,
+          ),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOrders = items;
@@ -939,7 +970,9 @@
       setTableStatus(binanceTradesStatus, 'Loading...');
       try {
         const res = await fetchLocalJson(
-          `/api/binance/spot/trades?symbol=${encodeURIComponent(symbol)}&limit=50`,
+          withLocalBinanceStub(
+            `/api/binance/spot/trades?symbol=${encodeURIComponent(symbol)}&limit=50`,
+          ),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceTrades = items;
@@ -1091,7 +1124,7 @@
       ordersBody.innerHTML = '';
 
       if (!Array.isArray(items) || items.length === 0) {
-        clearTbody(ordersBody, 10, 'No orders.');
+        clearTbody(ordersBody, 9, 'No orders.');
         return [];
       }
 
@@ -1127,13 +1160,12 @@
           total ? formatNumber(total, 2) : '-',
           tp !== '-' ? formatNumber(tp, 2) : '-',
           sl !== '-' ? formatNumber(sl, 2) : '-',
-          row.balance !== undefined && row.balance !== null ? formatNumber(row.balance, 2) : '-',
         ];
 
         cols.forEach((text, idx) => {
           const td = document.createElement('td');
           td.textContent = text;
-          if ([4, 5, 6, 7, 8, 9].includes(idx)) td.classList.add('text-end');
+          if ([4, 5, 6, 7, 8].includes(idx)) td.classList.add('text-end');
           tr.appendChild(td);
         });
 
@@ -1277,17 +1309,15 @@
       try {
         const items = await fetchJson('/methods', { limit: 200, offset: 0 });
         state.methods = Array.isArray(items) ? items : [];
-
-        // Hide methods we don't want to expose in the UI yet.
-        // Example: backend still has "Spot v3", but this app only uses v1/v2 for now.
-        state.methods = state.methods.filter((m) => {
-          const name = normalize(m?.nama_metode);
-          return !name.includes('spot v3');
-        });
         renderMethods();
 
         if (state.methods.length > 0) {
-          methodSelect.value = String(state.methods[0].id);
+          const active =
+            state.methods.find((m) => m?.onactive === 1 || m?.onactive === true) ||
+            state.methods.find((m) => normalize(m?.nama_metode).includes('spot v3')) ||
+            state.methods[0];
+
+          methodSelect.value = String(active?.id ?? state.methods[0].id);
           await onMethodChanged();
         } else {
           state.selectedMethodId = null;
@@ -1329,7 +1359,7 @@
         renderPositions([]);
         renderKpiGrid();
         renderBinanceSummary();
-        clearTbody(ordersBody, 10, 'Select a method to load orders.');
+        clearTbody(ordersBody, 9, 'Select a method to load orders.');
         setTableStatus(ordersStatus, '');
         return;
       }
@@ -1360,7 +1390,7 @@
         renderPositions([]);
         renderKpiGrid();
         renderBinanceSummary();
-        clearTbody(ordersBody, 10, 'Failed to load orders.');
+        clearTbody(ordersBody, 9, 'Failed to load orders.');
         setTableStatus(ordersStatus, 'Error: ' + (err?.message || String(err)));
       }
     };
@@ -1526,6 +1556,7 @@
       const next = source === 'qc' || source === 'binance' ? source : null;
       state.detailSource = next;
 
+      if (detailPanel) detailPanel.style.display = next ? 'block' : 'none';
       if (qcDetailPanel) qcDetailPanel.style.display = next === 'qc' ? 'block' : 'none';
       if (binanceDetailPanel) binanceDetailPanel.style.display = next === 'binance' ? 'block' : 'none';
 
@@ -1543,12 +1574,12 @@
         loadSignals();
         loadReminders();
         loadLogs();
-        qcDetailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        detailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
       if (next === 'binance') {
         showBinanceTab(state.binanceTab);
-        binanceDetailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        detailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     };
 
@@ -1603,7 +1634,7 @@
 
     showTab('positions');
     showBinanceTab('assets');
-    setDetailSource(null);
+    setDetailSource('qc');
     loadMethods();
     loadHealth();
     loadBinanceSpot();
