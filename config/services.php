@@ -98,9 +98,10 @@ return [
             // - stub: return simulated data (UI/dev only)
             'mode' => env('BINANCE_SPOT_MODE', 'auto'),
             'base_url' => env('BINANCE_SPOT_BASE_URL', 'https://api.binance.com'),
-            'label' => env('BINANCE_SPOT_LABEL', 'Binance Spot'),
-            'api_key' => env('BINANCE_SPOT_API_KEY', ''),
-            'api_secret' => env('BINANCE_SPOT_API_SECRET', ''),
+            // Backward compatible: some envs still use BINANCE_SPOT_V2_* from older releases.
+            'label' => env('BINANCE_SPOT_LABEL', env('BINANCE_SPOT_V2_LABEL', 'Binance Spot')),
+            'api_key' => env('BINANCE_SPOT_V2_API_KEY', env('BINANCE_SPOT_API_KEY', '')),
+            'api_secret' => env('BINANCE_SPOT_V2_API_SECRET', env('BINANCE_SPOT_API_SECRET', '')),
             'timeout' => (int) env('BINANCE_SPOT_TIMEOUT', 10),
             'recv_window' => (int) env('BINANCE_SPOT_RECV_WINDOW', 5000),
             'verify_ssl' => env('BINANCE_SPOT_VERIFY_SSL', true),
