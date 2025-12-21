@@ -253,18 +253,6 @@
 	                    <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Research</div>
 	                    <ul class="df-sidebar-menu">
 	                        <li class="df-sidebar-menu-item">
-	                            <a href="/backtest-result" class="df-sidebar-menu-button {{ request()->routeIs('backtest-result.*') ? 'active' : '' }}" @click="closeSidebar()">
-	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-	                                    <path d="M3 3v18h18"/>
-	                                    <path d="M7 16l3-3 3 3 5-5"/>
-	                                    <circle cx="7" cy="16" r="2"/>
-	                                    <circle cx="13" cy="13" r="2"/>
-	                                    <circle cx="18" cy="8" r="2"/>
-	                                </svg>
-	                                <span>Backtest Result</span>
-	                            </a>
-	                        </li>
-	                        <li class="df-sidebar-menu-item">
 	                            <a href="/signal-analytics" class="df-sidebar-menu-button {{ request()->routeIs('signal-analytics.*') ? 'active' : '' }}" @click="closeSidebar()">
 	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 	                                    <path d="M3 3v18h18"/>
@@ -274,6 +262,18 @@
 	                                    <circle cx="20" cy="9" r="1.5"/>
 	                                </svg>
 	                                <span>Signal and Analytics</span>
+	                            </a>
+	                        </li>
+	                        <li class="df-sidebar-menu-item">
+	                            <a href="/backtest-result" class="df-sidebar-menu-button {{ request()->routeIs('backtest-result.*') ? 'active' : '' }}" @click="closeSidebar()">
+	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                    <path d="M3 3v18h18"/>
+	                                    <path d="M7 16l3-3 3 3 5-5"/>
+	                                    <circle cx="7" cy="16" r="2"/>
+	                                    <circle cx="13" cy="13" r="2"/>
+	                                    <circle cx="18" cy="8" r="2"/>
+	                                </svg>
+	                                <span>Backtest Result</span>
 	                            </a>
 	                        </li>
 	                    </ul>

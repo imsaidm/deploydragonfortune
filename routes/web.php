@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BacktestResultController;
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\QuantConnectController;
 use Illuminate\Support\Facades\Route;
 
@@ -126,6 +127,20 @@ Route::prefix('api/quantconnect')->group(function () {
         ->middleware('throttle:10,1')
         ->name('api.quantconnect.reports.backtest');
 });
+
+// Binance Spot API Proxy
+Route::get('/api/binance/spot/summary', [BinanceSpotController::class, 'summary'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.spot.summary');
+Route::get('/api/binance/spot/open-orders', [BinanceSpotController::class, 'openOrders'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.spot.open-orders');
+Route::get('/api/binance/spot/orders', [BinanceSpotController::class, 'orders'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.spot.orders');
+Route::get('/api/binance/spot/trades', [BinanceSpotController::class, 'trades'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.spot.trades');
 
 // Coinglass API Proxy Routes
 

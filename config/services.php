@@ -88,4 +88,26 @@ return [
         'timeout' => (int) env('QC_TIMEOUT', 15),
     ],
 
+    // Binance Spot API
+    'binance' => [
+        'spot' => [
+            // Modes:
+            // - auto: use proxy if configured, otherwise direct
+            // - direct: call Binance directly
+            // - proxy: forward calls to another Dragonfortune instance (useful when Binance is blocked locally)
+            // - stub: return simulated data (UI/dev only)
+            'mode' => env('BINANCE_SPOT_MODE', 'auto'),
+            'base_url' => env('BINANCE_SPOT_BASE_URL', 'https://api.binance.com'),
+            'api_key' => env('BINANCE_SPOT_API_KEY', ''),
+            'api_secret' => env('BINANCE_SPOT_API_SECRET', ''),
+            'timeout' => (int) env('BINANCE_SPOT_TIMEOUT', 10),
+            'recv_window' => (int) env('BINANCE_SPOT_RECV_WINDOW', 5000),
+            'verify_ssl' => env('BINANCE_SPOT_VERIFY_SSL', true),
+            'proxy_base_url' => env('BINANCE_SPOT_PROXY_BASE_URL', ''),
+            'proxy_token' => env('BINANCE_SPOT_PROXY_TOKEN', ''),
+            'proxy_verify_ssl' => env('BINANCE_SPOT_PROXY_VERIFY_SSL', true),
+            'stub_data' => env('BINANCE_SPOT_STUB_DATA', false),
+        ],
+    ],
+
 ];

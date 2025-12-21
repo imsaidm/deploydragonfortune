@@ -12,10 +12,8 @@
 
     const apiBaseEl = byId('sa-api-base');
     const docsLinkEl = byId('sa-open-docs');
-    const refreshAllButton = byId('sa-refresh-all');
-    const lastRefreshEl = byId('sa-last-refresh');
-    const dataModeEl = byId('sa-data-mode');
-    const simulateToggle = byId('sa-simulate-toggle');
+    const methodRunningEl = byId('sa-method-running');
+    const methodMetaEl = byId('sa-method-meta');
 
     const healthEl = byId('sa-health');
     const healthMetaEl = byId('sa-health-meta');
@@ -29,33 +27,49 @@
     const limitInput = byId('sa-limit');
     const offsetInput = byId('sa-offset');
 
-    const kpiPsrEl = byId('sa-kpi-psr');
-    const kpiCagrEl = byId('sa-kpi-cagr');
-    const kpiWinEl = byId('sa-kpi-win');
-    const kpiLossEl = byId('sa-kpi-loss');
-    const kpiExtraEl = byId('sa-kpi-extra');
+    const kpiGridEl = byId('sa-kpi-grid');
 
-    const balanceMetaEl = byId('sa-balance-meta');
-    const balanceEmptyEl = byId('sa-balance-empty');
-    const balanceCanvas = byId('sa-balance-chart');
+    const qcDetailButton = byId('sa-qc-detail');
+    const binanceDetailButton = byId('sa-binance-detail');
+    const qcDetailPanel = byId('sa-detail-qc');
+    const binanceDetailPanel = byId('sa-detail-binance');
+
+    const binanceLiveEl = byId('sa-binance-live');
+    const binanceAccountEl = byId('sa-binance-account');
+    const binanceTotalEl = byId('sa-binance-total');
+    const binanceAvailableEl = byId('sa-binance-available');
+    const binanceLockedEl = byId('sa-binance-locked');
+    const binanceBtcEl = byId('sa-binance-btc');
+    const binanceAssetsEl = byId('sa-binance-assets');
+    const binanceUpdatedEl = byId('sa-binance-updated');
+    const binanceHintEl = byId('sa-binance-hint');
+
+    const binanceSymbolInput = byId('sa-binance-symbol');
+    const binanceAssetsStatus = byId('sa-binance-assets-status');
+    const binanceAssetsBody = byId('sa-binance-assets-body');
+    const binanceOpenOrdersStatus = byId('sa-binance-open-orders-status');
+    const binanceOpenOrdersBody = byId('sa-binance-open-orders-body');
+    const binanceOrdersStatus = byId('sa-binance-orders-status');
+    const binanceOrdersBody = byId('sa-binance-orders-body');
+    const binanceTradesStatus = byId('sa-binance-trades-status');
+    const binanceTradesBody = byId('sa-binance-trades-body');
+
+    const positionsStatus = byId('sa-positions-status');
+    const positionsBody = byId('sa-positions-body');
 
     const ordersType = byId('sa-orders-type');
     const ordersJenis = byId('sa-orders-jenis');
-    const ordersRefresh = byId('sa-orders-refresh');
     const ordersStatus = byId('sa-orders-status');
     const ordersBody = byId('sa-orders-body');
 
     const signalsType = byId('sa-signals-type');
     const signalsJenis = byId('sa-signals-jenis');
-    const signalsRefresh = byId('sa-signals-refresh');
     const signalsStatus = byId('sa-signals-status');
     const signalsBody = byId('sa-signals-body');
 
-    const remindersRefresh = byId('sa-reminders-refresh');
     const remindersStatus = byId('sa-reminders-status');
     const remindersBody = byId('sa-reminders-body');
 
-    const logsRefresh = byId('sa-logs-refresh');
     const logsStatus = byId('sa-logs-status');
     const logsBody = byId('sa-logs-body');
 
@@ -78,43 +92,23 @@
     const state = {
       methods: [],
       selectedMethodId: null,
-      chart: null,
-      simulate: false,
+      methodDetail: null,
       methodMeta: null,
-      demoCache: new Map(),
-    };
-
-    const STORAGE_KEY_SIMULATE = 'sa_signal_analytics_simulate';
-    const safeStorage = {
-      get(key) {
-        try {
-          return window.localStorage?.getItem(key) ?? null;
-        } catch {
-          return null;
-        }
-      },
-      set(key, value) {
-        try {
-          window.localStorage?.setItem(key, value);
-        } catch {
-          // ignore
-        }
-      },
-    };
-
-    const syncModeUi = () => {
-      if (dataModeEl) {
-        dataModeEl.textContent = state.simulate ? 'Simulated' : 'Live';
-        dataModeEl.className = `badge ${state.simulate ? 'text-bg-warning' : 'text-bg-secondary'}`;
-      }
-      if (simulateToggle) simulateToggle.checked = state.simulate;
-    };
-
-    const initMode = () => {
-      const stored = safeStorage.get(STORAGE_KEY_SIMULATE);
-      const defaultSimulate = apiBase.includes('test.dragonfortune.ai');
-      state.simulate = stored === null ? defaultSimulate : stored === '1';
-      syncModeUi();
+      latestOrders: [],
+      latestSignals: [],
+      latestTrades: [],
+      latestPositions: [],
+      binanceSummary: null,
+      binanceError: null,
+      binanceHint: null,
+      binanceMode: null,
+      binanceBaseUrl: null,
+      detailSource: null,
+      binanceTab: 'assets',
+      binanceOpenOrders: [],
+      binanceOrders: [],
+      binanceTrades: [],
+      autoTimer: null,
     };
 
     const escapeText = (value) => {
@@ -123,6 +117,17 @@
     };
 
     const normalize = (value) => String(value ?? '').trim().toLowerCase();
+
+    const parseExtra = (extra) => {
+      if (!extra) return null;
+      try {
+        const obj = typeof extra === 'string' ? JSON.parse(extra) : extra;
+        if (!obj || typeof obj !== 'object') return null;
+        return obj;
+      } catch {
+        return null;
+      }
+    };
 
     const formatNumber = (value, decimals = 2) => {
       if (value === null || value === undefined || value === '') return '-';
@@ -136,6 +141,13 @@
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
       return (n > 1 ? n : n * 100).toFixed(2) + '%';
+    };
+
+    const formatRatioPercent = (value) => {
+      if (value === null || value === undefined || value === '') return '-';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      return (n * 100).toFixed(2) + '%';
     };
 
     const toApiDatetime = (dtLocalValue) => {
@@ -152,241 +164,12 @@
       return Math.round(n * p) / p;
     };
 
-    const mulberry32 = (seed) => {
-      let a = seed >>> 0;
-      return () => {
-        a |= 0;
-        a = (a + 0x6d2b79f5) | 0;
-        let t = Math.imul(a ^ (a >>> 15), 1 | a);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
-    };
-
-    const pad2 = (n) => String(n).padStart(2, '0');
-    const formatApiDatetime = (d) =>
-      `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(
-        d.getMinutes(),
-      )}:${pad2(d.getSeconds())}`;
-
-    const getDemoMetaForMethod = (methodId, methodName) => {
-      const name = normalize(methodName);
-      const isV2 = name.includes('v2') || Number(methodId) === 2;
-      const pair = isV2 ? 'ETHUSDT' : 'BTCUSDT';
-      const timeframe = isV2 ? '4H' : '1H';
-      const exchange = 'Binance';
-      const startingBalance = isV2 ? 50000 : 100000;
-      const basePrice = pair === 'BTCUSDT' ? 10000 : 2000;
-
-      return { pair, timeframe, exchange, startingBalance, basePrice };
-    };
-
-    const getDemoData = (methodId, methodName) => {
-      const id = Number(methodId) || 1;
-      const cached = state.demoCache.get(id);
-      if (cached) return cached;
-
-      const meta = getDemoMetaForMethod(id, methodName);
-      const rand = mulberry32(0x9e3779b9 ^ (id * 2654435761));
-
-      const orders = [];
-      const signals = [];
-      const reminders = [];
-      const logs = [];
-      const tradeResults = [];
-
-      let cash = meta.startingBalance;
-      let price = meta.basePrice * (0.97 + rand() * 0.06);
-
-      const now = new Date();
-      let cursor = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      cursor.setMinutes(0, 0, 0);
-      cursor.setHours(5);
-
-      let orderId = id * 1000 + 1;
-      let signalId = id * 10000 + 1;
-      let reminderId = id * 100000 + 1;
-      let logId = id * 1000000 + 1;
-
-      const tradeCount = 8;
-      for (let i = 0; i < tradeCount; i += 1) {
-        const gapHours = 2 + Math.floor(rand() * 6); // 2..7h
-        cursor = new Date(cursor.getTime() + gapHours * 60 * 60 * 1000);
-
-        price = price * (1 + (rand() - 0.5) * 0.02); // +-1%
-        const direction = rand() < 0.7 ? 'long' : 'short';
-
-        const notional = 80 + rand() * 220; // 80..300
-        const qty = notional / price;
-        const qtyRounded = roundTo(qty, 4);
-        const entryPrice = roundTo(price, 2);
-
-        const tpPct = 0.008 + rand() * 0.03; // 0.8..3.8%
-        const slPct = 0.006 + rand() * 0.02; // 0.6..2.6%
-        const win = rand() < 0.6;
-        const movePct = win ? tpPct * (0.6 + rand() * 0.6) : -slPct * (0.6 + rand() * 0.6);
-
-        const exitPrice =
-          direction === 'short'
-            ? roundTo(entryPrice * (1 - movePct), 2)
-            : roundTo(entryPrice * (1 + movePct), 2);
-
-        const targetTpPrice =
-          direction === 'short'
-            ? roundTo(entryPrice * (1 - tpPct), 2)
-            : roundTo(entryPrice * (1 + tpPct), 2);
-        const targetSlPrice =
-          direction === 'short'
-            ? roundTo(entryPrice * (1 + slPct), 2)
-            : roundTo(entryPrice * (1 - slPct), 2);
-
-        const entryDt = formatApiDatetime(cursor);
-        const entryTotal = roundTo(entryPrice * qtyRounded, 2);
-        cash = roundTo(cash - entryTotal, 2);
-
-        orders.push({
-          id: orderId++,
-          id_method: id,
-          datetime: entryDt,
-          type: 'entry',
-          jenis: direction,
-          symbol: meta.pair,
-          price: entryPrice,
-          quantity: qtyRounded,
-          balance: cash,
-        });
-
-        signals.push({
-          id: signalId++,
-          id_method: id,
-          datetime: entryDt,
-          type: 'entry',
-          jenis: direction,
-          symbol: meta.pair,
-          price_entry: entryPrice,
-          price_exit: 0,
-          target_tp: targetTpPrice,
-          target_sl: targetSlPrice,
-          real_tp: 0,
-          real_sl: 0,
-        });
-
-        logs.push({
-          id: logId++,
-          id_method: id,
-          datetime: entryDt,
-          message: `ENTRY ${direction.toUpperCase()} ${meta.pair} @ ${entryPrice} qty ${qtyRounded}`,
-        });
-
-        const exitGapHours = 2 + Math.floor(rand() * 6); // 2..7h
-        const exitTime = new Date(cursor.getTime() + exitGapHours * 60 * 60 * 1000);
-        const exitDt = formatApiDatetime(exitTime);
-
-        const exitTotal = roundTo(exitPrice * qtyRounded, 2);
-        cash = roundTo(cash + exitTotal, 2);
-
-        orders.push({
-          id: orderId++,
-          id_method: id,
-          datetime: exitDt,
-          type: 'exit',
-          jenis: direction,
-          symbol: meta.pair,
-          price: exitPrice,
-          quantity: qtyRounded,
-          balance: cash,
-        });
-
-        const profit =
-          direction === 'short'
-            ? roundTo((entryPrice - exitPrice) * qtyRounded, 2)
-            : roundTo((exitPrice - entryPrice) * qtyRounded, 2);
-        tradeResults.push(profit);
-
-        signals.push({
-          id: signalId++,
-          id_method: id,
-          datetime: exitDt,
-          type: 'exit',
-          jenis: direction,
-          symbol: meta.pair,
-          price_entry: entryPrice,
-          price_exit: exitPrice,
-          target_tp: targetTpPrice,
-          target_sl: targetSlPrice,
-          real_tp: profit > 0 ? profit : 0,
-          real_sl: profit < 0 ? Math.abs(profit) : 0,
-        });
-
-        logs.push({
-          id: logId++,
-          id_method: id,
-          datetime: exitDt,
-          message: `EXIT ${direction.toUpperCase()} ${meta.pair} @ ${exitPrice} P/L ${profit >= 0 ? '+' : ''}${profit} balance ${cash}`,
-        });
-
-        cursor = exitTime;
-      }
-
-      const wins = tradeResults.filter((x) => x > 0).length;
-      const losses = tradeResults.filter((x) => x < 0).length;
-      const trades = Math.max(1, tradeResults.length);
-      const winrate = wins / trades;
-      const lossrate = losses / trades;
-      const prob_sr = winrate;
-
-      const firstDt = orders[0]?.datetime || formatApiDatetime(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000));
-      const lastDt = orders[orders.length - 1]?.datetime || formatApiDatetime(now);
-      const firstTs = Date.parse(firstDt.replace(' ', 'T'));
-      const lastTs = Date.parse(lastDt.replace(' ', 'T'));
-      const days = Math.max(1, (lastTs - firstTs) / (1000 * 60 * 60 * 24));
-      const ending = Math.max(1, cash);
-      const cagr = Math.pow(ending / meta.startingBalance, 365 / days) - 1;
-
-      reminders.push({
-        id: reminderId++,
-        id_method: id,
-        datetime: formatApiDatetime(new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000)),
-        message: 'Review risk limits and upcoming news events.',
-      });
-
-      const demo = {
-        meta: {
-          Pair: meta.pair,
-          TimeFrame: meta.timeframe,
-          Exchange: meta.exchange,
-          'Starting Balance': meta.startingBalance,
-          'Current Balance': roundTo(cash, 2),
-        },
-        kpis: { cagr, winrate, lossrate, prob_sr },
-        orders,
-        signals,
-        reminders,
-        logs,
-      };
-
-      state.demoCache.set(id, demo);
-      return demo;
-    };
-
-    const applyDemoQuery = (items, query, extra = {}) => {
-      const from = query.from_datetime ? String(query.from_datetime) : '';
-      const to = query.to_datetime ? String(query.to_datetime) : '';
-      const limit = Number(query.limit ?? 50) || 50;
-      const offset = Number(query.offset ?? 0) || 0;
-      const type = normalize(extra.type ?? '');
-      const jenis = normalize(extra.jenis ?? '');
-      const idMethod = query.id_method ? String(query.id_method) : '';
-
-      let out = Array.isArray(items) ? items.slice() : [];
-      if (idMethod) out = out.filter((x) => String(x.id_method) === idMethod);
-      if (from) out = out.filter((x) => String(x.datetime ?? '') >= from);
-      if (to) out = out.filter((x) => String(x.datetime ?? '') <= to);
-      if (type) out = out.filter((x) => normalize(x.type) === type);
-      if (jenis) out = out.filter((x) => normalize(x.jenis) === jenis);
-
-      out.sort((a, b) => String(b.datetime ?? '').localeCompare(String(a.datetime ?? '')));
-      return out.slice(offset, offset + limit);
+    const formatEpochMs = (value) => {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return '-';
+      const dt = new Date(n);
+      if (Number.isNaN(dt.getTime())) return '-';
+      return dt.toISOString().replace('T', ' ').replace('Z', '');
     };
 
     const fetchJson = async (path, params = {}) => {
@@ -410,9 +193,26 @@
       return json ?? text;
     };
 
-    const setLastRefresh = () => {
-      if (!lastRefreshEl) return;
-      lastRefreshEl.textContent = 'Last refresh: ' + new Date().toLocaleString();
+    const fetchLocalJson = async (path) => {
+      const url = path.startsWith('http')
+        ? path
+        : `${window.location.origin}${path.startsWith('/') ? '' : '/'}${path}`;
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      const text = await res.text();
+      let json = null;
+      try {
+        json = JSON.parse(text);
+      } catch (e) {
+        json = null;
+      }
+      if (!res.ok) {
+        const msg =
+          json && typeof json === 'object'
+            ? [json.error || json.message, json.hint].filter(Boolean).join(' ')
+            : text;
+        throw new Error(msg || `HTTP ${res.status}`);
+      }
+      return json ?? text;
     };
 
     const openModal = (title, content) => {
@@ -492,31 +292,6 @@
       }
     };
 
-    const setKpisFromMethod = (m) => {
-      if (kpiPsrEl) kpiPsrEl.textContent = formatPercent(m?.prob_sr);
-      if (kpiCagrEl) kpiCagrEl.textContent = formatPercent(m?.cagr);
-      if (kpiWinEl) kpiWinEl.textContent = formatPercent(m?.winrate);
-      if (kpiLossEl) kpiLossEl.textContent = formatPercent(m?.lossrate);
-
-      if (!kpiExtraEl) return;
-      const extra = m?.kpi_extra;
-      if (!extra) {
-        kpiExtraEl.textContent = '';
-        return;
-      }
-
-      try {
-        const obj = typeof extra === 'string' ? JSON.parse(extra) : extra;
-        const pairs = Object.entries(obj || {}).slice(0, 10);
-        kpiExtraEl.textContent =
-          pairs.length === 0
-            ? ''
-            : pairs.map(([k, v]) => `${k}: ${escapeText(v)}`).join(' · ');
-      } catch (e) {
-        kpiExtraEl.textContent = escapeText(extra);
-      }
-    };
-
     const extractMethodMeta = (method) => {
       const extra = method?.kpi_extra;
       if (!extra) return { symbol: null, timeframe: null, exchange: null, startingBalance: null };
@@ -549,7 +324,770 @@
       }
     };
 
-    const renderOrders = (items) => {
+    const buildExtraMap = (extra) => {
+      if (!extra) return new Map();
+      return new Map(Object.entries(extra).map(([k, v]) => [normalize(k), v]));
+    };
+
+    const pickExtra = (extraMap, ...keys) => {
+      for (const key of keys) {
+        const found = extraMap.get(normalize(key));
+        if (found !== undefined && found !== null && String(found).trim() !== '') return found;
+      }
+      return null;
+    };
+
+    const resolveRunningStatus = (method, extraMap) => {
+      const raw =
+        method?.is_running ??
+        method?.running ??
+        method?.status ??
+        method?.state ??
+        pickExtra(extraMap, 'running', 'is_running', 'status');
+
+      const val = normalize(raw);
+      if (raw === true || raw === 1 || ['running', 'live', 'active', 'on'].includes(val)) {
+        return { label: 'Running', className: 'text-bg-success' };
+      }
+      if (raw === false || raw === 0 || ['paused', 'stopped', 'inactive', 'off'].includes(val)) {
+        return { label: 'Paused', className: 'text-bg-warning' };
+      }
+      return { label: 'Unknown', className: 'text-bg-secondary' };
+    };
+
+    const resolveMethodTimestamp = (method, extraMap) => {
+      const raw =
+        method?.last_run_at ??
+        method?.last_run ??
+        method?.running_since ??
+        method?.updated_at ??
+        method?.created_at ??
+        pickExtra(
+          extraMap,
+          'last_run',
+          'last_run_at',
+          'last_run_time',
+          'running_since',
+          'updated_at',
+          'created_at',
+        );
+
+      if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+      return String(raw);
+    };
+
+    const getOrderSymbol = (row) =>
+      row?.symbol ?? row?.ticker ?? row?.pair ?? row?.instrument ?? state.methodMeta?.symbol ?? '-';
+
+    const getOrderDatetime = (row) =>
+      escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-');
+
+    const sortOrdersAsc = (items) =>
+      items
+        .slice()
+        .sort((a, b) => getOrderDatetime(a).localeCompare(getOrderDatetime(b)));
+
+    const computeTrades = (orders) => {
+      const sorted = sortOrdersAsc(orders);
+      const openByKey = new Map();
+      const trades = [];
+      const plByExitId = new Map();
+
+      sorted.forEach((row) => {
+        const type = normalize(row?.type);
+        const jenis = normalize(row?.jenis);
+        const symbol = normalize(getOrderSymbol(row));
+        const key = `${jenis || 'default'}|${symbol || 'unknown'}`;
+
+        const price = Number(row?.price ?? row?.price_entry ?? row?.price_exit);
+        const qty = Number(row?.quantity ?? row?.qty);
+        if (!Number.isFinite(price) || !Number.isFinite(qty) || qty === 0) return;
+
+        if (type === 'entry') {
+          openByKey.set(key, {
+            price,
+            qty,
+            jenis,
+            symbol,
+            datetime: getOrderDatetime(row),
+          });
+          return;
+        }
+
+        if (type === 'exit') {
+          const entry = openByKey.get(key);
+          if (!entry) return;
+
+          const isShort = jenis === 'short' || jenis === 'sell';
+          const pnl = isShort ? (entry.price - price) * qty : (price - entry.price) * qty;
+          const entryValue = entry.price * qty;
+          const ret = entryValue ? pnl / entryValue : null;
+
+          trades.push({
+            symbol: entry.symbol,
+            jenis,
+            entryPrice: entry.price,
+            exitPrice: price,
+            qty,
+            pnl,
+            returnPct: ret,
+            entryAt: entry.datetime,
+            exitAt: getOrderDatetime(row),
+          });
+
+          if (row?.id !== undefined && row?.id !== null && Number.isFinite(pnl)) {
+            plByExitId.set(row.id, {
+              tp: pnl > 0 ? pnl : null,
+              sl: pnl < 0 ? Math.abs(pnl) : null,
+            });
+          }
+
+          openByKey.delete(key);
+        }
+      });
+
+      return { trades, plByExitId };
+    };
+
+    const computePositions = (orders) => {
+      const sorted = sortOrdersAsc(orders);
+      const openByKey = new Map();
+      const lastPriceBySymbol = new Map();
+
+      sorted.forEach((row) => {
+        const type = normalize(row?.type);
+        const jenis = normalize(row?.jenis);
+        const symbol = getOrderSymbol(row);
+        const symbolKey = normalize(symbol);
+        const key = `${jenis || 'default'}|${symbolKey || 'unknown'}`;
+
+        const price = Number(row?.price ?? row?.price_entry ?? row?.price_exit);
+        const qty = Number(row?.quantity ?? row?.qty);
+
+        if (Number.isFinite(price)) lastPriceBySymbol.set(symbolKey, price);
+        if (!Number.isFinite(price) || !Number.isFinite(qty) || qty === 0) return;
+
+        if (type === 'entry') {
+          openByKey.set(key, {
+            symbol,
+            jenis,
+            entryPrice: price,
+            qty,
+            since: getOrderDatetime(row),
+          });
+          return;
+        }
+
+        if (type === 'exit') {
+          openByKey.delete(key);
+        }
+      });
+
+      const positions = [];
+      openByKey.forEach((entry) => {
+        const symbolKey = normalize(entry.symbol);
+        const mark = lastPriceBySymbol.get(symbolKey) ?? entry.entryPrice;
+        const isShort = normalize(entry.jenis) === 'short' || normalize(entry.jenis) === 'sell';
+        const pnl = isShort
+          ? (entry.entryPrice - mark) * entry.qty
+          : (mark - entry.entryPrice) * entry.qty;
+
+        positions.push({
+          symbol: entry.symbol,
+          jenis: entry.jenis,
+          entryPrice: entry.entryPrice,
+          mark,
+          qty: entry.qty,
+          pnl,
+          since: entry.since,
+        });
+      });
+
+      return positions;
+    };
+
+    const renderPositions = (items) => {
+      if (!positionsBody) return;
+      positionsBody.innerHTML = '';
+
+      if (!Array.isArray(items) || items.length === 0) {
+        clearTbody(positionsBody, 7, 'No open positions.');
+        if (positionsStatus) positionsStatus.textContent = '0 open positions.';
+        return;
+      }
+
+      if (positionsStatus) positionsStatus.textContent = `${items.length} open positions.`;
+
+      items.forEach((row) => {
+        const tr = document.createElement('tr');
+        const cols = [
+          escapeText(row.symbol ?? '-'),
+          escapeText(row.jenis ?? '-'),
+          formatNumber(row.entryPrice, 2),
+          formatNumber(row.mark, 2),
+          formatNumber(row.qty, 4),
+          formatNumber(row.pnl, 2),
+          escapeText(row.since ?? '-'),
+        ];
+
+        cols.forEach((text, idx) => {
+          const td = document.createElement('td');
+          td.textContent = text;
+          if ([2, 3, 4, 5].includes(idx)) td.classList.add('text-end');
+          tr.appendChild(td);
+        });
+
+        positionsBody.appendChild(tr);
+      });
+    };
+
+    const getBalanceSeries = (orders) => {
+      const sorted = sortOrdersAsc(orders);
+      return sorted
+        .map((row) => ({
+          x: getOrderDatetime(row),
+          y: Number(row.balance),
+        }))
+        .filter((p) => p.x && Number.isFinite(p.y));
+    };
+
+    const parseDate = (value) => {
+      if (!value) return null;
+      const iso = String(value).replace(' ', 'T');
+      const ts = Date.parse(iso);
+      return Number.isNaN(ts) ? null : new Date(ts);
+    };
+
+    const computeReturns = (balances) => {
+      const returns = [];
+      for (let i = 1; i < balances.length; i += 1) {
+        const prev = balances[i - 1].y;
+        const cur = balances[i].y;
+        if (!Number.isFinite(prev) || prev === 0 || !Number.isFinite(cur)) continue;
+        returns.push((cur - prev) / prev);
+      }
+      return returns;
+    };
+
+    const computeStd = (values) => {
+      if (!Array.isArray(values) || values.length < 2) return null;
+      const mean = values.reduce((a, b) => a + b, 0) / values.length;
+      const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / (values.length - 1);
+      return Math.sqrt(variance);
+    };
+
+    const computeSharpe = (returns) => {
+      if (!Array.isArray(returns) || returns.length < 2) return null;
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const std = computeStd(returns);
+      if (!std || std === 0) return null;
+      return (mean / std) * Math.sqrt(returns.length);
+    };
+
+    const computeSortino = (returns) => {
+      if (!Array.isArray(returns) || returns.length < 2) return null;
+      const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+      const downside = returns.filter((r) => r < 0);
+      const std = computeStd(downside);
+      if (!std || std === 0) return null;
+      return (mean / std) * Math.sqrt(returns.length);
+    };
+
+    const computeDrawdown = (balances) => {
+      let peak = null;
+      let maxDd = 0;
+      balances.forEach((p) => {
+        if (peak === null || p.y > peak) peak = p.y;
+        if (peak && p.y < peak) {
+          const dd = (peak - p.y) / peak;
+          if (dd > maxDd) maxDd = dd;
+        }
+      });
+      return maxDd;
+    };
+
+    const computeCagr = (balances) => {
+      if (!Array.isArray(balances) || balances.length < 2) return null;
+      const first = balances[0];
+      const last = balances[balances.length - 1];
+      const startDate = parseDate(first.x);
+      const endDate = parseDate(last.x);
+      if (!startDate || !endDate) return null;
+      const days = (endDate - startDate) / (1000 * 60 * 60 * 24);
+      if (!Number.isFinite(days) || days <= 0) return null;
+      if (first.y <= 0 || last.y <= 0) return null;
+      return Math.pow(last.y / first.y, 365 / days) - 1;
+    };
+
+    const renderMethodCard = () => {
+      const method =
+        state.methodDetail ||
+        state.methods.find((x) => Number(x.id) === Number(state.selectedMethodId)) ||
+        null;
+
+      const extra = parseExtra(method?.kpi_extra);
+      const extraMap = buildExtraMap(extra);
+      const running = resolveRunningStatus(method, extraMap);
+
+      if (methodRunningEl) {
+        methodRunningEl.textContent = running.label;
+        methodRunningEl.className = `badge ${running.className}`;
+      }
+
+      const meta = extractMethodMeta(method);
+      state.methodMeta = meta;
+
+      if (methodMetaEl) {
+        const pair = meta.symbol || '-';
+        const tf = meta.timeframe || '-';
+        const ex = meta.exchange || '-';
+        methodMetaEl.textContent = `Pair: ${pair} | TF: ${tf} | Exchange: ${ex}`;
+      }
+
+      if (methodStatusEl) {
+        const stamp = resolveMethodTimestamp(method, extraMap);
+        if (stamp) {
+          const prefix = running.label === 'Running' ? 'Since' : 'Last run';
+          methodStatusEl.textContent = `${prefix}: ${stamp}`;
+        } else {
+          methodStatusEl.textContent = method ? `ID: ${method.id}` : '';
+        }
+      }
+    };
+
+    const renderBinanceSummary = () => {
+      const summary = state.binanceSummary?.summary ?? {};
+      const account = state.binanceSummary?.account ?? {};
+      const assets = state.binanceSummary?.assets ?? [];
+
+      const accountLabel = account?.label || account?.type || 'SPOT';
+      if (binanceAccountEl) {
+        binanceAccountEl.textContent = state.binanceError
+          ? `Error: ${state.binanceError}`
+          : `Account: ${accountLabel}`;
+      }
+
+      if (binanceHintEl) {
+        const hint = state.binanceHint || '';
+        binanceHintEl.textContent = hint;
+        binanceHintEl.style.display = hint ? 'block' : 'none';
+        binanceHintEl.className = `small mt-1 ${
+          state.binanceError ? 'text-danger' : 'text-secondary'
+        }`;
+      }
+
+      const total = summary.total_usdt ?? null;
+      const available = summary.available_usdt ?? null;
+      const locked = summary.locked_usdt ?? null;
+      const btcValue = summary.btc_value ?? null;
+      const assetCount =
+        summary.asset_count ?? (Array.isArray(assets) ? assets.length : null);
+      const updated = summary.updated_at ?? null;
+
+      if (binanceTotalEl) binanceTotalEl.textContent = Number.isFinite(Number(total)) ? formatNumber(total, 4) : '-';
+      if (binanceAvailableEl) binanceAvailableEl.textContent = Number.isFinite(Number(available)) ? formatNumber(available, 4) : '-';
+      if (binanceLockedEl) binanceLockedEl.textContent = Number.isFinite(Number(locked)) ? formatNumber(locked, 4) : '-';
+      if (binanceBtcEl) binanceBtcEl.textContent = Number.isFinite(Number(btcValue)) ? formatNumber(btcValue, 6) : '-';
+      if (binanceAssetsEl) binanceAssetsEl.textContent = Number.isFinite(Number(assetCount)) ? String(assetCount) : '-';
+      if (binanceUpdatedEl) binanceUpdatedEl.textContent = updated ? String(updated) : '-';
+    };
+
+    const loadBinanceSpot = async () => {
+      if (!binanceTotalEl) return;
+      if (binanceLiveEl) {
+        binanceLiveEl.textContent = 'Loading';
+        binanceLiveEl.className = 'badge text-bg-secondary';
+      }
+      const url = `${window.location.origin}/api/binance/spot/summary`;
+      try {
+        const res = await fetch(url, { headers: { Accept: 'application/json' } });
+        const text = await res.text();
+        let data = null;
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+
+        state.binanceMode = data?.mode ?? null;
+        state.binanceBaseUrl = data?.base_url ?? null;
+
+        if (!res.ok || (data && data.success === false)) {
+          state.binanceSummary = null;
+          state.binanceError = data?.error || data?.message || text || `HTTP ${res.status}`;
+          state.binanceHint = data?.hint || null;
+          if (binanceLiveEl) {
+            binanceLiveEl.textContent = 'Error';
+            binanceLiveEl.className = 'badge text-bg-danger';
+          }
+        } else {
+          state.binanceSummary = data;
+          state.binanceError = null;
+          state.binanceHint = null;
+
+          const mode = String(data?.mode || '').toLowerCase();
+          if (binanceLiveEl) {
+            if (mode === 'stub') {
+              binanceLiveEl.textContent = 'Stub';
+              binanceLiveEl.className = 'badge text-bg-warning';
+            } else if (mode === 'proxy') {
+              binanceLiveEl.textContent = 'Proxy';
+              binanceLiveEl.className = 'badge text-bg-info';
+            } else {
+              binanceLiveEl.textContent = 'Live';
+              binanceLiveEl.className = 'badge text-bg-success';
+            }
+          }
+        }
+      } catch (err) {
+        state.binanceSummary = null;
+        state.binanceError = err?.message || String(err);
+        state.binanceHint = null;
+        if (binanceLiveEl) {
+          binanceLiveEl.textContent = 'Error';
+          binanceLiveEl.className = 'badge text-bg-danger';
+        }
+      }
+
+      renderBinanceSummary();
+    };
+
+    const getBinanceSymbol = () => {
+      const raw = binanceSymbolInput ? binanceSymbolInput.value : 'BTCUSDT';
+      const symbol = String(raw || '')
+        .trim()
+        .toUpperCase();
+      return symbol || 'BTCUSDT';
+    };
+
+    const renderBinanceAssetsDetail = () => {
+      if (!binanceAssetsBody) return;
+      const assets = Array.isArray(state.binanceSummary?.assets) ? state.binanceSummary.assets : [];
+
+      binanceAssetsBody.innerHTML = '';
+      if (!assets.length) {
+        clearTbody(
+          binanceAssetsBody,
+          5,
+          state.binanceError ? `Binance error: ${state.binanceError}` : 'No assets.',
+        );
+        setTableStatus(binanceAssetsStatus, assets.length ? `Loaded ${assets.length} assets.` : '');
+        return;
+      }
+
+      const sorted = assets
+        .slice()
+        .sort((a, b) => (Number(b.value_usdt) || 0) - (Number(a.value_usdt) || 0));
+
+      sorted.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => openModal(`Asset ${row.asset || ''}`, row));
+
+        const cols = [
+          escapeText(row.asset ?? '-'),
+          formatNumber(row.free ?? 0, 8),
+          formatNumber(row.locked ?? 0, 8),
+          row.price_usdt !== null && row.price_usdt !== undefined ? formatNumber(row.price_usdt, 6) : '-',
+          row.value_usdt !== null && row.value_usdt !== undefined ? formatNumber(row.value_usdt, 2) : '-',
+        ];
+
+        cols.forEach((text, idx) => {
+          const td = document.createElement('td');
+          td.textContent = text;
+          if ([1, 2, 3, 4].includes(idx)) td.classList.add('text-end');
+          tr.appendChild(td);
+        });
+
+        binanceAssetsBody.appendChild(tr);
+      });
+
+      setTableStatus(binanceAssetsStatus, `Loaded ${sorted.length} assets.`);
+    };
+
+    const renderBinanceOrdersTable = (tbody, items, emptyText) => {
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      if (!Array.isArray(items) || items.length === 0) {
+        clearTbody(tbody, 8, emptyText || 'No data.');
+        return;
+      }
+
+      const sorted = items
+        .slice()
+        .sort((a, b) => (Number(b.time) || 0) - (Number(a.time) || 0));
+
+      sorted.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => openModal('Order', row));
+
+        const cols = [
+          formatEpochMs(row.time),
+          escapeText(row.symbol ?? '-'),
+          escapeText(row.side ?? '-'),
+          escapeText(row.type ?? '-'),
+          formatNumber(row.price ?? 0, 6),
+          formatNumber(row.origQty ?? 0, 6),
+          formatNumber(row.executedQty ?? 0, 6),
+          escapeText(row.status ?? '-'),
+        ];
+
+        cols.forEach((text, idx) => {
+          const td = document.createElement('td');
+          td.textContent = text;
+          if ([4, 5, 6].includes(idx)) td.classList.add('text-end');
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+    };
+
+    const renderBinanceTradesTable = (tbody, items, emptyText) => {
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      if (!Array.isArray(items) || items.length === 0) {
+        clearTbody(tbody, 6, emptyText || 'No data.');
+        return;
+      }
+
+      const sorted = items
+        .slice()
+        .sort((a, b) => (Number(b.time) || 0) - (Number(a.time) || 0));
+
+      sorted.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => openModal('Trade', row));
+
+        const side =
+          row.isBuyer === true ? 'BUY' : row.isBuyer === false ? 'SELL' : row.side ?? '-';
+        const price = Number(row.price);
+        const qty = Number(row.qty);
+        const quoteQty =
+          row.quoteQty !== undefined && row.quoteQty !== null
+            ? Number(row.quoteQty)
+            : Number.isFinite(price) && Number.isFinite(qty)
+              ? price * qty
+              : null;
+
+        const cols = [
+          formatEpochMs(row.time),
+          escapeText(row.symbol ?? '-'),
+          escapeText(side),
+          formatNumber(price, 6),
+          formatNumber(qty, 6),
+          quoteQty !== null ? formatNumber(quoteQty, 6) : '-',
+        ];
+
+        cols.forEach((text, idx) => {
+          const td = document.createElement('td');
+          td.textContent = text;
+          if ([3, 4, 5].includes(idx)) td.classList.add('text-end');
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+    };
+
+    const loadBinanceOpenOrders = async () => {
+      if (!binanceOpenOrdersBody) return;
+      const symbol = getBinanceSymbol();
+      setTableStatus(binanceOpenOrdersStatus, 'Loading...');
+      try {
+        const res = await fetchLocalJson(
+          `/api/binance/spot/open-orders?symbol=${encodeURIComponent(symbol)}`,
+        );
+        const items = Array.isArray(res?.data) ? res.data : [];
+        state.binanceOpenOrders = items;
+        renderBinanceOrdersTable(binanceOpenOrdersBody, items, 'No open orders.');
+        setTableStatus(binanceOpenOrdersStatus, `Loaded ${items.length} open orders.`);
+      } catch (err) {
+        state.binanceOpenOrders = [];
+        clearTbody(binanceOpenOrdersBody, 8, 'Failed to load open orders.');
+        setTableStatus(
+          binanceOpenOrdersStatus,
+          'Error: ' + (err?.message || String(err)),
+        );
+      }
+    };
+
+    const loadBinanceOrders = async () => {
+      if (!binanceOrdersBody) return;
+      const symbol = getBinanceSymbol();
+      setTableStatus(binanceOrdersStatus, 'Loading...');
+      try {
+        const res = await fetchLocalJson(
+          `/api/binance/spot/orders?symbol=${encodeURIComponent(symbol)}&limit=50`,
+        );
+        const items = Array.isArray(res?.data) ? res.data : [];
+        state.binanceOrders = items;
+        renderBinanceOrdersTable(binanceOrdersBody, items, 'No orders.');
+        setTableStatus(binanceOrdersStatus, `Loaded ${items.length} orders.`);
+      } catch (err) {
+        state.binanceOrders = [];
+        clearTbody(binanceOrdersBody, 8, 'Failed to load orders.');
+        setTableStatus(binanceOrdersStatus, 'Error: ' + (err?.message || String(err)));
+      }
+    };
+
+    const loadBinanceTrades = async () => {
+      if (!binanceTradesBody) return;
+      const symbol = getBinanceSymbol();
+      setTableStatus(binanceTradesStatus, 'Loading...');
+      try {
+        const res = await fetchLocalJson(
+          `/api/binance/spot/trades?symbol=${encodeURIComponent(symbol)}&limit=50`,
+        );
+        const items = Array.isArray(res?.data) ? res.data : [];
+        state.binanceTrades = items;
+        renderBinanceTradesTable(binanceTradesBody, items, 'No trades.');
+        setTableStatus(binanceTradesStatus, `Loaded ${items.length} trades.`);
+      } catch (err) {
+        state.binanceTrades = [];
+        clearTbody(binanceTradesBody, 6, 'Failed to load trades.');
+        setTableStatus(binanceTradesStatus, 'Error: ' + (err?.message || String(err)));
+      }
+    };
+
+    const refreshBinanceDetail = async () => {
+      renderBinanceAssetsDetail();
+      if (state.binanceTab === 'open-orders') await loadBinanceOpenOrders();
+      if (state.binanceTab === 'orders') await loadBinanceOrders();
+      if (state.binanceTab === 'trades') await loadBinanceTrades();
+    };
+
+    const renderKpiGrid = () => {
+      if (!kpiGridEl) return;
+      const method = state.methodDetail || {};
+      const extra = parseExtra(method?.kpi_extra);
+      const extraMap = buildExtraMap(extra);
+
+      const orders = state.latestOrders;
+      const trades = state.latestTrades;
+      const balances = getBalanceSeries(orders);
+      const returns = computeReturns(balances);
+
+      const totalOrders = Array.isArray(orders) ? orders.length : 0;
+      const winCount = trades.filter((t) => Number(t.pnl) > 0).length;
+      const lossCount = trades.filter((t) => Number(t.pnl) < 0).length;
+      const tradeCount = Math.max(1, trades.length);
+      const winRate = winCount / tradeCount;
+      const lossRate = lossCount / tradeCount;
+
+      const sharpe =
+        pickExtra(extraMap, 'sharpe', 'sharpe_ratio') ?? computeSharpe(returns);
+      const sortino =
+        pickExtra(extraMap, 'sortino', 'sortino_ratio') ?? computeSortino(returns);
+      const drawdown =
+        pickExtra(extraMap, 'drawdown', 'max_drawdown', 'dd') ?? computeDrawdown(balances);
+      const cagr = pickExtra(extraMap, 'cagr') ?? method.cagr ?? computeCagr(balances);
+      const probSr = pickExtra(extraMap, 'prob_sr', 'psr') ?? method.prob_sr ?? winRate;
+      const infoRatio =
+        pickExtra(extraMap, 'information_ratio', 'info_ratio') ?? computeSharpe(returns);
+
+      const totalNotional = orders.reduce((sum, row) => {
+        const price = Number(row.price ?? row.price_entry ?? row.price_exit);
+        const qty = Number(row.quantity ?? row.qty);
+        if (!Number.isFinite(price) || !Number.isFinite(qty)) return sum;
+        return sum + Math.abs(price * qty);
+      }, 0);
+      const avgBalance =
+        balances.length > 0
+          ? balances.reduce((sum, b) => sum + b.y, 0) / balances.length
+          : null;
+      const turnover =
+        avgBalance && Number.isFinite(avgBalance) && avgBalance > 0
+          ? totalNotional / avgBalance
+          : null;
+
+      const pnls = trades
+        .map((t) => Number(t.pnl))
+        .filter((value) => Number.isFinite(value));
+      const totalPnlCalc = pnls.reduce((sum, value) => sum + value, 0);
+      const wins = pnls.filter((value) => value > 0);
+      const losses = pnls.filter((value) => value < 0);
+      const grossProfit = wins.reduce((sum, value) => sum + value, 0);
+      const grossLoss = losses.reduce((sum, value) => sum + Math.abs(value), 0);
+      const avgPnlCalc = pnls.length > 0 ? totalPnlCalc / pnls.length : null;
+      const avgWin = wins.length > 0 ? grossProfit / wins.length : null;
+      const avgLoss = losses.length > 0 ? grossLoss / losses.length : null;
+      const profitFactorCalc = grossLoss > 0 ? grossProfit / grossLoss : null;
+      const expectancyCalc =
+        avgWin !== null && avgLoss !== null ? winRate * avgWin - lossRate * avgLoss : null;
+      const bestTradeCalc = wins.length > 0 ? Math.max(...wins) : null;
+      const worstTradeCalc = losses.length > 0 ? Math.min(...losses) : null;
+
+      const totalPnl =
+        pickExtra(extraMap, 'total_pnl', 'net_profit', 'net_pnl', 'pnl_total', 'profit_total') ??
+        totalPnlCalc;
+      const avgPnl =
+        pickExtra(extraMap, 'avg_pnl', 'average_pnl', 'avg_profit', 'avg_trade') ?? avgPnlCalc;
+      const profitFactor =
+        pickExtra(extraMap, 'profit_factor', 'pf') ?? profitFactorCalc;
+      const expectancy =
+        pickExtra(extraMap, 'expectancy', 'expected_value') ?? expectancyCalc;
+      const bestTrade =
+        pickExtra(extraMap, 'best_trade', 'max_trade', 'max_profit') ?? bestTradeCalc;
+      const worstTrade =
+        pickExtra(extraMap, 'worst_trade', 'min_trade', 'max_loss') ?? worstTradeCalc;
+
+      const items = [
+        { label: 'Sharpe Ratio', value: sharpe !== null ? formatNumber(sharpe, 2) : '-' },
+        { label: 'Sortino Ratio', value: sortino !== null ? formatNumber(sortino, 2) : '-' },
+        { label: 'Information Ratio', value: infoRatio !== null ? formatNumber(infoRatio, 2) : '-' },
+        { label: 'CAGR', value: cagr !== null ? formatPercent(cagr) : '-' },
+        { label: 'Drawdown', value: drawdown !== null ? formatPercent(drawdown) : '-' },
+        {
+          label: 'Probabilistic SR',
+          value: probSr !== null ? formatPercent(probSr) : '-',
+        },
+        {
+          label: 'Win Rate',
+          value:
+            method.winrate !== undefined && method.winrate !== null
+              ? formatPercent(method.winrate)
+              : formatPercent(winRate),
+        },
+        {
+          label: 'Loss Rate',
+          value:
+            method.lossrate !== undefined && method.lossrate !== null
+              ? formatPercent(method.lossrate)
+              : formatPercent(lossRate),
+        },
+        { label: 'Profit Factor', value: profitFactor !== null ? formatNumber(profitFactor, 2) : '-' },
+        { label: 'Expectancy', value: expectancy !== null ? formatNumber(expectancy, 2) : '-' },
+        { label: 'Total PnL', value: totalPnl !== null ? formatNumber(totalPnl, 2) : '-' },
+        { label: 'Avg PnL', value: avgPnl !== null ? formatNumber(avgPnl, 2) : '-' },
+        { label: 'Best Trade', value: bestTrade !== null ? formatNumber(bestTrade, 2) : '-' },
+        { label: 'Worst Trade', value: worstTrade !== null ? formatNumber(worstTrade, 2) : '-' },
+        { label: 'Total Orders', value: Number.isFinite(totalOrders) ? String(totalOrders) : '-' },
+        { label: 'Turnover', value: turnover !== null ? formatRatioPercent(turnover) : '-' },
+      ];
+
+      kpiGridEl.innerHTML = '';
+      items.forEach((item) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'sa-kpi-item';
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = item.label;
+
+        const value = document.createElement('div');
+        value.className = 'value';
+        value.textContent = item.value;
+
+        wrap.appendChild(label);
+        wrap.appendChild(value);
+        kpiGridEl.appendChild(wrap);
+      });
+    };
+
+    const renderOrders = (items, plByExitId = new Map()) => {
       ordersBody.innerHTML = '';
 
       if (!Array.isArray(items) || items.length === 0) {
@@ -557,65 +1095,11 @@
         return [];
       }
 
-      const symbolFallback = state?.methodMeta?.symbol || '-';
-      const pickOrderSymbol = (row) =>
-        row?.symbol ?? row?.ticker ?? row?.pair ?? row?.instrument ?? symbolFallback;
-
-      const getOrderDatetime = (row) =>
-        escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-');
-
-      const sorted = items.slice().sort((a, b) => getOrderDatetime(a).localeCompare(getOrderDatetime(b)));
-
-      const computePlByExitId = (rows) => {
-        const openByKey = new Map();
-        const plById = new Map();
-
-        rows.forEach((row) => {
-          const type = normalize(row?.type);
-          const jenis = normalize(row?.jenis);
-          const symbol = normalize(pickOrderSymbol(row));
-          const key = `${jenis || 'default'}|${symbol || 'unknown'}`;
-
-          const price = Number(row?.price ?? row?.price_entry ?? row?.price_exit);
-          const qty = Number(row?.quantity ?? row?.qty);
-          if (!Number.isFinite(price) || !Number.isFinite(qty) || qty === 0) return;
-
-          if (type === 'entry') {
-            openByKey.set(key, { price, qty, jenis });
-            return;
-          }
-
-          if (type === 'exit') {
-            const entry = openByKey.get(key);
-            if (!entry) return;
-
-            const isShort = jenis === 'short' || jenis === 'sell';
-            const profit = isShort ? (entry.price - price) * qty : (price - entry.price) * qty;
-            if (Number.isFinite(profit) && row?.id !== undefined && row?.id !== null) {
-              plById.set(row.id, {
-                tp: profit > 0 ? profit : null,
-                sl: profit < 0 ? Math.abs(profit) : null,
-              });
-            }
-
-            openByKey.delete(key);
-          }
-        });
-
-        return plById;
-      };
-
-      const plByExitId = computePlByExitId(sorted);
-      const points = [];
-
+      const sorted = sortOrdersAsc(items);
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', async () => {
-          if (state.simulate) {
-            openModal(`Order #${row.id} (simulated)`, row);
-            return;
-          }
           try {
             const detail = await fetchJson(`/orders/${row.id}`);
             openModal(`Order #${row.id}`, detail);
@@ -624,7 +1108,7 @@
           }
         });
 
-        const symbol = pickOrderSymbol(row);
+        const symbol = getOrderSymbol(row);
         const price = row.price ?? row.price_entry ?? row.price_exit ?? '-';
         const qty = row.quantity ?? row.qty ?? '-';
         const total = (Number(price) || 0) * (Number(qty) || 0);
@@ -655,12 +1139,7 @@
 
         ordersBody.appendChild(tr);
 
-        const dt = row.datetime ?? row.date_time ?? row.created_at;
-        const bal = Number(row.balance);
-        if (dt && Number.isFinite(bal)) points.push({ x: dt, y: bal });
       });
-
-      return points;
     };
 
     const renderSignals = (items) => {
@@ -670,16 +1149,10 @@
         return;
       }
 
-      const symbolFallback = state?.methodMeta?.symbol || '-';
-
       items.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', async () => {
-          if (state.simulate) {
-            openModal(`Signal #${row.id} (simulated)`, row);
-            return;
-          }
           try {
             const detail = await fetchJson(`/signals/${row.id}`);
             openModal(`Signal #${row.id}`, detail);
@@ -688,12 +1161,12 @@
           }
         });
 
-        const symbol = row.symbol ?? row.ticker ?? row.pair ?? row.instrument ?? symbolFallback;
+        const symbol = getOrderSymbol(row);
         const price =
           row.type === 'exit' ? row.price_exit ?? row.price ?? '-' : row.price_entry ?? row.price ?? '-';
 
         const cols = [
-          escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-'),
+          getOrderDatetime(row),
           escapeText(symbol),
           escapeText(row.type ?? '-'),
           escapeText(row.jenis ?? '-'),
@@ -726,10 +1199,6 @@
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', async () => {
-          if (state.simulate) {
-            openModal(`Reminder #${row.id} (simulated)`, row);
-            return;
-          }
           try {
             const detail = await fetchJson(`/reminders/${row.id}`);
             openModal(`Reminder #${row.id}`, detail);
@@ -764,10 +1233,6 @@
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', async () => {
-          if (state.simulate) {
-            openModal(`Log #${row.id} (simulated)`, row);
-            return;
-          }
           try {
             const detail = await fetchJson(`/logs/${row.id}`);
             openModal(`Log #${row.id}`, detail);
@@ -791,76 +1256,6 @@
       });
     };
 
-    const renderBalanceChart = async (points) => {
-      const Chart = window.Chart || null;
-      if (!balanceCanvas) return;
-
-      const hasData = Array.isArray(points) && points.length > 0;
-      if (balanceEmptyEl) balanceEmptyEl.style.display = hasData ? 'none' : 'block';
-
-      if (!Chart) {
-        if (balanceMetaEl) balanceMetaEl.textContent = 'Chart.js not loaded.';
-        return;
-      }
-
-      if (!hasData) {
-        if (state.chart) {
-          state.chart.destroy();
-          state.chart = null;
-        }
-        return;
-      }
-
-      const sorted = points.slice().sort((a, b) => String(a.x).localeCompare(String(b.x)));
-      const labels = sorted.map((p) => p.x);
-      const values = sorted.map((p) => p.y);
-
-      const config = {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [
-            {
-              label: 'Balance',
-              data: values,
-              borderColor: '#3b82f6',
-              backgroundColor: 'rgba(59, 130, 246, 0.18)',
-              pointRadius: 2,
-              borderWidth: 2,
-              tension: 0.25,
-              fill: true,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { mode: 'index', intersect: false },
-          },
-          interaction: { mode: 'index', intersect: false },
-          scales: {
-            x: { ticks: { maxRotation: 0, autoSkip: true } },
-            y: { ticks: { callback: (v) => Number(v).toLocaleString() } },
-          },
-        },
-      };
-
-      if (state.chart) {
-        state.chart.data.labels = labels;
-        state.chart.data.datasets[0].data = values;
-        state.chart.update();
-      } else {
-        state.chart = new Chart(balanceCanvas.getContext('2d'), config);
-      }
-
-      if (balanceMetaEl) {
-        const latest = sorted[sorted.length - 1];
-        balanceMetaEl.textContent = `Points: ${sorted.length} · Latest: ${latest.y.toLocaleString()} (${latest.x})`;
-      }
-    };
-
     const loadHealth = async () => {
       try {
         const result = await fetchJson('/health', { db: 1 });
@@ -882,6 +1277,13 @@
       try {
         const items = await fetchJson('/methods', { limit: 200, offset: 0 });
         state.methods = Array.isArray(items) ? items : [];
+
+        // Hide methods we don't want to expose in the UI yet.
+        // Example: backend still has "Spot v3", but this app only uses v1/v2 for now.
+        state.methods = state.methods.filter((m) => {
+          const name = normalize(m?.nama_metode);
+          return !name.includes('spot v3');
+        });
         renderMethods();
 
         if (state.methods.length > 0) {
@@ -889,30 +1291,29 @@
           await onMethodChanged();
         } else {
           state.selectedMethodId = null;
-          setKpisFromMethod(null);
+          state.methodDetail = null;
+          state.latestOrders = [];
+          state.latestTrades = [];
+          state.latestPositions = [];
+          renderMethodCard();
+          renderKpiGrid();
+          renderBinanceSummary();
+          renderPositions([]);
           setMethodStatus('No methods.');
         }
       } catch (err) {
         state.methods = [];
         renderMethods();
+        state.methodDetail = null;
+        renderMethodCard();
+        renderKpiGrid();
+        renderBinanceSummary();
         setMethodStatus('Error: ' + (err?.message || String(err)));
       }
     };
 
     const loadMethodDetail = async (id) => {
       if (!id) return null;
-
-      const base =
-        state.methods.find((x) => Number(x.id) === Number(id)) || {
-          id,
-          nama_metode: `Method #${id}`,
-        };
-
-      if (state.simulate) {
-        const demo = getDemoData(id, base.nama_metode);
-        return { ...base, ...demo.kpis, kpi_extra: demo.meta };
-      }
-
       try {
         return await fetchJson(`/methods/${id}`);
       } catch (err) {
@@ -921,83 +1322,90 @@
     };
 
     const loadOrders = async () => {
+      if (!state.selectedMethodId) {
+        state.latestOrders = [];
+        state.latestTrades = [];
+        state.latestPositions = [];
+        renderPositions([]);
+        renderKpiGrid();
+        renderBinanceSummary();
+        clearTbody(ordersBody, 10, 'Select a method to load orders.');
+        setTableStatus(ordersStatus, '');
+        return;
+      }
+
       const q = getGlobalQuery();
       const type = ordersType?.value ?? '';
       const jenis = ordersJenis?.value ?? '';
 
       setTableStatus(ordersStatus, 'Loading...');
       try {
-        let items = [];
+        const items = await fetchJson('/orders', { ...q, type, jenis });
+        const orders = Array.isArray(items) ? items : [];
 
-        if (state.simulate) {
-          const base =
-            state.methods.find((x) => Number(x.id) === Number(state.selectedMethodId)) || null;
-          const demo = getDemoData(state.selectedMethodId || 1, base?.nama_metode);
-          items = applyDemoQuery(demo.orders, q, { type, jenis });
-          setTableStatus(ordersStatus, `Simulated ${items.length} orders.`);
-        } else {
-          items = await fetchJson('/orders', { ...q, type, jenis });
-          setTableStatus(ordersStatus, `Loaded ${Array.isArray(items) ? items.length : 0} orders.`);
-        }
+        state.latestOrders = orders;
+        const tradeData = computeTrades(orders);
+        state.latestTrades = tradeData.trades;
+        state.latestPositions = computePositions(orders);
 
-        const points = renderOrders(Array.isArray(items) ? items : []);
-        await renderBalanceChart(points);
+        renderPositions(state.latestPositions);
+        renderOrders(orders, tradeData.plByExitId);
+        renderKpiGrid();
+        renderBinanceSummary();
+        setTableStatus(ordersStatus, `Loaded ${orders.length} orders.`);
       } catch (err) {
+        state.latestOrders = [];
+        state.latestTrades = [];
+        state.latestPositions = [];
+        renderPositions([]);
+        renderKpiGrid();
+        renderBinanceSummary();
         clearTbody(ordersBody, 10, 'Failed to load orders.');
         setTableStatus(ordersStatus, 'Error: ' + (err?.message || String(err)));
-        await renderBalanceChart([]);
       }
     };
 
     const loadSignals = async () => {
+      if (!state.selectedMethodId) {
+        state.latestSignals = [];
+        clearTbody(signalsBody, 9, 'Select a method to load signals.');
+        setTableStatus(signalsStatus, '');
+        return;
+      }
+
       const q = getGlobalQuery();
       const type = signalsType?.value ?? '';
       const jenis = signalsJenis?.value ?? '';
 
       setTableStatus(signalsStatus, 'Loading...');
       try {
-        let items = [];
-
-        if (state.simulate) {
-          const base =
-            state.methods.find((x) => Number(x.id) === Number(state.selectedMethodId)) || null;
-          const demo = getDemoData(state.selectedMethodId || 1, base?.nama_metode);
-          items = applyDemoQuery(demo.signals, q, { type, jenis });
-          setTableStatus(signalsStatus, `Simulated ${items.length} signals.`);
-        } else {
-          items = await fetchJson('/signals', { ...q, type, jenis });
-          setTableStatus(signalsStatus, `Loaded ${Array.isArray(items) ? items.length : 0} signals.`);
-        }
-
-        renderSignals(Array.isArray(items) ? items : []);
+        const items = await fetchJson('/signals', { ...q, type, jenis });
+        const signals = Array.isArray(items) ? items : [];
+        state.latestSignals = signals;
+        renderSignals(signals);
+        setTableStatus(signalsStatus, `Loaded ${signals.length} signals.`);
       } catch (err) {
+        state.latestSignals = [];
         clearTbody(signalsBody, 9, 'Failed to load signals.');
         setTableStatus(signalsStatus, 'Error: ' + (err?.message || String(err)));
       }
     };
 
     const loadReminders = async () => {
+      if (!state.selectedMethodId) {
+        clearTbody(remindersBody, 2, 'Select a method to load reminders.');
+        setTableStatus(remindersStatus, '');
+        return;
+      }
+
       const q = getGlobalQuery();
 
       setTableStatus(remindersStatus, 'Loading...');
       try {
-        let items = [];
-
-        if (state.simulate) {
-          const base =
-            state.methods.find((x) => Number(x.id) === Number(state.selectedMethodId)) || null;
-          const demo = getDemoData(state.selectedMethodId || 1, base?.nama_metode);
-          items = applyDemoQuery(demo.reminders, q);
-          setTableStatus(remindersStatus, `Simulated ${items.length} reminders.`);
-        } else {
-          items = await fetchJson('/reminders', q);
-          setTableStatus(
-            remindersStatus,
-            `Loaded ${Array.isArray(items) ? items.length : 0} reminders.`,
-          );
-        }
-
-        renderReminders(Array.isArray(items) ? items : []);
+        const items = await fetchJson('/reminders', q);
+        const reminders = Array.isArray(items) ? items : [];
+        renderReminders(reminders);
+        setTableStatus(remindersStatus, `Loaded ${reminders.length} reminders.`);
       } catch (err) {
         clearTbody(remindersBody, 2, 'Failed to load reminders.');
         setTableStatus(remindersStatus, 'Error: ' + (err?.message || String(err)));
@@ -1005,24 +1413,20 @@
     };
 
     const loadLogs = async () => {
+      if (!state.selectedMethodId) {
+        clearTbody(logsBody, 2, 'Select a method to load logs.');
+        setTableStatus(logsStatus, '');
+        return;
+      }
+
       const q = getGlobalQuery();
 
       setTableStatus(logsStatus, 'Loading...');
       try {
-        let items = [];
-
-        if (state.simulate) {
-          const base =
-            state.methods.find((x) => Number(x.id) === Number(state.selectedMethodId)) || null;
-          const demo = getDemoData(state.selectedMethodId || 1, base?.nama_metode);
-          items = applyDemoQuery(demo.logs, q);
-          setTableStatus(logsStatus, `Simulated ${items.length} logs.`);
-        } else {
-          items = await fetchJson('/logs', q);
-          setTableStatus(logsStatus, `Loaded ${Array.isArray(items) ? items.length : 0} logs.`);
-        }
-
-        renderLogs(Array.isArray(items) ? items : []);
+        const items = await fetchJson('/logs', q);
+        const logs = Array.isArray(items) ? items : [];
+        renderLogs(logs);
+        setTableStatus(logsStatus, `Loaded ${logs.length} logs.`);
       } catch (err) {
         clearTbody(logsBody, 2, 'Failed to load logs.');
         setTableStatus(logsStatus, 'Error: ' + (err?.message || String(err)));
@@ -1031,11 +1435,18 @@
 
     const refreshAll = async () => {
       await loadHealth();
+      await loadBinanceSpot();
       await loadOrders();
-      await loadSignals();
-      await loadReminders();
-      await loadLogs();
-      setLastRefresh();
+
+      if (state.detailSource === 'qc') {
+        await loadSignals();
+        await loadReminders();
+        await loadLogs();
+      }
+
+      if (state.detailSource === 'binance') {
+        await refreshBinanceDetail();
+      }
     };
 
     const onMethodChanged = async () => {
@@ -1045,18 +1456,24 @@
 
       if (methodDetailButton) methodDetailButton.disabled = !state.selectedMethodId;
 
-      const m = state.methods.find((x) => Number(x.id) === state.selectedMethodId) || null;
-      setKpisFromMethod(m);
-      state.methodMeta = extractMethodMeta(m);
+      const base = state.methods.find((x) => Number(x.id) === state.selectedMethodId) || null;
+      state.methodDetail = base;
+      renderMethodCard();
+      renderBinanceSummary();
+      renderKpiGrid();
 
       if (state.selectedMethodId) {
         const detail = await loadMethodDetail(state.selectedMethodId);
-        if (detail && !detail.error) {
-          setKpisFromMethod(detail);
-          state.methodMeta = extractMethodMeta(detail);
-        }
+        if (detail && !detail.error) state.methodDetail = { ...base, ...detail };
+        renderMethodCard();
+        renderBinanceSummary();
+        renderKpiGrid();
         setMethodStatus(`Selected method #${state.selectedMethodId}`);
       } else {
+        state.methodDetail = null;
+        renderMethodCard();
+        renderBinanceSummary();
+        renderKpiGrid();
         setMethodStatus('');
       }
 
@@ -1065,10 +1482,19 @@
 
     const tabs = Array.from(document.querySelectorAll('.sa-tab'));
     const panels = {
+      positions: byId('sa-panel-positions'),
       orders: byId('sa-panel-orders'),
       signals: byId('sa-panel-signals'),
       reminders: byId('sa-panel-reminders'),
       logs: byId('sa-panel-logs'),
+    };
+
+    const binanceTabs = Array.from(document.querySelectorAll('.sa-binance-tab'));
+    const binancePanels = {
+      assets: byId('sa-binance-panel-assets'),
+      'open-orders': byId('sa-binance-panel-open-orders'),
+      orders: byId('sa-binance-panel-orders'),
+      trades: byId('sa-binance-panel-trades'),
     };
 
     const showTab = (key) => {
@@ -1079,8 +1505,59 @@
       });
     };
 
+    const showBinanceTab = (key) => {
+      const kk = key || 'assets';
+      state.binanceTab = kk;
+      binanceTabs.forEach((t) =>
+        t.classList.toggle('is-active', t.getAttribute('data-tab') === kk),
+      );
+      Object.entries(binancePanels).forEach(([k, el]) => {
+        if (!el) return;
+        el.style.display = k === kk ? 'block' : 'none';
+      });
+
+      if (kk === 'assets') renderBinanceAssetsDetail();
+      if (kk === 'open-orders') loadBinanceOpenOrders();
+      if (kk === 'orders') loadBinanceOrders();
+      if (kk === 'trades') loadBinanceTrades();
+    };
+
+    const setDetailSource = (source) => {
+      const next = source === 'qc' || source === 'binance' ? source : null;
+      state.detailSource = next;
+
+      if (qcDetailPanel) qcDetailPanel.style.display = next === 'qc' ? 'block' : 'none';
+      if (binanceDetailPanel) binanceDetailPanel.style.display = next === 'binance' ? 'block' : 'none';
+
+      if (qcDetailButton) {
+        qcDetailButton.classList.toggle('btn-primary', next === 'qc');
+        qcDetailButton.classList.toggle('btn-outline-primary', next !== 'qc');
+      }
+      if (binanceDetailButton) {
+        binanceDetailButton.classList.toggle('btn-primary', next === 'binance');
+        binanceDetailButton.classList.toggle('btn-outline-primary', next !== 'binance');
+      }
+
+      if (next === 'qc') {
+        showTab('positions');
+        loadSignals();
+        loadReminders();
+        loadLogs();
+        qcDetailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      if (next === 'binance') {
+        showBinanceTab(state.binanceTab);
+        binanceDetailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+
     tabs.forEach((btn) => {
       btn.addEventListener('click', () => showTab(btn.getAttribute('data-tab')));
+    });
+
+    binanceTabs.forEach((btn) => {
+      btn.addEventListener('click', () => showBinanceTab(btn.getAttribute('data-tab')));
     });
 
     methodSelect.addEventListener('change', onMethodChanged);
@@ -1093,52 +1570,43 @@
       });
     }
 
-    const scheduleRefresh = (() => {
-      let timer = null;
-      return () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => refreshAll(), 350);
-      };
-    })();
-
-    [fromInput, toInput, limitInput, offsetInput].forEach((el) => {
-      if (!el) return;
-      el.addEventListener('change', scheduleRefresh);
-    });
-
-    if (ordersRefresh) ordersRefresh.addEventListener('click', loadOrders);
-    if (signalsRefresh) signalsRefresh.addEventListener('click', loadSignals);
-    if (remindersRefresh) remindersRefresh.addEventListener('click', loadReminders);
-    if (logsRefresh) logsRefresh.addEventListener('click', loadLogs);
+    const startAutoRefresh = () => {
+      if (state.autoTimer) clearInterval(state.autoTimer);
+      state.autoTimer = setInterval(() => {
+        refreshAll();
+      }, 15000);
+    };
 
     if (ordersType) ordersType.addEventListener('change', loadOrders);
     if (ordersJenis) ordersJenis.addEventListener('change', loadOrders);
     if (signalsType) signalsType.addEventListener('change', loadSignals);
     if (signalsJenis) signalsJenis.addEventListener('change', loadSignals);
 
-    if (refreshAllButton) refreshAllButton.addEventListener('click', refreshAll);
-
-    if (simulateToggle) {
-      simulateToggle.addEventListener('change', () => {
-        state.simulate = !!simulateToggle.checked;
-        safeStorage.set(STORAGE_KEY_SIMULATE, state.simulate ? '1' : '0');
-        syncModeUi();
-        onMethodChanged();
+    if (binanceSymbolInput) {
+      binanceSymbolInput.addEventListener('change', () => {
+        if (state.detailSource !== 'binance') return;
+        showBinanceTab(state.binanceTab);
       });
     }
 
-    const now = new Date();
-    const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const pad = (n) => String(n).padStart(2, '0');
-    const toLocalInput = (d) =>
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    if (qcDetailButton) {
+      qcDetailButton.addEventListener('click', () => {
+        setDetailSource(state.detailSource === 'qc' ? null : 'qc');
+      });
+    }
 
-    if (fromInput && !fromInput.value) fromInput.value = toLocalInput(from);
-    if (toInput && !toInput.value) toInput.value = toLocalInput(now);
+    if (binanceDetailButton) {
+      binanceDetailButton.addEventListener('click', () => {
+        setDetailSource(state.detailSource === 'binance' ? null : 'binance');
+      });
+    }
 
-    initMode();
-    showTab('orders');
+    showTab('positions');
+    showBinanceTab('assets');
+    setDetailSource(null);
     loadMethods();
     loadHealth();
+    loadBinanceSpot();
+    startAutoRefresh();
   });
 })();
