@@ -144,18 +144,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #F0B90B;
             border-radius: 12px;
-            background: rgba(240, 185, 11, 0.12);
-        }
-
-        .dark .sa-binance-logo {
-            background: rgba(240, 185, 11, 0.18);
-        }
-
-        .sa-binance-logo svg {
-            width: 100%;
-            height: 100%;
+            overflow: hidden;
+            background: transparent;
         }
 
         .sa-qc-logo {
@@ -165,18 +156,16 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #F0B90B;
             border-radius: 12px;
-            background: rgba(240, 185, 11, 0.12);
+            overflow: hidden;
+            background: transparent;
         }
 
-        .dark .sa-qc-logo {
-            background: rgba(240, 185, 11, 0.18);
-        }
-
-        .sa-qc-logo svg {
+        .sa-logo-img {
             width: 100%;
             height: 100%;
+            object-fit: cover;
+            display: block;
         }
 
         .sa-pagination {
@@ -351,15 +340,7 @@
                     <div class="d-flex align-items-start justify-content-between gap-2 mb-2">
                         <div class="d-flex align-items-start gap-2">
                             <div class="sa-qc-logo" title="QuantConnect" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" role="img">
-                                    <g fill="currentColor">
-                                        <polygon points="12,4 14,6 12,8 10,6"/>
-                                        <polygon points="18,10 20,12 18,14 16,12"/>
-                                        <polygon points="12,16 14,18 12,20 10,18"/>
-                                        <polygon points="6,10 8,12 6,14 4,12"/>
-                                        <polygon points="12,10 14,12 12,14 10,12"/>
-                                    </g>
-                                </svg>
+                                <img class="sa-logo-img" src="{{ asset('images/qclogo.png') }}" alt="QuantConnect" />
                             </div>
                             <div class="d-flex flex-column">
                                 <div class="fw-semibold">QuantConnect KPI</div>
@@ -374,15 +355,7 @@
                     <div class="d-flex align-items-start justify-content-between gap-2 mb-1">
                         <div class="d-flex align-items-start gap-2">
                             <div class="sa-binance-logo" title="Binance" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" role="img">
-                                    <g fill="currentColor">
-                                        <polygon points="12,4 14,6 12,8 10,6"/>
-                                        <polygon points="18,10 20,12 18,14 16,12"/>
-                                        <polygon points="12,16 14,18 12,20 10,18"/>
-                                        <polygon points="6,10 8,12 6,14 4,12"/>
-                                        <polygon points="12,10 14,12 12,14 10,12"/>
-                                    </g>
-                                </svg>
+                                <img class="sa-logo-img" src="{{ asset('images/binancelogo.png') }}" alt="Binance" />
                             </div>
                             <div class="d-flex flex-column">
                                 <div class="d-flex align-items-center gap-2">
