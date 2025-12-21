@@ -17,52 +17,6 @@
             </div>
         </div>
 
-	        <div class="df-panel p-4">
-	            <div class="d-flex flex-column gap-3">
-                <div>
-                    <div class="fw-semibold mb-1">Kebutuhan awal</div>
-                    <div class="text-secondary small">
-                        Isi di server `.env`: <code>QC_USER_ID</code> dan <code>QC_API_TOKEN</code> (opsional: <code>QC_ORGANIZATION_ID</code>).
-                        Setelah itu jalankan: <code>php artisan optimize:clear && php artisan config:cache</code>.
-                    </div>
-                </div>
-
-                <div class="d-flex flex-column gap-2">
-                    <div class="fw-semibold">Status konfigurasi</div>
-                    <div class="small text-secondary d-flex flex-column gap-1">
-                        <div><span class="text-muted">Base URL:</span> <code>{{ $qc['base_url'] ?? '-' }}</code></div>
-                        <div><span class="text-muted">User ID:</span> <code>{{ ($qc['user_id_masked'] ?? '') !== '' ? $qc['user_id_masked'] : '(belum di-set)' }}</code></div>
-                        <div><span class="text-muted">Organization ID:</span> <code>{{ ($qc['organization_id_masked'] ?? '') !== '' ? $qc['organization_id_masked'] : '(opsional)' }}</code></div>
-                        <div>
-                            <span class="text-muted">Configured:</span>
-                            @if(($qc['configured'] ?? false) === true)
-                                <span class="text-success fw-semibold">YES</span>
-                            @else
-                                <span class="text-danger fw-semibold">NO</span>
-                            @endif
-                        </div>
-                    </div>
-                </div>
-
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <button id="qc-auth-test" class="btn btn-primary" @disabled(!($qc['configured'] ?? false))>
-                        Test Authentication
-                    </button>
-                    <a class="btn btn-outline-secondary" href="{{ route('api.quantconnect.authenticate', absolute: false) }}" target="_blank" rel="noopener">
-                        Open JSON
-                    </a>
-                    <div class="text-secondary small">
-                        Endpoint: <code>{{ route('api.quantconnect.authenticate', absolute: false) }}</code>
-                    </div>
-                </div>
-
-                <div>
-                    <div class="fw-semibold mb-2">Hasil test</div>
-                    <pre id="qc-auth-output" class="mb-0 p-3 bg-body-tertiary rounded small text-wrap" style="min-height: 96px; white-space: pre-wrap;">Klik tombol “Test Authentication”.</pre>
-                </div>
-            </div>
-        </div>
-
         <div class="df-panel p-4">
             <div class="d-flex flex-column gap-3">
                 <div>
@@ -200,39 +154,6 @@
 @endsection
 
 @section('scripts')
-    <script>
-        (function () {
-            const button = document.getElementById('qc-auth-test');
-            const output = document.getElementById('qc-auth-output');
-            if (!button || !output) return;
-
-            const endpoint = @json(route('api.quantconnect.authenticate', absolute: false));
-
-            button.addEventListener('click', async () => {
-                button.disabled = true;
-                output.textContent = 'Checking QuantConnect authentication...';
-
-                try {
-                    const response = await fetch(endpoint, {
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    const text = await response.text();
-
-                    try {
-                        const json = JSON.parse(text);
-                        output.textContent = JSON.stringify(json, null, 2);
-                    } catch (e) {
-                        output.textContent = text;
-                    }
-                } catch (error) {
-                    output.textContent = 'Error: ' + (error && error.message ? error.message : String(error));
-                } finally {
-                    button.disabled = false;
-                }
-            });
-        })();
-    </script>
-
 	    <script>
 	        (function () {
 	            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
