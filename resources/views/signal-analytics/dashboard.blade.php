@@ -158,6 +158,13 @@
             height: 100%;
         }
 
+        .sa-pagination {
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
         @media (max-width: 992px) {
             .sa-overview-grid {
                 grid-template-columns: 1fr;
@@ -318,16 +325,13 @@
                 </div>
             </div>
 
-                <div class="sa-overview-grid mt-3">
-                    <div class="sa-card d-flex flex-column h-100">
+            <div class="sa-overview-grid mt-3">
+                <div class="sa-card d-flex flex-column h-100">
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <div class="fw-semibold">QuantConnect KPI</div>
-                        <span id="sa-qc-running-badge" class="sa-status-text is-unknown">UNKNOWN</span>
+                        <button id="sa-qc-detail" class="btn btn-outline-primary btn-sm" type="button">Detail</button>
                     </div>
                     <div id="sa-kpi-grid" class="sa-kpi-grid"></div>
-                    <div class="mt-auto pt-3">
-                        <button id="sa-qc-detail" class="btn btn-outline-primary w-100" type="button">Detail</button>
-                    </div>
                 </div>
 
                 <div class="sa-card d-flex flex-column h-100">
@@ -352,6 +356,7 @@
                                 <div id="sa-binance-account" class="small text-secondary">Account: -</div>
                             </div>
                         </div>
+                        <button id="sa-binance-detail" class="btn btn-outline-primary btn-sm" type="button">Detail</button>
                     </div>
                     <div id="sa-binance-hint" class="small text-secondary mt-1"></div>
                     <div class="sa-binance-grid">
@@ -380,28 +385,25 @@
                             <div id="sa-binance-updated" class="value">-</div>
                         </div>
                     </div>
-                    <div class="mt-auto pt-3">
-                        <button id="sa-binance-detail" class="btn btn-outline-primary w-100" type="button">Detail</button>
-                    </div>
                 </div>
             </div>
         </div>
 
         <div id="sa-detail" class="df-panel p-4" style="display:none;">
-                <div id="sa-detail-qc" style="display:none;">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <button class="btn btn-outline-secondary btn-sm sa-tab is-active" data-tab="positions" type="button">Positions <span id="sa-count-positions" class="ms-1 text-secondary"></span></button>
-                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="orders" type="button">Order History <span id="sa-count-orders" class="ms-1 text-secondary"></span></button>
-                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="signals" type="button">Signals <span id="sa-count-signals" class="ms-1 text-secondary"></span></button>
-                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="reminders" type="button">Reminders <span id="sa-count-reminders" class="ms-1 text-secondary"></span></button>
-                    <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="logs" type="button">Logs <span id="sa-count-logs" class="ms-1 text-secondary"></span></button>
+            <div id="sa-detail-qc" style="display:none;">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="positions" type="button">Positions <span id="sa-count-positions" class="ms-1 text-secondary"></span></button>
+                        <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="orders" type="button">Order History <span id="sa-count-orders" class="ms-1 text-secondary"></span></button>
+                        <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="signals" type="button">Signals <span id="sa-count-signals" class="ms-1 text-secondary"></span></button>
+                        <button class="btn btn-outline-secondary btn-sm sa-tab" data-tab="reminders" type="button">Reminders <span id="sa-count-reminders" class="ms-1 text-secondary"></span></button>
+                        <button class="btn btn-outline-secondary btn-sm sa-tab is-active" data-tab="logs" type="button">Logs <span id="sa-count-logs" class="ms-1 text-secondary"></span></button>
+                    </div>
+                    <div class="small text-secondary">Klik row untuk lihat detail (GET by id).</div>
                 </div>
-                <div class="small text-secondary">Klik row untuk lihat detail (GET by id).</div>
-            </div>
 
-            <div class="mt-3">
-                <div id="sa-panel-positions" class="sa-panel">
+                <div class="mt-3">
+                <div id="sa-panel-positions" class="sa-panel" style="display:none;">
                     <div class="d-flex align-items-center justify-content-between flex-wrap mb-2">
                         <div class="small text-secondary">Position yang sedang terbuka.</div>
                         <div id="sa-positions-status" class="small text-secondary"></div>
@@ -467,6 +469,7 @@
                             <tbody id="sa-orders-body" class="small"></tbody>
                         </table>
                     </div>
+                    <div id="sa-orders-pagination" class="sa-pagination mt-2"></div>
                 </div>
 
                 <div id="sa-panel-signals" class="sa-panel" style="display:none;">
@@ -511,6 +514,7 @@
                             <tbody id="sa-signals-body" class="small"></tbody>
                         </table>
                     </div>
+                    <div id="sa-signals-pagination" class="sa-pagination mt-2"></div>
                 </div>
 
                 <div id="sa-panel-reminders" class="sa-panel" style="display:none;">
@@ -528,9 +532,10 @@
                             <tbody id="sa-reminders-body" class="small"></tbody>
                         </table>
                     </div>
+                    <div id="sa-reminders-pagination" class="sa-pagination mt-2"></div>
                 </div>
 
-                <div id="sa-panel-logs" class="sa-panel" style="display:none;">
+                <div id="sa-panel-logs" class="sa-panel">
                     <div class="d-flex align-items-end gap-2 flex-wrap mb-2">
                         <div id="sa-logs-status" class="small text-secondary"></div>
                     </div>
@@ -545,6 +550,7 @@
                             <tbody id="sa-logs-body" class="small"></tbody>
                         </table>
                     </div>
+                    <div id="sa-logs-pagination" class="sa-pagination mt-2"></div>
                 </div>
             </div>
             </div>

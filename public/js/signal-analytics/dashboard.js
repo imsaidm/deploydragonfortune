@@ -23,7 +23,6 @@
     const methodRunningEl = byId('sa-method-running');
     const methodMetaEl = byId('sa-method-meta');
     const methodBacktestEl = byId('sa-method-backtest');
-    const qcRunningBadgeEl = byId('sa-qc-running-badge');
 
     const healthEl = byId('sa-health');
     const healthMetaEl = byId('sa-health-meta');
@@ -72,17 +71,21 @@
     const ordersJenis = byId('sa-orders-jenis');
     const ordersStatus = byId('sa-orders-status');
     const ordersBody = byId('sa-orders-body');
+    const ordersPagination = byId('sa-orders-pagination');
 
     const signalsType = byId('sa-signals-type');
     const signalsJenis = byId('sa-signals-jenis');
     const signalsStatus = byId('sa-signals-status');
     const signalsBody = byId('sa-signals-body');
+    const signalsPagination = byId('sa-signals-pagination');
 
     const remindersStatus = byId('sa-reminders-status');
     const remindersBody = byId('sa-reminders-body');
+    const remindersPagination = byId('sa-reminders-pagination');
 
     const logsStatus = byId('sa-logs-status');
     const logsBody = byId('sa-logs-body');
+    const logsPagination = byId('sa-logs-pagination');
 
     const countPositionsEl = byId('sa-count-positions');
     const countOrdersEl = byId('sa-count-orders');
@@ -121,6 +124,8 @@
       latestPositions: [],
       latestReminders: [],
       latestLogs: [],
+      pages: { orders: 1, signals: 1, reminders: 1, logs: 1 },
+      ordersPlByExitId: new Map(),
       binanceSummary: null,
       binanceError: null,
       binanceHint: null,
@@ -326,6 +331,75 @@
       td.textContent = message || 'No data';
       tr.appendChild(td);
       tbody.appendChild(tr);
+    };
+
+    const PAGE_SIZE = 5;
+
+    const clampPage = (page, totalPages) => {
+      const p = Number(page);
+      const max = Number(totalPages);
+      if (!Number.isFinite(max) || max <= 1) return 1;
+      if (!Number.isFinite(p) || p < 1) return 1;
+      if (p > max) return max;
+      return p;
+    };
+
+    const clearPager = (el) => {
+      if (!el) return;
+      el.innerHTML = '';
+    };
+
+    const renderPager = (el, totalItems, currentPage, onChange) => {
+      if (!el) return { page: 1, totalPages: 1 };
+
+      el.innerHTML = '';
+      const total = Number(totalItems) || 0;
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const page = clampPage(currentPage, totalPages);
+
+      if (totalPages <= 1) return { page, totalPages };
+
+      const makeButton = (label, pageNum, active = false) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `btn btn-sm ${active ? 'btn-primary' : 'btn-outline-secondary'}`;
+        btn.textContent = label;
+        btn.addEventListener('click', () => onChange(pageNum));
+        return btn;
+      };
+
+      const makeEllipsis = () => {
+        const span = document.createElement('span');
+        span.className = 'px-1 text-secondary small';
+        span.textContent = '...';
+        return span;
+      };
+
+      const pages = [];
+      if (totalPages <= 12) {
+        for (let p = 1; p <= totalPages; p += 1) pages.push(p);
+      } else {
+        const windowSize = 7;
+        let start = Math.max(1, page - Math.floor(windowSize / 2));
+        let end = Math.min(totalPages, start + windowSize - 1);
+        start = Math.max(1, end - windowSize + 1);
+
+        if (start > 1) pages.push(1);
+        if (start > 2) pages.push('...');
+        for (let p = start; p <= end; p += 1) pages.push(p);
+        if (end < totalPages - 1) pages.push('...');
+        if (end < totalPages) pages.push(totalPages);
+      }
+
+      pages.forEach((p) => {
+        if (p === '...') {
+          el.appendChild(makeEllipsis());
+          return;
+        }
+        el.appendChild(makeButton(String(p), p, p === page));
+      });
+
+      return { page, totalPages };
     };
 
     const getGlobalQuery = () => {
@@ -661,7 +735,6 @@
       };
 
       applyRunningBadge(methodRunningEl);
-      applyRunningBadge(qcRunningBadgeEl);
 
       const meta = extractMethodMeta(method);
       state.methodMeta = meta;
@@ -1113,15 +1186,27 @@
     };
 
     const renderOrders = (items, plByExitId = new Map()) => {
+      if (!ordersBody) return;
       ordersBody.innerHTML = '';
 
       if (!Array.isArray(items) || items.length === 0) {
         clearTbody(ordersBody, 10, 'No orders.');
-        return [];
+        clearPager(ordersPagination);
+        return;
       }
 
       const sorted = sortOrdersAsc(items);
-      sorted.forEach((row) => {
+      const pager = renderPager(ordersPagination, sorted.length, state.pages.orders, (next) => {
+        state.pages.orders = next;
+        renderOrders(state.latestOrders, state.ordersPlByExitId);
+      });
+
+      state.pages.orders = pager.page;
+
+      const start = (pager.page - 1) * PAGE_SIZE;
+      const pageItems = sorted.slice(start, start + PAGE_SIZE);
+
+      pageItems.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', async () => {
@@ -1164,18 +1249,28 @@
         tr.appendChild(createMessageCell(row.message));
 
         ordersBody.appendChild(tr);
-
       });
     };
 
     const renderSignals = (items) => {
+      if (!signalsBody) return;
       signalsBody.innerHTML = '';
       if (!Array.isArray(items) || items.length === 0) {
         clearTbody(signalsBody, 10, 'No signals.');
+        clearPager(signalsPagination);
         return;
       }
 
-      items.forEach((row) => {
+      const pager = renderPager(signalsPagination, items.length, state.pages.signals, (next) => {
+        state.pages.signals = next;
+        renderSignals(state.latestSignals);
+      });
+      state.pages.signals = pager.page;
+
+      const start = (pager.page - 1) * PAGE_SIZE;
+      const pageItems = items.slice(start, start + PAGE_SIZE);
+
+      pageItems.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', async () => {
@@ -1217,13 +1312,29 @@
     };
 
     const renderReminders = (items) => {
+      if (!remindersBody) return;
       remindersBody.innerHTML = '';
       if (!Array.isArray(items) || items.length === 0) {
         clearTbody(remindersBody, 2, 'No reminders.');
+        clearPager(remindersPagination);
         return;
       }
 
-      items.forEach((row) => {
+      const pager = renderPager(
+        remindersPagination,
+        items.length,
+        state.pages.reminders,
+        (next) => {
+          state.pages.reminders = next;
+          renderReminders(state.latestReminders);
+        },
+      );
+      state.pages.reminders = pager.page;
+
+      const start = (pager.page - 1) * PAGE_SIZE;
+      const pageItems = items.slice(start, start + PAGE_SIZE);
+
+      pageItems.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', async () => {
@@ -1245,13 +1356,24 @@
     };
 
     const renderLogs = (items) => {
+      if (!logsBody) return;
       logsBody.innerHTML = '';
       if (!Array.isArray(items) || items.length === 0) {
         clearTbody(logsBody, 2, 'No logs.');
+        clearPager(logsPagination);
         return;
       }
 
-      items.forEach((row) => {
+      const pager = renderPager(logsPagination, items.length, state.pages.logs, (next) => {
+        state.pages.logs = next;
+        renderLogs(state.latestLogs);
+      });
+      state.pages.logs = pager.page;
+
+      const start = (pager.page - 1) * PAGE_SIZE;
+      const pageItems = items.slice(start, start + PAGE_SIZE);
+
+      pageItems.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', async () => {
@@ -1354,11 +1476,13 @@
         state.latestSignals = [];
         state.latestReminders = [];
         state.latestLogs = [];
+        state.ordersPlByExitId = new Map();
         updateTabCounts();
         renderPositions([]);
         renderKpiGrid();
         renderBinanceSummary();
         clearTbody(ordersBody, 10, 'Select a method to load orders.');
+        clearPager(ordersPagination);
         setTableStatus(ordersStatus, '');
         return;
       }
@@ -1375,10 +1499,11 @@
         state.latestOrders = orders;
         const tradeData = computeTrades(orders);
         state.latestTrades = tradeData.trades;
+        state.ordersPlByExitId = tradeData.plByExitId;
         state.latestPositions = computePositions(orders);
 
         renderPositions(state.latestPositions);
-        renderOrders(orders, tradeData.plByExitId);
+        renderOrders(orders, state.ordersPlByExitId);
         renderKpiGrid();
         renderBinanceSummary();
         updateTabCounts();
@@ -1387,11 +1512,13 @@
         state.latestOrders = [];
         state.latestTrades = [];
         state.latestPositions = [];
+        state.ordersPlByExitId = new Map();
         updateTabCounts();
         renderPositions([]);
         renderKpiGrid();
         renderBinanceSummary();
         clearTbody(ordersBody, 10, 'Failed to load orders.');
+        clearPager(ordersPagination);
         setTableStatus(ordersStatus, 'Error: ' + (err?.message || String(err)));
       }
     };
@@ -1401,6 +1528,7 @@
         state.latestSignals = [];
         updateTabCounts();
         clearTbody(signalsBody, 10, 'Select a method to load signals.');
+        clearPager(signalsPagination);
         setTableStatus(signalsStatus, '');
         return;
       }
@@ -1421,6 +1549,7 @@
         state.latestSignals = [];
         updateTabCounts();
         clearTbody(signalsBody, 10, 'Failed to load signals.');
+        clearPager(signalsPagination);
         setTableStatus(signalsStatus, 'Error: ' + (err?.message || String(err)));
       }
     };
@@ -1430,6 +1559,7 @@
         state.latestReminders = [];
         updateTabCounts();
         clearTbody(remindersBody, 2, 'Select a method to load reminders.');
+        clearPager(remindersPagination);
         setTableStatus(remindersStatus, '');
         return;
       }
@@ -1448,6 +1578,7 @@
         state.latestReminders = [];
         updateTabCounts();
         clearTbody(remindersBody, 2, 'Failed to load reminders.');
+        clearPager(remindersPagination);
         setTableStatus(remindersStatus, 'Error: ' + (err?.message || String(err)));
       }
     };
@@ -1457,6 +1588,7 @@
         state.latestLogs = [];
         updateTabCounts();
         clearTbody(logsBody, 2, 'Select a method to load logs.');
+        clearPager(logsPagination);
         setTableStatus(logsStatus, '');
         return;
       }
@@ -1475,6 +1607,7 @@
         state.latestLogs = [];
         updateTabCounts();
         clearTbody(logsBody, 2, 'Failed to load logs.');
+        clearPager(logsPagination);
         setTableStatus(logsStatus, 'Error: ' + (err?.message || String(err)));
       }
     };
@@ -1499,6 +1632,10 @@
       const id = methodSelect.value ? Number(methodSelect.value) : null;
       state.selectedMethodId = Number.isFinite(id) ? id : null;
       state.methodMeta = null;
+      state.pages.orders = 1;
+      state.pages.signals = 1;
+      state.pages.reminders = 1;
+      state.pages.logs = 1;
 
       if (methodDetailButton) methodDetailButton.disabled = !state.selectedMethodId;
 
@@ -1625,10 +1762,26 @@
       }, 15000);
     };
 
-    if (ordersType) ordersType.addEventListener('change', loadOrders);
-    if (ordersJenis) ordersJenis.addEventListener('change', loadOrders);
-    if (signalsType) signalsType.addEventListener('change', loadSignals);
-    if (signalsJenis) signalsJenis.addEventListener('change', loadSignals);
+    if (ordersType)
+      ordersType.addEventListener('change', () => {
+        state.pages.orders = 1;
+        loadOrders();
+      });
+    if (ordersJenis)
+      ordersJenis.addEventListener('change', () => {
+        state.pages.orders = 1;
+        loadOrders();
+      });
+    if (signalsType)
+      signalsType.addEventListener('change', () => {
+        state.pages.signals = 1;
+        loadSignals();
+      });
+    if (signalsJenis)
+      signalsJenis.addEventListener('change', () => {
+        state.pages.signals = 1;
+        loadSignals();
+      });
 
     if (binanceSymbolInput) {
       binanceSymbolInput.addEventListener('change', () => {
