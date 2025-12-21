@@ -1562,7 +1562,7 @@
       }
 
       if (next === 'qc') {
-        showTab('positions');
+        showTab('logs');
         if (state.selectedMethodId) {
           loadSignals();
           loadReminders();
@@ -1626,7 +1626,7 @@
       });
     }
 
-    showTab('positions');
+    showTab('logs');
     showBinanceTab('assets');
     setDetailSource('qc');
 
