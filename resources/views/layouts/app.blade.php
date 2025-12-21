@@ -65,6 +65,8 @@
                 if (savedState) {
                     const parsedState = JSON.parse(savedState);
                     this.openSubmenus = parsedState.openSubmenus || {};
+                    // Keep Derivatives submenu closed by default.
+                    delete this.openSubmenus['derivatives'];
                 }
             } catch (error) {
                 console.warn('Failed to restore sidebar state:', error);
@@ -189,7 +191,7 @@
                         <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Markets</div>
                         <ul class="df-sidebar-menu">
                             <li class="df-sidebar-menu-item">
-                                <button class="df-sidebar-menu-button" @click="toggleSubmenu('derivatives')">
+                                <button class="df-sidebar-menu-button {{ request()->routeIs('derivatives.*') ? 'active' : '' }}" @click="toggleSubmenu('derivatives')">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                                         <path d="M8 12h8"/>
@@ -200,7 +202,7 @@
                                         <path d="M9 18l6-6-6-6"/>
                                     </svg>
                                 </button>
-                                <div class="df-submenu{{ request()->routeIs('derivatives.*') ? ' show' : '' }}" :class="{ 'show': openSubmenus['derivatives'] }">
+                                <div class="df-submenu" :class="{ 'show': openSubmenus['derivatives'] }">
                                     <a href="/derivatives/funding-rate" class="df-submenu-item {{ request()->routeIs('derivatives.funding-rate') ? 'active' : '' }}" style="color: var(--foreground);" @click="closeSidebar()">Funding Rate</a>
                                     <a href="/derivatives/open-interest" class="df-submenu-item {{ request()->routeIs('derivatives.open-interest') ? 'active' : '' }}" style="color: var(--foreground);" @click="closeSidebar()">Open Interest</a>
                                     <a href="/derivatives/long-short-ratio" class="df-submenu-item {{ request()->routeIs('derivatives.long-short-ratio') ? 'active' : '' }}" style="color: var(--foreground);" @click="closeSidebar()">Long/Short Ratio</a>

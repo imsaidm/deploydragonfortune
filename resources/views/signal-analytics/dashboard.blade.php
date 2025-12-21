@@ -269,7 +269,7 @@
                     <div class="d-flex align-items-center gap-2">
                         <span id="sa-method-running" class="badge text-bg-secondary">Unknown</span>
                         <span id="sa-method-status" class="small text-secondary"></span>
-                        <a id="sa-method-backtest" href="#" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm" style="display:none;">Backtest</a>
+                        <a id="sa-method-backtest" href="#" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm" style="display:none;">Preview</a>
                     </div>
                 </div>
             </div>
@@ -290,6 +290,17 @@
                     </div>
                     <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
                         <div id="sa-binance-account" class="small text-secondary">Account: -</div>
+                        <div class="d-flex align-items-center" title="Binance" aria-hidden="true" style="color:#F0B90B;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" role="img">
+                                <g fill="currentColor">
+                                    <polygon points="12,4 14,6 12,8 10,6"/>
+                                    <polygon points="18,10 20,12 18,14 16,12"/>
+                                    <polygon points="12,16 14,18 12,20 10,18"/>
+                                    <polygon points="6,10 8,12 6,14 4,12"/>
+                                    <polygon points="12,10 14,12 12,14 10,12"/>
+                                </g>
+                            </svg>
+                        </div>
                     </div>
                     <div id="sa-binance-hint" class="small text-secondary mt-1"></div>
                     <div class="sa-binance-grid">
