@@ -464,10 +464,14 @@ class BinanceSpotController extends Controller
             $accountKey = 'v1';
         }
 
-        // Base legacy credentials
-        $baseUrl = rtrim((string) ($config['base_url'] ?? 'https://api.binance.com'), '/');
-        $apiKey = (string) ($config['api_key'] ?? '');
-        $apiSecret = (string) ($config['api_secret'] ?? '');
+        $globalBaseUrl = rtrim((string) ($config['base_url'] ?? 'https://api.binance.com'), '/');
+        $legacyKey = (string) ($config['api_key'] ?? '');
+        $legacySecret = (string) ($config['api_secret'] ?? '');
+        $hasLegacyCredentials = $legacyKey !== '' && $legacySecret !== '';
+
+        $baseUrl = $globalBaseUrl;
+        $apiKey = '';
+        $apiSecret = '';
         $accountLabel = $accountKey;
 
         if ($accountsArray) {
@@ -484,9 +488,28 @@ class BinanceSpotController extends Controller
 
             $accountConfig = is_array($accountsArray[$accountKey] ?? null) ? $accountsArray[$accountKey] : [];
             $accountLabel = (string) ($accountConfig['label'] ?? $accountKey);
-            $baseUrl = rtrim((string) ($accountConfig['base_url'] ?? $baseUrl), '/');
-            $apiKey = (string) ($accountConfig['api_key'] ?? $apiKey);
-            $apiSecret = (string) ($accountConfig['api_secret'] ?? $apiSecret);
+
+            $accountBaseUrl = rtrim((string) ($accountConfig['base_url'] ?? ''), '/');
+            if ($accountBaseUrl !== '') {
+                $baseUrl = $accountBaseUrl;
+            }
+
+            if ($accountKey === 'v1') {
+                $apiKey = $legacyKey;
+                $apiSecret = $legacySecret;
+            }
+
+            $accountApiKey = (string) ($accountConfig['api_key'] ?? '');
+            $accountApiSecret = (string) ($accountConfig['api_secret'] ?? '');
+            if ($accountApiKey !== '') {
+                $apiKey = $accountApiKey;
+            }
+            if ($accountApiSecret !== '') {
+                $apiSecret = $accountApiSecret;
+            }
+        } else {
+            $apiKey = $legacyKey;
+            $apiSecret = $legacySecret;
         }
 
         $accountsMeta = [];
@@ -498,11 +521,19 @@ class BinanceSpotController extends Controller
                 $label = (string) ($account['label'] ?? $key);
                 $hasKey = (string) ($account['api_key'] ?? '') !== '';
                 $hasSecret = (string) ($account['api_secret'] ?? '') !== '';
-                $accBaseUrl = rtrim((string) ($account['base_url'] ?? $baseUrl), '/');
+                $accBaseUrl = rtrim((string) ($account['base_url'] ?? $globalBaseUrl), '/');
+                if ($accBaseUrl === '') {
+                    $accBaseUrl = $globalBaseUrl;
+                }
+
+                $configured = $hasKey && $hasSecret;
+                if (! $configured && (string) $key === 'v1' && $hasLegacyCredentials) {
+                    $configured = true;
+                }
                 $accountsMeta[] = [
                     'key' => (string) $key,
                     'label' => $label !== '' ? $label : (string) $key,
-                    'configured' => $hasKey && $hasSecret,
+                    'configured' => $configured,
                     'base_url' => $accBaseUrl,
                 ];
             }

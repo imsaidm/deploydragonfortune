@@ -721,15 +721,24 @@
         const opt = document.createElement('option');
         opt.value = key;
         opt.textContent = configured ? label : `${label} (not configured)`;
+        opt.disabled = !configured;
         binanceAccountSelect.appendChild(opt);
       });
 
       binanceAccountSelect.disabled = false;
 
+      const enabled = Array.from(binanceAccountSelect.options).filter(
+        (o) => !o.disabled && o.value,
+      );
+      if (enabled.length === 0) {
+        binanceAccountSelect.disabled = true;
+        return;
+      }
+
       let selected = String(state.binanceAccount || '').trim();
-      const valid = Array.from(binanceAccountSelect.options).some((o) => o.value === selected);
+      const valid = enabled.some((o) => o.value === selected);
       if (!valid) {
-        selected = binanceAccountSelect.options[0]?.value || '';
+        selected = enabled[0].value;
         setBinanceAccount(selected);
       }
 
