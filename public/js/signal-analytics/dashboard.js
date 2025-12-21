@@ -1068,7 +1068,7 @@
       });
     };
 
-    const truncateMessage = (value, max = 140) => {
+    const truncateMessage = (value, max = 50) => {
       const text = escapeText(value ?? '').replace(/\s+/g, ' ').trim();
       if (!text) return '-';
       if (text.length <= max) return text;

@@ -243,9 +243,9 @@
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
                 <div>
                     <div class="fw-semibold">Realtime Overview</div>
-                    <div class="small text-secondary">
-                        Data source: <code id="sa-api-base">-</code> - Docs:
-                        <a id="sa-open-docs" href="#" target="_blank" rel="noopener"><code>/docs</code></a>
+                    <div class="visually-hidden">
+                        <code id="sa-api-base">-</code>
+                        <a id="sa-open-docs" href="#" target="_blank" rel="noopener">Docs</a>
                     </div>
                 </div>
                 <div class="small text-secondary">
