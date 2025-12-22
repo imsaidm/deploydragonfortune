@@ -814,6 +814,17 @@
 
     const loadBinanceSpot = async () => {
       if (!binanceTotalEl) return;
+      if (!Number.isFinite(Number(state.selectedMethodId)) || Number(state.selectedMethodId) <= 0) {
+        state.binanceSummary = null;
+        state.binanceError = null;
+        state.binanceHint = null;
+        if (binanceLiveEl) {
+          binanceLiveEl.textContent = 'N/A';
+          binanceLiveEl.className = 'badge text-bg-secondary';
+        }
+        renderBinanceSummary();
+        return;
+      }
       if (binanceLiveEl) {
         binanceLiveEl.textContent = 'Loading';
         binanceLiveEl.className = 'badge text-bg-secondary';
