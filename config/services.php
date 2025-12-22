@@ -38,6 +38,9 @@ return [
     // Custom API base URL for frontend fetches (used by deployment envs)
     'api' => [
         'base_url' => env('API_BASE_URL', 'http://localhost:5000'),
+        // On some Windows dev environments, PHP's cURL may not have a CA bundle configured,
+        // causing "cURL error 60" when calling HTTPS APIs. Set API_VERIFY_SSL=false for local.
+        'verify_ssl' => env('API_VERIFY_SSL', true),
     ],
 
     // Spot microstructure API base URL (CoinGlass integration)

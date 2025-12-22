@@ -555,11 +555,20 @@ class BinanceSpotController extends Controller
             return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'api'];
         }
 
+        $verify = config('services.api.verify_ssl', true);
+        if (! is_bool($verify)) {
+            $verify = filter_var($verify, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            $verify = $verify === null ? true : $verify;
+        }
+
         try {
-            $res = Http::timeout(8)
+            $http = Http::timeout(8)
                 ->connectTimeout(4)
-                ->acceptJson()
-                ->get($apiBaseUrl . '/methods/' . $methodId);
+                ->acceptJson();
+            if (! $verify) {
+                $http = $http->withoutVerifying();
+            }
+            $res = $http->get($apiBaseUrl . '/methods/' . $methodId);
         } catch (\Throwable $e) {
             return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'api'];
         }
