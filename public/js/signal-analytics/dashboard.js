@@ -231,6 +231,11 @@
     const buildBinanceUrl = (path, params = {}) => {
       const url = new URL(window.location.origin + path);
 
+      const methodId = state.selectedMethodId;
+      if (Number.isFinite(Number(methodId)) && Number(methodId) > 0) {
+        url.searchParams.set('method_id', String(methodId));
+      }
+
       Object.entries(params || {}).forEach(([key, value]) => {
         if (value === null || value === undefined) return;
         const vv = String(value).trim();

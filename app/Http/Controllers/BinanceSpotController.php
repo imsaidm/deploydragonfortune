@@ -27,10 +27,14 @@ class BinanceSpotController extends Controller
         $verify = $spot['verify_ssl'];
 
         if ($apiKey === '' || $apiSecret === '') {
+            $methodId = $this->selectedMethodId($request);
+            $hint = $methodId !== null
+                ? 'Binance API credentials are missing for the selected method. Fill api_key and secret_key for this method.'
+                : 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET in your .env.';
             return response()->json([
                 'success' => false,
                 'error' => 'Binance API credentials are not configured for the selected account.',
-                'hint' => 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET in your .env.',
+                'hint' => $hint,
                 'base_url' => $baseUrl,
                 'mode' => $spot['mode'] ?? null,
                 'account' => $this->publicAccountMeta($spot),
@@ -315,10 +319,14 @@ class BinanceSpotController extends Controller
         $verify = $spot['verify_ssl'];
 
         if ($apiKey === '' || $apiSecret === '') {
+            $methodId = $this->selectedMethodId($request);
+            $hint = $methodId !== null
+                ? 'Binance API credentials are missing for the selected method. Fill api_key and secret_key for this method.'
+                : 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET in your .env.';
             return response()->json([
                 'success' => false,
                 'error' => 'Binance API credentials are not configured for the selected account.',
-                'hint' => 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET in your .env.',
+                'hint' => $hint,
                 'base_url' => $baseUrl,
                 'mode' => $spot['mode'] ?? null,
                 'account' => $this->publicAccountMeta($spot),
@@ -491,12 +499,22 @@ class BinanceSpotController extends Controller
             $label = 'Binance Spot';
         }
 
+        $apiKey = $clean($config['api_key'] ?? '');
+        $apiSecret = $clean($config['api_secret'] ?? '');
+
+        $methodId = $this->selectedMethodId($request);
+        if ($methodId !== null) {
+            $resolved = $this->resolveMethodBinanceCredentials($methodId);
+            $apiKey = $clean($resolved['api_key'] ?? '');
+            $apiSecret = $clean($resolved['api_secret'] ?? '');
+        }
+
         return [
             'mode' => $mode,
             'base_url' => $baseUrl,
             'label' => $label,
-            'api_key' => $clean($config['api_key'] ?? ''),
-            'api_secret' => $clean($config['api_secret'] ?? ''),
+            'api_key' => $apiKey,
+            'api_secret' => $apiSecret,
             'timeout' => (int) ($config['timeout'] ?? 10),
             'recv_window' => (int) ($config['recv_window'] ?? 5000),
             'verify_ssl' => $verify,
@@ -505,6 +523,62 @@ class BinanceSpotController extends Controller
             'proxy_verify_ssl' => $proxyVerify,
             'stub_data' => $stubData,
         ];
+    }
+
+    private function selectedMethodId(?Request $request): ?int
+    {
+        if (! $request) {
+            return null;
+        }
+
+        $raw = $request->query('method_id')
+            ?? $request->query('id_method')
+            ?? $request->query('methodId');
+
+        $id = is_numeric($raw) ? (int) $raw : null;
+        return $id !== null && $id > 0 ? $id : null;
+    }
+
+    private function resolveMethodBinanceCredentials(int $methodId): array
+    {
+        $apiBaseUrl = rtrim((string) config('services.api.base_url', ''), '/');
+        if ($apiBaseUrl === '') {
+            return ['api_key' => '', 'api_secret' => ''];
+        }
+
+        $cacheKey = 'df:method:binance:' . $methodId;
+
+        return Cache::remember($cacheKey, now()->addMinutes(2), function () use ($apiBaseUrl, $methodId) {
+            try {
+                $res = Http::timeout(8)
+                    ->connectTimeout(4)
+                    ->acceptJson()
+                    ->get($apiBaseUrl . '/methods/' . $methodId);
+            } catch (\Throwable $e) {
+                return ['api_key' => '', 'api_secret' => ''];
+            }
+
+            if (! $res->ok()) {
+                return ['api_key' => '', 'api_secret' => ''];
+            }
+
+            $json = $res->json();
+            if (is_array($json) && isset($json['data']) && is_array($json['data'])) {
+                $json = $json['data'];
+            }
+
+            if (! is_array($json)) {
+                return ['api_key' => '', 'api_secret' => ''];
+            }
+
+            $apiKey = (string) ($json['api_key'] ?? $json['binance_api_key'] ?? '');
+            $apiSecret = (string) ($json['secret_key'] ?? $json['api_secret'] ?? $json['binance_secret_key'] ?? '');
+
+            return [
+                'api_key' => $apiKey,
+                'api_secret' => $apiSecret,
+            ];
+        });
     }
 
     private function buildHttpClient(int $timeout, bool $verify)
