@@ -63,6 +63,28 @@ return [
             ]) : [],
         ],
 
+        // Optional secondary DB connection (e.g. the same DB used by test.dragonfortune.ai)
+        // Used to resolve per-method Binance API keys server-side without exposing them via the API.
+        'methods' => [
+            'driver' => env('METHODS_DB_CONNECTION', 'mysql'),
+            'url' => env('METHODS_DB_URL'),
+            'host' => env('METHODS_DB_HOST', ''),
+            'port' => env('METHODS_DB_PORT', '3306'),
+            'database' => env('METHODS_DB_DATABASE', ''),
+            'username' => env('METHODS_DB_USERNAME', ''),
+            'password' => env('METHODS_DB_PASSWORD', ''),
+            'unix_socket' => env('METHODS_DB_SOCKET', ''),
+            'charset' => env('METHODS_DB_CHARSET', env('DB_CHARSET', 'utf8mb4')),
+            'collation' => env('METHODS_DB_COLLATION', env('DB_COLLATION', 'utf8mb4_unicode_ci')),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('METHODS_MYSQL_ATTR_SSL_CA', env('MYSQL_ATTR_SSL_CA')),
+            ]) : [],
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

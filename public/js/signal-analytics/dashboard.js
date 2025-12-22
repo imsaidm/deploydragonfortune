@@ -854,11 +854,15 @@
         } else {
           state.binanceSummary = data;
           state.binanceError = null;
-          state.binanceHint = null;
+          state.binanceHint = data?.hint || null;
 
           const mode = String(data?.mode || '').toLowerCase();
+          const configured = data?.configured !== false && mode !== 'unconfigured';
           if (binanceLiveEl) {
-            if (mode === 'stub') {
+            if (!configured) {
+              binanceLiveEl.textContent = 'N/A';
+              binanceLiveEl.className = 'badge text-bg-secondary';
+            } else if (mode === 'stub') {
               binanceLiveEl.textContent = 'Stub';
               binanceLiveEl.className = 'badge text-bg-warning';
             } else if (mode === 'proxy') {

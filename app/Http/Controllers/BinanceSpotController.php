@@ -29,18 +29,7 @@ class BinanceSpotController extends Controller
         $verify = $spot['verify_ssl'];
 
         if ($apiKey === '' || $apiSecret === '') {
-            $methodId = $this->selectedMethodId($request);
-            $hint = $methodId !== null
-                ? 'Binance API credentials are missing for the selected method. Fill api_key and secret_key for this method.'
-                : 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET in your .env.';
-            return response()->json([
-                'success' => false,
-                'error' => 'Binance API credentials are not configured for the selected account.',
-                'hint' => $hint,
-                'base_url' => $baseUrl,
-                'mode' => $spot['mode'] ?? null,
-                'account' => $this->publicAccountMeta($spot),
-            ], 500);
+            return $this->unconfiguredSummary($request, $spot);
         }
 
         $http = $this->buildHttpClient($timeout, $verify);
@@ -321,18 +310,7 @@ class BinanceSpotController extends Controller
         $verify = $spot['verify_ssl'];
 
         if ($apiKey === '' || $apiSecret === '') {
-            $methodId = $this->selectedMethodId($request);
-            $hint = $methodId !== null
-                ? 'Binance API credentials are missing for the selected method. Fill api_key and secret_key for this method.'
-                : 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET in your .env.';
-            return response()->json([
-                'success' => false,
-                'error' => 'Binance API credentials are not configured for the selected account.',
-                'hint' => $hint,
-                'base_url' => $baseUrl,
-                'mode' => $spot['mode'] ?? null,
-                'account' => $this->publicAccountMeta($spot),
-            ], 500);
+            return $this->unconfiguredSigned($request, $spot);
         }
 
         $http = $this->buildHttpClient($timeout, $verify);
@@ -503,12 +481,20 @@ class BinanceSpotController extends Controller
 
         $apiKey = $clean($config['api_key'] ?? '');
         $apiSecret = $clean($config['api_secret'] ?? '');
+        $credentialSource = 'env';
 
         $methodId = $this->selectedMethodId($request);
         if ($methodId !== null) {
             $resolved = $this->resolveMethodBinanceCredentials($methodId);
-            $apiKey = $clean($resolved['api_key'] ?? '');
-            $apiSecret = $clean($resolved['api_secret'] ?? '');
+            if (($resolved['found'] ?? false) === true) {
+                $apiKey = $clean($resolved['api_key'] ?? '');
+                $apiSecret = $clean($resolved['api_secret'] ?? '');
+                $credentialSource = (string) ($resolved['source'] ?? 'method');
+            } else {
+                $apiKey = '';
+                $apiSecret = '';
+                $credentialSource = 'method_missing';
+            }
         }
 
         return [
@@ -517,6 +503,7 @@ class BinanceSpotController extends Controller
             'label' => $label,
             'api_key' => $apiKey,
             'api_secret' => $apiSecret,
+            'credential_source' => $credentialSource,
             'timeout' => (int) ($config['timeout'] ?? 10),
             'recv_window' => (int) ($config['recv_window'] ?? 5000),
             'verify_ssl' => $verify,
@@ -544,85 +531,109 @@ class BinanceSpotController extends Controller
     private function resolveMethodBinanceCredentials(int $methodId): array
     {
         $fromDb = $this->resolveMethodBinanceCredentialsFromDatabase($methodId);
-        if (($fromDb['api_key'] ?? '') !== '' && ($fromDb['api_secret'] ?? '') !== '') {
+        if (($fromDb['found'] ?? false) === true) {
             return $fromDb;
         }
 
-        $apiBaseUrl = rtrim((string) config('services.api.base_url', ''), '/');
-        if ($apiBaseUrl === '') {
-            return ['api_key' => '', 'api_secret' => ''];
+        $fromConfig = $this->resolveMethodBinanceCredentialsFromConfigMap($methodId);
+        if (($fromConfig['found'] ?? false) === true) {
+            return $fromConfig;
         }
 
-        $cacheKey = 'df:method:binance:' . $methodId;
+        $fromApi = $this->resolveMethodBinanceCredentialsFromApi($methodId);
+        if (($fromApi['found'] ?? false) === true) {
+            return $fromApi;
+        }
 
-        return Cache::remember($cacheKey, now()->addSeconds(30), function () use ($apiBaseUrl, $methodId) {
-            try {
-                $res = Http::timeout(8)
-                    ->connectTimeout(4)
-                    ->acceptJson()
-                    ->get($apiBaseUrl . '/methods/' . $methodId);
-            } catch (\Throwable $e) {
-                return ['api_key' => '', 'api_secret' => ''];
-            }
+        return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'none'];
+    }
 
-            if (! $res->ok()) {
-                return ['api_key' => '', 'api_secret' => ''];
-            }
+    private function resolveMethodBinanceCredentialsFromApi(int $methodId): array
+    {
+        $apiBaseUrl = rtrim((string) config('services.api.base_url', ''), '/');
+        if ($apiBaseUrl === '') {
+            return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'api'];
+        }
 
-            $json = $res->json();
-            if (is_array($json) && isset($json['data']) && is_array($json['data'])) {
-                $json = $json['data'];
-            }
+        try {
+            $res = Http::timeout(8)
+                ->connectTimeout(4)
+                ->acceptJson()
+                ->get($apiBaseUrl . '/methods/' . $methodId);
+        } catch (\Throwable $e) {
+            return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'api'];
+        }
 
-            if (! is_array($json)) {
-                return ['api_key' => '', 'api_secret' => ''];
-            }
+        if (! $res->ok()) {
+            return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'api'];
+        }
 
-            $apiKey = (string) ($json['api_key'] ?? $json['binance_api_key'] ?? '');
-            $apiSecret = (string) ($json['secret_key'] ?? $json['api_secret'] ?? $json['binance_secret_key'] ?? '');
+        $json = $res->json();
+        if (is_array($json) && isset($json['data']) && is_array($json['data'])) {
+            $json = $json['data'];
+        }
 
-            return [
-                'api_key' => $apiKey,
-                'api_secret' => $apiSecret,
-            ];
-        });
+        if (! is_array($json)) {
+            return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'api'];
+        }
+
+        $apiKey = trim((string) ($json['api_key'] ?? $json['binance_api_key'] ?? ''));
+        $apiSecret = trim((string) ($json['secret_key'] ?? $json['api_secret'] ?? $json['binance_secret_key'] ?? ''));
+        $found = $apiKey !== '' && $apiSecret !== '';
+
+        return [
+            'found' => $found,
+            'api_key' => $apiKey,
+            'api_secret' => $apiSecret,
+            'source' => 'api',
+        ];
     }
 
     private function resolveMethodBinanceCredentialsFromDatabase(int $methodId): array
     {
-        $cacheKey = 'df:method:binance:db:' . $methodId;
+        $tables = ['qc_method', 'qc_methods'];
+        $idColumns = ['id', 'id_method', 'method_id'];
 
-        return Cache::remember($cacheKey, now()->addSeconds(30), function () use ($methodId) {
-            $tables = ['qc_method', 'qc_methods'];
-            $idColumns = ['id', 'id_method', 'method_id'];
-
+        foreach ($this->methodCredentialDbConnections() as $connection) {
             foreach ($tables as $table) {
                 try {
-                    if (! Schema::hasTable($table)) {
-                        continue;
-                    }
+                    $hasTable = $connection !== null
+                        ? Schema::connection($connection)->hasTable($table)
+                        : Schema::hasTable($table);
                 } catch (\Throwable $e) {
                     continue;
                 }
 
-                try {
-                    $row = null;
-                    foreach ($idColumns as $column) {
-                        try {
-                            if (! Schema::hasColumn($table, $column)) {
-                                continue;
-                            }
-                        } catch (\Throwable $e) {
-                            continue;
-                        }
-
-                        $row = DB::table($table)->where($column, $methodId)->first();
-                        if ($row) {
-                            break;
-                        }
-                    }
-                } catch (\Throwable $e) {
+                if (! $hasTable) {
                     continue;
+                }
+
+                $row = null;
+                foreach ($idColumns as $column) {
+                    try {
+                        $hasIdColumn = $connection !== null
+                            ? Schema::connection($connection)->hasColumn($table, $column)
+                            : Schema::hasColumn($table, $column);
+                    } catch (\Throwable $e) {
+                        continue;
+                    }
+
+                    if (! $hasIdColumn) {
+                        continue;
+                    }
+
+                    try {
+                        $row = ($connection !== null ? DB::connection($connection) : DB::connection())
+                            ->table($table)
+                            ->where($column, $methodId)
+                            ->first();
+                    } catch (\Throwable $e) {
+                        $row = null;
+                    }
+
+                    if ($row) {
+                        break;
+                    }
                 }
 
                 if (! $row) {
@@ -631,15 +642,66 @@ class BinanceSpotController extends Controller
 
                 $apiKey = trim((string) ($row->api_key ?? $row->binance_api_key ?? $row->apiKey ?? ''));
                 $apiSecret = trim((string) ($row->secret_key ?? $row->api_secret ?? $row->binance_secret_key ?? $row->secretKey ?? ''));
+                $found = $apiKey !== '' && $apiSecret !== '';
 
                 return [
+                    'found' => $found,
                     'api_key' => $apiKey,
                     'api_secret' => $apiSecret,
+                    'source' => $connection !== null ? 'db:' . $connection : 'db',
                 ];
             }
+        }
 
-            return ['api_key' => '', 'api_secret' => ''];
-        });
+        return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'db'];
+    }
+
+    private function resolveMethodBinanceCredentialsFromConfigMap(int $methodId): array
+    {
+        $raw = (string) config('services.binance.spot.method_credentials', '');
+        $raw = trim($raw);
+        if ($raw === '') {
+            return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'config'];
+        }
+
+        try {
+            $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'config'];
+        }
+
+        if (! is_array($decoded)) {
+            return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'config'];
+        }
+
+        $entry = $decoded[(string) $methodId] ?? $decoded[$methodId] ?? null;
+        if (! is_array($entry)) {
+            return ['found' => false, 'api_key' => '', 'api_secret' => '', 'source' => 'config'];
+        }
+
+        $apiKey = trim((string) ($entry['api_key'] ?? $entry['apiKey'] ?? ''));
+        $apiSecret = trim((string) ($entry['api_secret'] ?? $entry['apiSecret'] ?? $entry['secret_key'] ?? $entry['secretKey'] ?? ''));
+        $found = $apiKey !== '' && $apiSecret !== '';
+
+        return [
+            'found' => $found,
+            'api_key' => $apiKey,
+            'api_secret' => $apiSecret,
+            'source' => 'config',
+        ];
+    }
+
+    private function methodCredentialDbConnections(): array
+    {
+        $connections = [null];
+
+        $methodsDb = (string) config('database.connections.methods.database', '');
+        $methodsHost = (string) config('database.connections.methods.host', '');
+        if (trim($methodsDb) !== '' && trim($methodsHost) !== '') {
+            $connections[] = 'methods';
+        }
+
+        return $connections;
     }
 
     private function buildHttpClient(int $timeout, bool $verify)
@@ -779,6 +841,57 @@ class BinanceSpotController extends Controller
         return array_filter([
             'label' => $spot['label'] ?? null,
         ], fn ($v) => $v !== null);
+    }
+
+    private function unconfiguredHint(?int $methodId): string
+    {
+        if ($methodId !== null) {
+            return 'Binance API credentials are missing for the selected method.';
+        }
+
+        return 'Set BINANCE_SPOT_API_KEY and BINANCE_SPOT_API_SECRET.';
+    }
+
+    private function unconfiguredSummary(Request $request, array $spot)
+    {
+        $methodId = $this->selectedMethodId($request);
+
+        return response()->json([
+            'success' => true,
+            'configured' => false,
+            'mode' => 'unconfigured',
+            'base_url' => (string) ($spot['base_url'] ?? ''),
+            'hint' => $this->unconfiguredHint($methodId),
+            'account' => [
+                'type' => 'SPOT',
+                'can_trade' => null,
+                'label' => $spot['label'] ?? null,
+            ],
+            'summary' => [
+                'total_usdt' => null,
+                'available_usdt' => null,
+                'locked_usdt' => null,
+                'btc_value' => null,
+                'asset_count' => null,
+                'updated_at' => null,
+            ],
+            'assets' => [],
+        ]);
+    }
+
+    private function unconfiguredSigned(Request $request, array $spot)
+    {
+        $methodId = $this->selectedMethodId($request);
+
+        return response()->json([
+            'success' => true,
+            'configured' => false,
+            'mode' => 'unconfigured',
+            'base_url' => (string) ($spot['base_url'] ?? ''),
+            'hint' => $this->unconfiguredHint($methodId),
+            'account' => $this->publicAccountMeta($spot),
+            'data' => [],
+        ]);
     }
 
     private function stubSummary(array $spot)

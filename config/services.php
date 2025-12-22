@@ -102,6 +102,11 @@ return [
             'label' => env('BINANCE_SPOT_LABEL', env('BINANCE_SPOT_V2_LABEL', 'Binance Spot')),
             'api_key' => env('BINANCE_SPOT_V2_API_KEY', env('BINANCE_SPOT_API_KEY', '')),
             'api_secret' => env('BINANCE_SPOT_V2_API_SECRET', env('BINANCE_SPOT_API_SECRET', '')),
+            // Optional per-method credentials mapping (JSON):
+            // {"3":{"api_key":"...","api_secret":"..."}}
+            // This is useful when Binance credentials depend on a selected QC method,
+            // and you don't want to expose them via the external API.
+            'method_credentials' => env('BINANCE_SPOT_METHOD_CREDENTIALS', ''),
             'timeout' => (int) env('BINANCE_SPOT_TIMEOUT', 10),
             'recv_window' => (int) env('BINANCE_SPOT_RECV_WINDOW', 5000),
             'verify_ssl' => env('BINANCE_SPOT_VERIFY_SSL', true),
