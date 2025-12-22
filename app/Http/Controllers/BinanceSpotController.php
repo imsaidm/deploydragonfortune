@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Client\ConnectionException;
 
@@ -541,6 +542,11 @@ class BinanceSpotController extends Controller
 
     private function resolveMethodBinanceCredentials(int $methodId): array
     {
+        $fromDb = $this->resolveMethodBinanceCredentialsFromDatabase($methodId);
+        if (($fromDb['api_key'] ?? '') !== '' && ($fromDb['api_secret'] ?? '') !== '') {
+            return $fromDb;
+        }
+
         $apiBaseUrl = rtrim((string) config('services.api.base_url', ''), '/');
         if ($apiBaseUrl === '') {
             return ['api_key' => '', 'api_secret' => ''];
@@ -548,7 +554,7 @@ class BinanceSpotController extends Controller
 
         $cacheKey = 'df:method:binance:' . $methodId;
 
-        return Cache::remember($cacheKey, now()->addMinutes(2), function () use ($apiBaseUrl, $methodId) {
+        return Cache::remember($cacheKey, now()->addSeconds(30), function () use ($apiBaseUrl, $methodId) {
             try {
                 $res = Http::timeout(8)
                     ->connectTimeout(4)
@@ -578,6 +584,37 @@ class BinanceSpotController extends Controller
                 'api_key' => $apiKey,
                 'api_secret' => $apiSecret,
             ];
+        });
+    }
+
+    private function resolveMethodBinanceCredentialsFromDatabase(int $methodId): array
+    {
+        $cacheKey = 'df:method:binance:db:' . $methodId;
+
+        return Cache::remember($cacheKey, now()->addSeconds(30), function () use ($methodId) {
+            $tables = ['qc_method', 'qc_methods'];
+
+            foreach ($tables as $table) {
+                try {
+                    $row = DB::table($table)->where('id', $methodId)->first();
+                } catch (\Throwable $e) {
+                    continue;
+                }
+
+                if (! $row) {
+                    continue;
+                }
+
+                $apiKey = trim((string) ($row->api_key ?? $row->binance_api_key ?? ''));
+                $apiSecret = trim((string) ($row->secret_key ?? $row->api_secret ?? $row->binance_secret_key ?? ''));
+
+                return [
+                    'api_key' => $apiKey,
+                    'api_secret' => $apiSecret,
+                ];
+            }
+
+            return ['api_key' => '', 'api_secret' => ''];
         });
     }
 
