@@ -136,6 +136,9 @@
       binanceOpenOrders: [],
       binanceOrders: [],
       binanceTrades: [],
+      pageSizes: { logs: 10 },
+      search: { logs: '' },
+      scroll: { preserve: true, lastY: 0 },
       autoTimer: null,
     };
 
@@ -340,6 +343,12 @@
 
     const PAGE_SIZE = 5;
 
+    const getPageSize = (name) => {
+      const ps = state.pageSizes?.[name];
+      const n = Number(ps);
+      return Number.isFinite(n) && n > 0 ? n : PAGE_SIZE;
+    };
+
     const clampPage = (page, totalPages) => {
       const p = Number(page);
       const max = Number(totalPages);
@@ -354,13 +363,63 @@
       el.innerHTML = '';
     };
 
-    const renderPager = (el, totalItems, currentPage, onChange) => {
+    const ensureLogsToolbar = () => {
+      if (!logsStatus || !logsStatus.parentElement) return;
+      if (byId('sa-logs-search') && byId('sa-logs-page-size')) return;
+
+      const parent = logsStatus.parentElement;
+
+      const searchWrap = document.createElement('div');
+      searchWrap.className = 'd-flex flex-column';
+
+      const searchLabel = document.createElement('label');
+      searchLabel.className = 'small text-secondary mb-1';
+      searchLabel.setAttribute('for', 'sa-logs-search');
+      searchLabel.textContent = 'Search';
+
+      const searchInput = document.createElement('input');
+      searchInput.id = 'sa-logs-search';
+      searchInput.className = 'form-control form-control-sm';
+      searchInput.placeholder = 'Cari message atau waktu';
+
+      searchWrap.appendChild(searchLabel);
+      searchWrap.appendChild(searchInput);
+
+      const pageWrap = document.createElement('div');
+      pageWrap.className = 'd-flex flex-column';
+
+      const pageLabel = document.createElement('label');
+      pageLabel.className = 'small text-secondary mb-1';
+      pageLabel.setAttribute('for', 'sa-logs-page-size');
+      pageLabel.textContent = 'Rows per page';
+
+      const pageSelect = document.createElement('select');
+      pageSelect.id = 'sa-logs-page-size';
+      pageSelect.className = 'form-select form-select-sm';
+      ['5', '10', '25', '50', '100'].forEach((v) => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        if (v === '10') opt.selected = true;
+        pageSelect.appendChild(opt);
+      });
+
+      pageWrap.appendChild(pageLabel);
+      pageWrap.appendChild(pageSelect);
+
+      parent.insertBefore(searchWrap, logsStatus);
+      parent.insertBefore(pageWrap, logsStatus);
+    };
+
+    const renderPager = (el, totalItems, currentPage, onChange, pageSize = PAGE_SIZE) => {
       if (!el) return { page: 1, totalPages: 1 };
 
       el.innerHTML = '';
       const total = Number(totalItems) || 0;
-      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      const ps = Number(pageSize) || PAGE_SIZE;
+      const totalPages = Math.max(1, Math.ceil(total / ps));
       const page = clampPage(currentPage, totalPages);
+      const prevY = window.scrollY || document.documentElement.scrollTop || 0;
 
       if (totalPages <= 1) return { page, totalPages };
 
@@ -369,7 +428,17 @@
         btn.type = 'button';
         btn.className = `btn btn-sm ${active ? 'btn-primary' : 'btn-outline-secondary'}`;
         btn.textContent = label;
-        btn.addEventListener('click', () => onChange(pageNum));
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const y = window.scrollY || document.documentElement.scrollTop || 0;
+          onChange(pageNum);
+          requestAnimationFrame(() => {
+            window.scrollTo({ top: y, behavior: 'auto' });
+          });
+        });
+        btn.addEventListener('mousedown', (e) => e.preventDefault());
+        btn.setAttribute('tabindex', '-1');
         return btn;
       };
 
@@ -402,6 +471,12 @@
           return;
         }
         el.appendChild(makeButton(String(p), p, p === page));
+      });
+
+      requestAnimationFrame(() => {
+        if (state.scroll?.preserve) {
+          window.scrollTo({ top: prevY, behavior: 'auto' });
+        }
       });
 
       return { page, totalPages };
@@ -1185,15 +1260,24 @@
       return text.slice(0, Math.max(0, max - 1)) + '…';
     };
 
+    const toHumanMessage = (value) => {
+      const text = escapeText(value ?? '');
+      return text.replaceAll(' | ', '\n');
+    };
+
     const createMessageCell = (value) => {
       const td = document.createElement('td');
       const full = escapeText(value ?? '');
-      const snippet = truncateMessage(full);
 
       const div = document.createElement('div');
       div.className = 'sa-message-snippet';
-      div.textContent = snippet;
-      if (full && snippet !== full) div.title = full;
+      // Force single-line, no wrapping; show as much as space allows with ellipsis
+      div.style.whiteSpace = 'nowrap';
+      div.style.overflow = 'hidden';
+      div.style.textOverflow = 'ellipsis';
+      div.style.maxWidth = 'none';
+      div.textContent = full;
+      if (full) div.title = full;
       td.appendChild(div);
       return td;
     };
@@ -1377,25 +1461,39 @@
         return;
       }
 
-      const pager = renderPager(logsPagination, items.length, state.pages.logs, (next) => {
-        state.pages.logs = next;
-        renderLogs(state.latestLogs);
-      });
+      const qstr = normalize(state.search?.logs ?? '');
+      const filtered = qstr
+        ? items.filter((row) => {
+            const a = normalize(row.message);
+            const b = normalize(row.datetime ?? row.date_time ?? row.created_at);
+            return a.includes(qstr) || b.includes(qstr);
+          })
+        : items.slice();
+
+      const pageSize = getPageSize('logs');
+      const pager = renderPager(
+        logsPagination,
+        filtered.length,
+        state.pages.logs,
+        (next) => {
+          state.pages.logs = next;
+          const y = window.scrollY || document.documentElement.scrollTop || 0;
+          renderLogs(state.latestLogs);
+          requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'auto' }));
+        },
+        pageSize,
+      );
       state.pages.logs = pager.page;
 
-      const start = (pager.page - 1) * PAGE_SIZE;
-      const pageItems = items.slice(start, start + PAGE_SIZE);
+      const start = (pager.page - 1) * pageSize;
+      const pageItems = filtered.slice(start, start + pageSize);
 
       pageItems.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', async () => {
-          try {
-            const detail = await fetchJson(`/logs/${row.id}`);
-            openModal(`Log #${row.id}`, detail);
-          } catch (err) {
-            openModal(`Log #${row.id}`, { error: err?.message || String(err) });
-          }
+        tr.addEventListener('click', () => {
+          const human = toHumanMessage(row.message || '');
+          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', human || '(no message)');
         });
 
         const tdDt = document.createElement('td');
@@ -1741,12 +1839,10 @@
           loadReminders();
           loadLogs();
         }
-        detailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
       if (next === 'binance') {
         showBinanceTab(state.binanceTab);
-        detailPanel?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     };
 
@@ -1795,6 +1891,32 @@
         state.pages.signals = 1;
         loadSignals();
       });
+
+    // Inject Logs toolbar (search + rows per page)
+    ensureLogsToolbar();
+    const logsSearchInput = byId('sa-logs-search');
+    const logsPageSizeSelect = byId('sa-logs-page-size');
+
+    if (logsSearchInput) {
+      logsSearchInput.addEventListener('input', () => {
+        state.search.logs = String(logsSearchInput.value || '').trim().toLowerCase();
+        state.pages.logs = 1;
+        const y = window.scrollY || document.documentElement.scrollTop || 0;
+        renderLogs(state.latestLogs);
+        requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'auto' }));
+      });
+    }
+
+    if (logsPageSizeSelect) {
+      logsPageSizeSelect.addEventListener('change', () => {
+        const v = Number(logsPageSizeSelect.value);
+        state.pageSizes.logs = Number.isFinite(v) && v > 0 ? v : PAGE_SIZE;
+        state.pages.logs = 1;
+        const y = window.scrollY || document.documentElement.scrollTop || 0;
+        renderLogs(state.latestLogs);
+        requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'auto' }));
+      });
+    }
 
     if (binanceSymbolInput) {
       binanceSymbolInput.addEventListener('change', () => {
