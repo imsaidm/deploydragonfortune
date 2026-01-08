@@ -89,6 +89,15 @@ return [
         'api_token' => env('QC_API_TOKEN', ''),
         'organization_id' => env('QC_ORGANIZATION_ID', ''),
         'timeout' => (int) env('QC_TIMEOUT', 15),
+        'webhook_secret' => env('QC_WEBHOOK_SECRET', ''),
+    ],
+
+    // Telegram Bot API (for signal notifications)
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN', ''),
+        'chat_id' => env('TELEGRAM_CHAT_ID', ''),
+        'timeout' => (int) env('TELEGRAM_TIMEOUT', 10),
+        'max_retries' => (int) env('TELEGRAM_MAX_RETRIES', 3),
     ],
 
     // Binance Spot API

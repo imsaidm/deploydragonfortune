@@ -4,10 +4,29 @@ use App\Http\Controllers\BacktestResultController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\QuantConnectController;
+use App\Http\Controllers\SignalManagerController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 
 Route::view('/', 'workspace')->name('workspace');
 Route::view('/login', 'auth.login')->name('login');
+
+// Health Check Route (for Signal Analytics)
+Route::get('/health', function () {
+    try {
+        $dbOk = DB::connection()->getPdo() !== null;
+        return response()->json([
+            'status' => 'ok',
+            'db' => ['ok' => $dbOk]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'db' => ['ok' => false],
+            'message' => $e->getMessage()
+        ], 500);
+    }
+})->name('health');
 
 // Profile & Auth Routes
 Route::view('/profile', 'profile.show')->name('profile.show');
@@ -53,12 +72,17 @@ Route::view('/macro-overlay/dashboard-legacy', 'macro-overlay.dashboard-legacy')
 // Sentiment & Flow Routes
 Route::view('/sentiment-flow/dashboard', 'sentiment-flow.dashboard')->name('sentiment-flow.dashboard');
 
-// Backtest & Signal Placeholder Routes
+// Backtest & Signal Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');
 Route::get('/backtest-result', [BacktestResultController::class, 'index'])->name('backtest-result.index');
 Route::get('/backtest-result/{file}', [BacktestResultController::class, 'show'])
     ->where('file', '[A-Za-z0-9._-]+')
     ->name('backtest-result.show');
+
+// Signal Manager Routes
+Route::prefix('signal-manager')->name('signal-manager.')->group(function () {
+    Route::get('/', [App\Http\Controllers\SignalManagerController::class, 'dashboard'])->name('dashboard');
+});
 
 // CryptoQuant API Proxy Routes
 Route::get('/api/cryptoquant/exchange-inflow-cdd', [App\Http\Controllers\CryptoQuantController::class, 'getExchangeInflowCDD'])->name('api.cryptoquant.exchange-inflow-cdd');
@@ -71,11 +95,11 @@ Route::get('/api/cryptoquant/funding-rates-comparison', [App\Http\Controllers\Cr
 
 // QuantConnect API Proxy Routes (Backtest management)
 Route::prefix('api/quantconnect')->group(function () {
-    Route::get('/authenticate', [QuantConnectController::class, 'authenticate'])
+    Route::post('/authenticate', [QuantConnectController::class, 'authenticate'])
         ->middleware('throttle:10,1')
         ->name('api.quantconnect.authenticate');
 
-    Route::get('/projects', [QuantConnectController::class, 'projects'])
+    Route::post('/projects', [QuantConnectController::class, 'projects'])
         ->middleware('throttle:20,1')
         ->name('api.quantconnect.projects');
 
@@ -83,49 +107,69 @@ Route::prefix('api/quantconnect')->group(function () {
         ->middleware('throttle:20,1')
         ->name('api.quantconnect.backtests');
 
-    // Compile
-    Route::post('/compile/create', [QuantConnectController::class, 'compileCreate'])
-        ->middleware('throttle:10,1')
-        ->name('api.quantconnect.compile.create');
-    Route::get('/compile/read', [QuantConnectController::class, 'compileRead'])
-        ->middleware('throttle:30,1')
-        ->name('api.quantconnect.compile.read');
+    // Signal webhook endpoint
+    Route::post('/signals/webhook', [App\Http\Controllers\SignalWebhookController::class, 'receiveSignal'])
+        ->middleware('throttle:100,1')
+        ->name('api.quantconnect.signals.webhook');
+});
 
-    // Files
-    Route::get('/files', [QuantConnectController::class, 'files'])
-        ->middleware('throttle:30,1')
-        ->name('api.quantconnect.files.read');
-    Route::post('/files/create', [QuantConnectController::class, 'filesCreate'])
-        ->middleware('throttle:20,1')
-        ->name('api.quantconnect.files.create');
-    Route::post('/files/update', [QuantConnectController::class, 'filesUpdate'])
-        ->middleware('throttle:20,1')
-        ->name('api.quantconnect.files.update');
-    Route::post('/files/rename', [QuantConnectController::class, 'filesRename'])
-        ->middleware('throttle:20,1')
-        ->name('api.quantconnect.files.rename');
-    Route::post('/files/delete', [QuantConnectController::class, 'filesDelete'])
-        ->middleware('throttle:20,1')
-        ->name('api.quantconnect.files.delete');
+// Signal Manager API Routes
+Route::prefix('api/signal-manager')->name('api.signal-manager.')->middleware('throttle:60,1')->group(function () {
+    Route::get('/signals', [App\Http\Controllers\SignalManagerController::class, 'getSignals'])->name('signals');
+    Route::get('/projects', [App\Http\Controllers\SignalManagerController::class, 'getProjects'])
+        ->middleware('throttle:30,1')->name('projects');
+    Route::post('/select-project', [App\Http\Controllers\SignalManagerController::class, 'selectProject'])
+        ->middleware('throttle:20,1')->name('select-project');
+    Route::get('/selected-project', [App\Http\Controllers\SignalManagerController::class, 'getSelectedProject'])->name('selected-project');
+    Route::get('/project-status', [App\Http\Controllers\SignalManagerController::class, 'getProjectStatus'])->name('project-status');
+    Route::get('/statistics', [App\Http\Controllers\SignalManagerController::class, 'getStatistics'])->name('statistics');
+    Route::get('/kpi', [App\Http\Controllers\SignalManagerController::class, 'getProjectKpi'])->name('kpi');
+    Route::post('/sync-status', [App\Http\Controllers\SignalManagerController::class, 'syncProjectStatus'])
+        ->middleware('throttle:20,1')->name('sync-status');
+    Route::get('/debug-qc', [App\Http\Controllers\SignalManagerController::class, 'debugQcApi'])->name('debug-qc');
+    Route::get('/export', [App\Http\Controllers\SignalManagerController::class, 'exportSignals'])
+        ->middleware('throttle:10,1')->name('export');
 
-    // Backtests
-    Route::post('/backtests/create', [QuantConnectController::class, 'backtestsCreate'])
-        ->middleware('throttle:10,1')
-        ->name('api.quantconnect.backtests.create');
-    Route::get('/backtests/read', [QuantConnectController::class, 'backtestsRead'])
-        ->middleware('throttle:30,1')
-        ->name('api.quantconnect.backtests.read');
-    Route::post('/backtests/update', [QuantConnectController::class, 'backtestsUpdate'])
-        ->middleware('throttle:20,1')
-        ->name('api.quantconnect.backtests.update');
-    Route::post('/backtests/delete', [QuantConnectController::class, 'backtestsDelete'])
-        ->middleware('throttle:20,1')
-        ->name('api.quantconnect.backtests.delete');
+    // QC Live Data Routes (Orders, Logs, Insights, Holdings)
+    Route::get('/live/orders', [App\Http\Controllers\SignalManagerController::class, 'getLiveOrders'])->name('live.orders');
+    Route::get('/live/logs', [App\Http\Controllers\SignalManagerController::class, 'getLiveLogs'])->name('live.logs');
+    Route::get('/live/insights', [App\Http\Controllers\SignalManagerController::class, 'getLiveInsights'])->name('live.insights');
+    Route::get('/live/holdings', [App\Http\Controllers\SignalManagerController::class, 'getLiveHoldings'])->name('live.holdings');
 
-    // Reports
-    Route::get('/reports/backtest', [QuantConnectController::class, 'backtestReport'])
-        ->middleware('throttle:10,1')
-        ->name('api.quantconnect.reports.backtest');
+    // QuantConnect Integration Routes
+    Route::prefix('quantconnect')->name('quantconnect.')->group(function () {
+        // Compile
+        Route::post('/compile/create', [QuantConnectController::class, 'compileCreate'])
+            ->middleware('throttle:10,1')->name('compile.create');
+        Route::get('/compile/read', [QuantConnectController::class, 'compileRead'])
+            ->middleware('throttle:30,1')->name('compile.read');
+
+        // Files
+        Route::get('/files', [QuantConnectController::class, 'files'])
+            ->middleware('throttle:30,1')->name('files.read');
+        Route::post('/files/create', [QuantConnectController::class, 'filesCreate'])
+            ->middleware('throttle:20,1')->name('files.create');
+        Route::post('/files/update', [QuantConnectController::class, 'filesUpdate'])
+            ->middleware('throttle:20,1')->name('files.update');
+        Route::post('/files/rename', [QuantConnectController::class, 'filesRename'])
+            ->middleware('throttle:20,1')->name('files.rename');
+        Route::post('/files/delete', [QuantConnectController::class, 'filesDelete'])
+            ->middleware('throttle:20,1')->name('files.delete');
+
+        // Backtests
+        Route::post('/backtests/create', [QuantConnectController::class, 'backtestsCreate'])
+            ->middleware('throttle:10,1')->name('backtests.create');
+        Route::get('/backtests/read', [QuantConnectController::class, 'backtestsRead'])
+            ->middleware('throttle:30,1')->name('backtests.read');
+        Route::post('/backtests/update', [QuantConnectController::class, 'backtestsUpdate'])
+            ->middleware('throttle:20,1')->name('backtests.update');
+        Route::post('/backtests/delete', [QuantConnectController::class, 'backtestsDelete'])
+            ->middleware('throttle:20,1')->name('backtests.delete');
+
+        // Reports
+        Route::get('/reports/backtest', [QuantConnectController::class, 'backtestReport'])
+            ->middleware('throttle:10,1')->name('reports.backtest');
+    });
 });
 
 // Binance Spot API Proxy
@@ -201,14 +245,14 @@ Route::prefix('api/spot-microstructure')->group(function () {
     Route::get('/coins-markets', [App\Http\Controllers\SpotMicrostructureController::class, 'getCoinsMarkets']);
     Route::get('/pairs-markets', [App\Http\Controllers\SpotMicrostructureController::class, 'getPairsMarkets']);
     Route::get('/price-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getPriceHistory']);
-    
+
     // Orderbook endpoints
     Route::get('/orderbook/ask-bids-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getOrderbookAskBidsHistory']);
     Route::get('/orderbook/aggregated-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getAggregatedOrderbookHistory']);
     Route::get('/orderbook/history', [App\Http\Controllers\SpotMicrostructureController::class, 'getOrderbookHistory']);
     Route::get('/orderbook/large-limit-order', [App\Http\Controllers\SpotMicrostructureController::class, 'getLargeLimitOrder']);
     Route::get('/orderbook/large-limit-order-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getLargeLimitOrderHistory']);
-    
+
     // Taker volume endpoints
     Route::get('/taker-volume/history', [App\Http\Controllers\SpotMicrostructureController::class, 'getTakerBuySellVolumeHistory']);
     Route::get('/taker-volume/aggregated-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getAggregatedTakerVolumeHistory']);
@@ -219,16 +263,16 @@ Route::prefix('api/spot-microstructure')->group(function () {
 Route::prefix('api/coinglass/etf-flows')->group(function () {
     // Daily Flows (Aggregated)
     Route::get('/history', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'flowHistory']);
-    
+
     // ETF List (Real-time comparison data)
     Route::get('/list', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'etfList']);
-    
+
     // Premium/Discount History (Per ETF)
     Route::get('/premium-discount', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'premiumDiscountHistory']);
-    
+
     // Flow Breakdown (Per ETF from aggregated data)
     Route::get('/breakdown', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'flowBreakdown']);
-    
+
     // CME Futures Open Interest
     Route::get('/cme-oi', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'cmeOpenInterest']);
 });
@@ -237,7 +281,7 @@ Route::prefix('api/coinglass/etf-flows')->group(function () {
 Route::prefix('api/coinglass/volatility')->group(function () {
     // Spot Price History (OHLC)
     Route::get('/price-history', [App\Http\Controllers\Coinglass\VolatilityRegimeController::class, 'priceHistory']);
-    
+
     // End-of-Day data (for ATR/HV/RV calculations)
     Route::get('/eod', [App\Http\Controllers\Coinglass\VolatilityRegimeController::class, 'eod']);
 });
@@ -246,13 +290,13 @@ Route::prefix('api/coinglass/volatility')->group(function () {
 Route::prefix('api/coinglass/sentiment')->group(function () {
     // Fear & Greed Index History
     Route::get('/fear-greed', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'fearGreedIndex']);
-    
+
     // Funding Rate Dominance (Exchange List)
     Route::get('/funding-dominance', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'fundingDominance']);
-    
+
     // Whale Alerts (Hyperliquid)
     Route::get('/whale-alerts', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'whaleAlerts']);
-    
+
     // Whale Transfers (On-Chain)
     Route::get('/whale-transfers', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'whaleTransfers']);
 });
@@ -261,13 +305,13 @@ Route::prefix('api/coinglass/sentiment')->group(function () {
 Route::prefix('api/coinglass/macro-overlay')->group(function () {
     // FRED Multiple Series
     Route::get('/fred', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'fredMultiSeries']);
-    
+
     // FRED Latest Values (must be before {seriesId} route to avoid conflict)
     Route::get('/fred-latest', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'fredLatest']);
-    
+
     // FRED Single Series
     Route::get('/fred/{seriesId}', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'fredSingleSeries']);
-    
+
     // Bitcoin vs Global M2
     Route::get('/bitcoin-m2', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'bitcoinVsM2']);
 });
@@ -276,8 +320,39 @@ Route::prefix('api/coinglass/macro-overlay')->group(function () {
 Route::view('/examples/chart-components', 'examples.chart-components-demo')->name('examples.chart-components');
 
 if (app()->isLocal()) {
+    // Test QuantConnect API
+    Route::get('/test/quantconnect-debug', function () {
+        try {
+            $client = new App\Services\QuantConnectClient();
+
+            $results = [
+                'configured' => $client->isConfigured(),
+                'base_url' => $client->getBaseUrl(),
+                'user_id' => $client->getUserId(),
+                'organization_id' => $client->getOrganizationId(),
+            ];
+
+            if ($client->isConfigured()) {
+                $results['auth_test'] = $client->authenticate();
+                $results['projects_test'] = $client->projects();
+            }
+
+            return response()->json([
+                'success' => true,
+                'results' => $results
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Test failed',
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
+    })->name('test.quantconnect-debug');
+
     // Test Funding Rates API
-    Route::get('/test/funding-rates-debug', function() {
+    Route::get('/test/funding-rates-debug', function () {
         try {
             $controller = new App\Http\Controllers\CryptoQuantController();
             $request = new Illuminate\Http\Request([
@@ -285,7 +360,7 @@ if (app()->isLocal()) {
                 'end_date' => now()->format('Y-m-d'),
                 'exchange' => 'binance'
             ]);
-            
+
             return $controller->getFundingRates($request);
         } catch (\Exception $e) {
             return response()->json([
@@ -298,7 +373,7 @@ if (app()->isLocal()) {
     })->name('test.funding-rates-debug');
 
     // Test Open Interest API
-    Route::get('/test/open-interest-debug', function() {
+    Route::get('/test/open-interest-debug', function () {
         try {
             $controller = new App\Http\Controllers\CryptoQuantController();
             $request = new Illuminate\Http\Request([
@@ -306,7 +381,7 @@ if (app()->isLocal()) {
                 'end_date' => now()->format('Y-m-d'),
                 'exchange' => 'binance'
             ]);
-            
+
             return $controller->getOpenInterest($request);
         } catch (\Exception $e) {
             return response()->json([
@@ -319,7 +394,7 @@ if (app()->isLocal()) {
     })->name('test.open-interest-debug');
 
     // Test CDD API
-    Route::get('/test/cdd-debug', function() {
+    Route::get('/test/cdd-debug', function () {
         try {
             $controller = new App\Http\Controllers\CryptoQuantController();
             $request = new Illuminate\Http\Request([
@@ -327,7 +402,7 @@ if (app()->isLocal()) {
                 'end_date' => now()->format('Y-m-d'),
                 'exchange' => 'binance'
             ]);
-            
+
             return $controller->getExchangeInflowCDD($request);
         } catch (\Exception $e) {
             return response()->json([
@@ -340,26 +415,26 @@ if (app()->isLocal()) {
     })->name('test.cdd-debug');
 
     // Test CoinGlass API Integration
-    Route::get('/test/coinglass-integration', function() {
+    Route::get('/test/coinglass-integration', function () {
         try {
             $controller = new App\Http\Controllers\SpotMicrostructureController();
             $results = [];
-            
+
             // Test large trades
             $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5]);
             $largeTrades = $controller->getCoinglassLargeTrades($request);
             $results['large_trades'] = $largeTrades->getData(true);
-            
+
             // Test spot flow
             $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5]);
             $spotFlow = $controller->getCoinglassSpotFlow($request);
             $results['spot_flow'] = $spotFlow->getData(true);
-            
+
             // Test hybrid large orders
             $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5, 'min_notional' => 100000]);
             $hybridOrders = $controller->getLargeOrders($request);
             $results['hybrid_orders'] = $hybridOrders->getData(true);
-            
+
             return response()->json([
                 'success' => true,
                 'test_results' => $results,
@@ -382,23 +457,23 @@ if (app()->isLocal()) {
     })->name('test.coinglass-integration');
 
     // Test CDD API with different exchanges
-    Route::get('/test/cdd-all-exchanges', function() {
+    Route::get('/test/cdd-all-exchanges', function () {
         try {
             $controller = new App\Http\Controllers\CryptoQuantController();
             $exchanges = ['binance', 'coinbase', 'kraken', 'bitfinex', 'huobi', 'okex', 'bybit', 'bitstamp', 'gemini'];
             $results = [];
-            
+
             foreach ($exchanges as $exchange) {
                 $request = new Illuminate\Http\Request([
                     'start_date' => '2025-10-22',
                     'end_date' => '2025-10-23',
                     'exchange' => $exchange
                 ]);
-                
+
                 try {
                     $response = $controller->getExchangeInflowCDD($request);
                     $data = $response->getData(true);
-                    
+
                     if ($data['success'] && !empty($data['data'])) {
                         $oct22Data = collect($data['data'])->firstWhere('date', '2025-10-22');
                         $results[$exchange] = [
@@ -419,7 +494,7 @@ if (app()->isLocal()) {
                     ];
                 }
             }
-            
+
             return response()->json([
                 'success' => true,
                 'comparison_date' => '2025-10-22',

@@ -190,18 +190,18 @@
 
 	            const projectsEndpoint = @json(route('api.quantconnect.projects', absolute: false));
 	            const backtestsEndpoint = @json(route('api.quantconnect.backtests', absolute: false));
-	            const compileCreateEndpoint = @json(route('api.quantconnect.compile.create', absolute: false));
-	            const compileReadEndpoint = @json(route('api.quantconnect.compile.read', absolute: false));
-	            const backtestsCreateEndpoint = @json(route('api.quantconnect.backtests.create', absolute: false));
-	            const backtestsUpdateEndpoint = @json(route('api.quantconnect.backtests.update', absolute: false));
-	            const backtestsDeleteEndpoint = @json(route('api.quantconnect.backtests.delete', absolute: false));
-	            const reportBacktestEndpoint = @json(route('api.quantconnect.reports.backtest', absolute: false));
+	            const compileCreateEndpoint = @json(route('api.signal-manager.quantconnect.compile.create', absolute: false));
+	            const compileReadEndpoint = @json(route('api.signal-manager.quantconnect.compile.read', absolute: false));
+	            const backtestsCreateEndpoint = @json(route('api.signal-manager.quantconnect.backtests.create', absolute: false));
+	            const backtestsUpdateEndpoint = @json(route('api.signal-manager.quantconnect.backtests.update', absolute: false));
+	            const backtestsDeleteEndpoint = @json(route('api.signal-manager.quantconnect.backtests.delete', absolute: false));
+	            const reportBacktestEndpoint = @json(route('api.signal-manager.quantconnect.reports.backtest', absolute: false));
 
-	            const filesReadEndpoint = @json(route('api.quantconnect.files.read', absolute: false));
-	            const filesCreateEndpoint = @json(route('api.quantconnect.files.create', absolute: false));
-	            const filesUpdateEndpoint = @json(route('api.quantconnect.files.update', absolute: false));
-	            const filesRenameEndpoint = @json(route('api.quantconnect.files.rename', absolute: false));
-	            const filesDeleteEndpoint = @json(route('api.quantconnect.files.delete', absolute: false));
+	            const filesReadEndpoint = @json(route('api.signal-manager.quantconnect.files.read', absolute: false));
+	            const filesCreateEndpoint = @json(route('api.signal-manager.quantconnect.files.create', absolute: false));
+	            const filesUpdateEndpoint = @json(route('api.signal-manager.quantconnect.files.update', absolute: false));
+	            const filesRenameEndpoint = @json(route('api.signal-manager.quantconnect.files.rename', absolute: false));
+	            const filesDeleteEndpoint = @json(route('api.signal-manager.quantconnect.files.delete', absolute: false));
 
 	            const setStatus = (text) => {
 	                statusEl.textContent = text || '';

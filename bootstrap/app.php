@@ -11,7 +11,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Exclude webhook endpoints from CSRF verification
+        $middleware->validateCsrfTokens(except: [
+            'api/quantconnect/signals/webhook',
+            'api/quantconnect/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
