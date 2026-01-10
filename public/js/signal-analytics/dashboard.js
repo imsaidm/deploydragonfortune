@@ -848,6 +848,17 @@
       }
     };
 
+    const detectBinanceType = () => {
+      const method = state.methodDetail || state.methods.find((x) => Number(x.id) === Number(state.selectedMethodId)) || null;
+      if (!method) return 'spot';
+      
+      const name = String(method.nama_metode || '').toLowerCase();
+      if (name.includes('futures') || name.includes('future')) {
+        return 'futures';
+      }
+      return 'spot';
+    };
+
     const renderBinanceSummary = () => {
       const summary = state.binanceSummary?.summary ?? {};
       const account = state.binanceSummary?.account ?? {};
@@ -904,7 +915,9 @@
         binanceLiveEl.textContent = 'Loading';
         binanceLiveEl.className = 'badge text-bg-secondary';
       }
-      const url = buildBinanceUrl('/api/binance/spot/summary');
+      const binanceType = detectBinanceType();
+      const endpoint = binanceType === 'futures' ? '/api/binance/futures/summary' : '/api/binance/spot/summary';
+      const url = buildBinanceUrl(endpoint);
       try {
         const res = await fetch(url, { headers: { Accept: 'application/json' } });
         const text = await res.text();
@@ -1107,7 +1120,9 @@
       const symbol = getBinanceSymbol();
       setTableStatus(binanceOpenOrdersStatus, 'Loading...');
       try {
-        const res = await fetchLocalJson(buildBinanceUrl('/api/binance/spot/open-orders', { symbol }));
+        const binanceType = detectBinanceType();
+        const endpoint = binanceType === 'futures' ? '/api/binance/futures/open-orders' : '/api/binance/spot/open-orders';
+        const res = await fetchLocalJson(buildBinanceUrl(endpoint, { symbol }));
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOpenOrders = items;
         updateTabCounts();
@@ -1129,8 +1144,10 @@
       const symbol = getBinanceSymbol();
       setTableStatus(binanceOrdersStatus, 'Loading...');
       try {
+        const binanceType = detectBinanceType();
+        const endpoint = binanceType === 'futures' ? '/api/binance/futures/orders' : '/api/binance/spot/orders';
         const res = await fetchLocalJson(
-          buildBinanceUrl('/api/binance/spot/orders', { symbol, limit: 50 }),
+          buildBinanceUrl(endpoint, { symbol, limit: 50 }),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOrders = items;
@@ -1150,8 +1167,10 @@
       const symbol = getBinanceSymbol();
       setTableStatus(binanceTradesStatus, 'Loading...');
       try {
+        const binanceType = detectBinanceType();
+        const endpoint = binanceType === 'futures' ? '/api/binance/futures/trades' : '/api/binance/spot/trades';
         const res = await fetchLocalJson(
-          buildBinanceUrl('/api/binance/spot/trades', { symbol, limit: 50 }),
+          buildBinanceUrl(endpoint, { symbol, limit: 50 }),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceTrades = items;
