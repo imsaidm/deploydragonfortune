@@ -3,6 +3,7 @@
 use App\Http\Controllers\BacktestResultController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\BinanceSpotController;
+use App\Http\Controllers\BinanceFuturesController;
 use App\Http\Controllers\QuantConnectController;
 use Illuminate\Support\Facades\Route;
 
@@ -141,6 +142,23 @@ Route::get('/api/binance/spot/orders', [BinanceSpotController::class, 'orders'])
 Route::get('/api/binance/spot/trades', [BinanceSpotController::class, 'trades'])
     ->middleware('throttle:20,1')
     ->name('api.binance.spot.trades');
+
+// Binance Futures API Proxy
+Route::get('/api/binance/futures/summary', [BinanceFuturesController::class, 'summary'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.futures.summary');
+Route::get('/api/binance/futures/positions', [BinanceFuturesController::class, 'positions'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.futures.positions');
+Route::get('/api/binance/futures/open-orders', [BinanceFuturesController::class, 'openOrders'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.futures.open-orders');
+Route::get('/api/binance/futures/orders', [BinanceFuturesController::class, 'orders'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.futures.orders');
+Route::get('/api/binance/futures/trades', [BinanceFuturesController::class, 'trades'])
+    ->middleware('throttle:20,1')
+    ->name('api.binance.futures.trades');
 
 // Coinglass API Proxy Routes
 
