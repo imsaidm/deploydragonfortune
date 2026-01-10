@@ -140,4 +140,16 @@ return [
         ],
     ],
 
+    // Telegram Bot (for QuantConnect notifications)
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN', ''),
+        'chat_id' => env('TELEGRAM_CHAT_ID', ''),
+        'enabled' => env('TELEGRAM_ENABLED', false),
+    ],
+
+    // QuantConnect Webhook Security
+    'quantconnect_webhook' => [
+        'token' => env('QUANTCONNECT_WEBHOOK_TOKEN', ''),
+    ],
+
 ];

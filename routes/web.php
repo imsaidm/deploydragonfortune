@@ -127,6 +127,14 @@ Route::prefix('api/quantconnect')->group(function () {
     Route::get('/reports/backtest', [QuantConnectController::class, 'backtestReport'])
         ->middleware('throttle:10,1')
         ->name('api.quantconnect.reports.backtest');
+
+    // QuantConnect Webhook Endpoints (for receiving signals from live trading)
+    Route::post('/webhook/reminder', [App\Http\Controllers\QuantConnectWebhookController::class, 'receiveReminder'])
+        ->middleware('throttle:60,1')
+        ->name('api.quantconnect.webhook.reminder');
+    Route::post('/webhook/signal', [App\Http\Controllers\QuantConnectWebhookController::class, 'receiveSignal'])
+        ->middleware('throttle:60,1')
+        ->name('api.quantconnect.webhook.signal');
 });
 
 // Binance Spot API Proxy
