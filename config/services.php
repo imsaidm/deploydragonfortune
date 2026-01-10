@@ -118,6 +118,26 @@ return [
             'proxy_verify_ssl' => env('BINANCE_SPOT_PROXY_VERIFY_SSL', true),
             'stub_data' => env('BINANCE_SPOT_STUB_DATA', false),
         ],
+
+        // Binance Futures API (USDⓈ-M)
+        'futures' => [
+            // Modes: auto, direct, proxy, stub (same as spot)
+            'mode' => env('BINANCE_FUTURES_MODE', 'auto'),
+            'base_url' => env('BINANCE_FUTURES_BASE_URL', 'https://fapi.binance.com'),
+            'label' => env('BINANCE_FUTURES_LABEL', 'Binance Futures'),
+            'api_key' => env('BINANCE_FUTURES_API_KEY', ''),
+            'api_secret' => env('BINANCE_FUTURES_API_SECRET', ''),
+            // Optional per-method credentials mapping (JSON):
+            // {"10":{"api_key":"...","api_secret":"..."}}
+            'method_credentials' => env('BINANCE_FUTURES_METHOD_CREDENTIALS', ''),
+            'timeout' => (int) env('BINANCE_FUTURES_TIMEOUT', 10),
+            'recv_window' => (int) env('BINANCE_FUTURES_RECV_WINDOW', 5000),
+            'verify_ssl' => env('BINANCE_FUTURES_VERIFY_SSL', true),
+            'proxy_base_url' => env('BINANCE_FUTURES_PROXY_BASE_URL', ''),
+            'proxy_token' => env('BINANCE_FUTURES_PROXY_TOKEN', ''),
+            'proxy_verify_ssl' => env('BINANCE_FUTURES_PROXY_VERIFY_SSL', true),
+            'stub_data' => env('BINANCE_FUTURES_STUB_DATA', false),
+        ],
     ],
 
 ];

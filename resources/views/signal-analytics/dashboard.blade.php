@@ -354,7 +354,7 @@
                             </div>
                             <div class="d-flex flex-column">
                                 <div class="d-flex align-items-center gap-2">
-                                    <div class="fw-semibold">Binance Spot</div>
+                                    <div id="sa-binance-label" class="fw-semibold">Binance</div>
                                     <span id="sa-binance-live" class="badge text-bg-success">Live</span>
                                 </div>
                             </div>
