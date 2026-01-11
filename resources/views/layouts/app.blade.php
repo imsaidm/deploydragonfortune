@@ -184,6 +184,17 @@
 	                                <span>Backtest Result</span>
 	                            </a>
 	                        </li>
+								<li class="df-sidebar-menu-item">
+									<a href="/trading-methods" class="df-sidebar-menu-button {{ request()->routeIs('trading-methods.*') ? 'active' : '' }}" @click="closeSidebar()">
+										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M3 3h18v18H3z"/>
+											<path d="M3 9h18M9 21V9"/>
+											<path d="M12 3v6m3-3v6"/>
+										</svg>
+										<span>Trading Methods</span>
+									</a>
+								</li>
+
 	                    </ul>
 	                </div>
 
@@ -462,3 +473,4 @@
 </body>
 
 </html>
+

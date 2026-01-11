@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\BinanceFuturesController;
 use App\Http\Controllers\QuantConnectController;
+use App\Http\Controllers\TradingMethodController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'workspace')->name('workspace');
@@ -466,4 +467,18 @@ if (app()->isLocal()) {
     })->name('test.cdd-all-exchanges');
 }
 
+
 // API consumption happens directly from frontend using meta api-base-url
+
+// Trading Methods Routes
+Route::prefix('trading-methods')->name('trading-methods.')->group(function () {
+    Route::get('/', [App\Http\Controllers\TradingMethodController::class, 'index'])->name('index');
+    Route::post('/', [App\Http\Controllers\TradingMethodController::class, 'store'])->name('store');
+    Route::get('/{id}', [App\Http\Controllers\TradingMethodController::class, 'show'])->name('show');
+    Route::put('/{id}', [App\Http\Controllers\TradingMethodController::class, 'update'])->name('update');
+    Route::delete('/{id}', [App\Http\Controllers\TradingMethodController::class, 'destroy'])->name('destroy');
+    Route::post('/{id}/toggle-active', [App\Http\Controllers\TradingMethodController::class, 'toggleActive'])->name('toggle-active');
+    Route::post('/{id}/toggle-auto-trade', [App\Http\Controllers\TradingMethodController::class, 'toggleAutoTrade'])->name('toggle-auto-trade');
+    Route::get('/export/json', [App\Http\Controllers\TradingMethodController::class, 'export'])->name('export');
+    Route::post('/import/json', [App\Http\Controllers\TradingMethodController::class, 'import'])->name('import');
+});

@@ -1,8 +1,15 @@
 import "./bootstrap";
-import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import * as bootstrap from 'bootstrap';
+window.bootstrap = bootstrap;
 
 import jQuery from "jquery";
 window.$ = window.jQuery = jQuery;
+
+import DataTable from "datatables.net-bs5";
+import "datatables.net-bs5/css/dataTables.bootstrap5.min.css";
+
+import Swal from 'sweetalert2';
+window.Swal = Swal;
 
 // Global kill-switch: disable all setInterval-based auto refresh across pages
 if (typeof window !== "undefined" && !window.__AUTO_REFRESH_DISABLED__) {
@@ -48,7 +55,7 @@ if (typeof window !== "undefined" && !window.__AUTO_REFRESH_DISABLED__) {
         // Hide known classes/attrs
         if (
             el.matches(
-                "[data-auto-refresh], .auto-refresh, .auto-refresh-toggle, [x-model='refreshEnabled'], [x-show*='refreshEnabled'], .pulse-dot, .badge"
+                "[data-auto-refresh], .auto-refresh, .auto-refresh-toggle, [x-model='refreshEnabled'], [x-show*='refreshEnabled'], .pulse-dot"
             )
         ) {
             hideEl(el);
