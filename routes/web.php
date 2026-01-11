@@ -482,3 +482,16 @@ Route::prefix('trading-methods')->name('trading-methods.')->group(function () {
     Route::get('/export/json', [App\Http\Controllers\TradingMethodController::class, 'export'])->name('export');
     Route::post('/import/json', [App\Http\Controllers\TradingMethodController::class, 'import'])->name('import');
 });
+
+// Master Exchange Routes
+Route::prefix('master-exchanges')->name('master-exchanges.')->group(function () {
+    Route::get('/', [App\Http\Controllers\MasterExchangeController::class, 'index'])->name('index');
+    Route::post('/', [App\Http\Controllers\MasterExchangeController::class, 'store'])->name('store');
+    Route::get('/{id}', [App\Http\Controllers\MasterExchangeController::class, 'show'])->name('show');
+    Route::put('/{id}', [App\Http\Controllers\MasterExchangeController::class, 'update'])->name('update');
+    Route::delete('/{id}', [App\Http\Controllers\MasterExchangeController::class, 'destroy'])->name('destroy');
+    Route::post('/{id}/toggle-active', [App\Http\Controllers\MasterExchangeController::class, 'toggleActive'])->name('toggle-active');
+    Route::post('/{id}/test-connection', [App\Http\Controllers\MasterExchangeController::class, 'testConnection'])->name('test-connection');
+    Route::get('/{id}/balance', [App\Http\Controllers\MasterExchangeController::class, 'getBalance'])->name('balance');
+});
+

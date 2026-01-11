@@ -14,6 +14,7 @@ class QcMethod extends Model
         'pair',
         'tf',
         'exchange',
+        'master_exchange_id',
         'cagr',
         'drawdown',
         'winrate',
@@ -28,8 +29,6 @@ class QcMethod extends Model
         'qc_url',
         'qc_project_id',
         'webhook_token',
-        'api_key',
-        'secret_key',
         'risk_settings',
         'is_active',
         'auto_trade_enabled',
@@ -54,49 +53,6 @@ class QcMethod extends Model
         'last_signal_at' => 'datetime',
     ];
     
-    protected $hidden = [
-        'api_key',
-        'secret_key',
-    ];
-    
-    // Accessors & Mutators for API Key Encryption
-    public function setApiKeyAttribute($value)
-    {
-        if ($value) {
-            $this->attributes['api_key'] = encrypt($value);
-        }
-    }
-    
-    public function getApiKeyAttribute($value)
-    {
-        if ($value) {
-            try {
-                return decrypt($value);
-            } catch (\Exception $e) {
-                return $value;
-            }
-        }
-        return null;
-    }
-    
-    public function setSecretKeyAttribute($value)
-    {
-        if ($value) {
-            $this->attributes['secret_key'] = encrypt($value);
-        }
-    }
-    
-    public function getSecretKeyAttribute($value)
-    {
-        if ($value) {
-            try {
-                return decrypt($value);
-            } catch (\Exception $e) {
-                return $value;
-            }
-        }
-        return null;
-    }
     
     // Scopes
     public function scopeActive($query)
@@ -125,6 +81,11 @@ class QcMethod extends Model
         return $this->hasMany(QuantConnectSignal::class, 'qc_id', 'qc_project_id');
     }
     
+    public function masterExchange()
+    {
+        return $this->belongsTo(MasterExchange::class, 'master_exchange_id');
+    }
+    
     // Helper Methods
     public function isSpot(): bool
     {
@@ -139,5 +100,24 @@ class QcMethod extends Model
     public function generateWebhookToken(): string
     {
         return bin2hex(random_bytes(32));
+    }
+    
+    /**
+     * Get API credentials from master exchange
+     */
+    public function getApiCredentials(): ?array
+    {
+        // Use master exchange credentials only
+        if ($this->masterExchange && $this->masterExchange->is_active) {
+            return [
+                'api_key' => $this->masterExchange->api_key,
+                'secret_key' => $this->masterExchange->secret_key,
+                'testnet' => $this->masterExchange->testnet,
+                'exchange_type' => $this->masterExchange->exchange_type,
+                'market_type' => $this->masterExchange->market_type,
+            ];
+        }
+        
+        return null;
     }
 }

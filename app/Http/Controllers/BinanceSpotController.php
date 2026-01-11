@@ -649,8 +649,32 @@ class BinanceSpotController extends Controller
                     continue;
                 }
 
-                $apiKey = trim((string) ($row->api_key ?? $row->binance_api_key ?? $row->apiKey ?? ''));
-                $apiSecret = trim((string) ($row->secret_key ?? $row->api_secret ?? $row->binance_secret_key ?? $row->secretKey ?? ''));
+                // Get encrypted keys from database
+                $encryptedApiKey = trim((string) ($row->api_key ?? $row->binance_api_key ?? $row->apiKey ?? ''));
+                $encryptedSecret = trim((string) ($row->secret_key ?? $row->api_secret ?? $row->binance_secret_key ?? $row->secretKey ?? ''));
+                
+                // Decrypt keys (they are encrypted in database)
+                $apiKey = '';
+                $apiSecret = '';
+                
+                if ($encryptedApiKey !== '') {
+                    try {
+                        $apiKey = decrypt($encryptedApiKey);
+                    } catch (\Throwable $e) {
+                        // If decryption fails, assume it's already plain text (backward compatibility)
+                        $apiKey = $encryptedApiKey;
+                    }
+                }
+                
+                if ($encryptedSecret !== '') {
+                    try {
+                        $apiSecret = decrypt($encryptedSecret);
+                    } catch (\Throwable $e) {
+                        // If decryption fails, assume it's already plain text (backward compatibility)
+                        $apiSecret = $encryptedSecret;
+                    }
+                }
+                
                 $found = $apiKey !== '' && $apiSecret !== '';
 
                 return [

@@ -32,11 +32,10 @@ class TradingMethodController extends Controller
             'pair' => 'required|string|max:30',
             'tf' => 'required|string|max:30',
             'exchange' => 'required|string|max:30',
+            'master_exchange_id' => 'nullable|exists:master_exchanges,id',
             'qc_url' => 'required|url',
             'qc_project_id' => 'nullable|string|max:100',
             'webhook_token' => 'nullable|string|max:255',
-            'api_key' => 'nullable|string',
-            'secret_key' => 'nullable|string',
             'cagr' => 'nullable|numeric',
             'drawdown' => 'nullable|numeric',
             'winrate' => 'nullable|numeric',
@@ -50,6 +49,14 @@ class TradingMethodController extends Controller
             'kpi_extra' => 'nullable|json',
             'risk_settings' => 'nullable|json',
         ]);
+        
+        // Require master_exchange_id for Binance methods
+        if ($request->exchange === 'BINANCE' && !$request->master_exchange_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Master Exchange is required for Binance trading methods',
+            ], 422);
+        }
 
         if ($validator->fails()) {
             return response()->json([
@@ -114,11 +121,10 @@ class TradingMethodController extends Controller
             'pair' => 'required|string|max:30',
             'tf' => 'required|string|max:30',
             'exchange' => 'required|string|max:30',
+            'master_exchange_id' => 'nullable|exists:master_exchanges,id',
             'qc_url' => 'required|url',
             'qc_project_id' => 'nullable|string|max:100',
             'webhook_token' => 'nullable|string|max:255',
-            'api_key' => 'nullable|string',
-            'secret_key' => 'nullable|string',
             'cagr' => 'nullable|numeric',
             'drawdown' => 'nullable|numeric',
             'winrate' => 'nullable|numeric',
@@ -132,6 +138,14 @@ class TradingMethodController extends Controller
             'kpi_extra' => 'nullable|json',
             'risk_settings' => 'nullable|json',
         ]);
+        
+        // Require master_exchange_id for Binance methods
+        if ($request->exchange === 'BINANCE' && !$request->master_exchange_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Master Exchange is required for Binance trading methods',
+            ], 422);
+        }
 
         if ($validator->fails()) {
             return response()->json([

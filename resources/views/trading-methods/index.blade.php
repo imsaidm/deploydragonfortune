@@ -261,20 +261,18 @@
 
                         <!-- Binance Tab -->
                         <div class="tab-pane fade" id="binanceTab">
-                            <div class="alert alert-warning">
-                                <i class="bi bi-shield-lock"></i> API keys will be encrypted in database
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> <strong>Master Exchange Required:</strong> All Binance trading methods must use a Master Exchange account for API credentials.
+                                <a href="/master-exchanges" target="_blank" class="alert-link">Manage Exchanges</a>
                             </div>
                             <div class="row">
                                 <div class="col-12">
                                     <div class="mb-3">
-                                        <label class="form-label">API Key</label>
-                                        <input type="text" class="form-control" id="api_key">
-                                    </div>
-                                </div>
-                                <div class="col-12">
-                                    <div class="mb-3">
-                                        <label class="form-label">Secret Key</label>
-                                        <input type="password" class="form-control" id="secret_key">
+                                        <label class="form-label">Master Exchange Account <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="master_exchange_id" required>
+                                            <option value="">-- Select Master Exchange --</option>
+                                        </select>
+                                        <small class="text-muted">Select an exchange account with API credentials</small>
                                     </div>
                                 </div>
                             </div>

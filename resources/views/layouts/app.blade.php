@@ -194,6 +194,17 @@
 										<span>Trading Methods</span>
 									</a>
 								</li>
+						<li class="df-sidebar-menu-item">
+							<a href="/master-exchanges" class="df-sidebar-menu-button {{ request()->routeIs('master-exchanges.*') ? 'active' : '' }}" @click="closeSidebar()">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="2" y="5" width="20" height="14" rx="2"/>
+									<path d="M2 10h20"/>
+									<circle cx="12" cy="15" r="2"/>
+								</svg>
+								<span>Master Exchange</span>
+							</a>
+						</li>
+
 
 	                    </ul>
 	                </div>

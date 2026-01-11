@@ -16,6 +16,9 @@ const waitForJQuery = (callback) => {
 
 waitForJQuery(($) => {
     $(document).ready(function() {
+        // Load Master Exchange options
+        loadMasterExchangeOptions();
+        
         try {
             table = $('#methodsTable').DataTable({
                 processing: true,
@@ -161,11 +164,37 @@ window.openCreateModal = function() {
     $('#methodId').val('');
     $('#methodForm')[0].reset();
     
+    // Reset Master Exchange dropdown
+    loadMasterExchangeOptions();
+    
     const firstTab = document.querySelector('.nav-tabs a:first-child');
     if (firstTab && window.bootstrap) {
         new bootstrap.Tab(firstTab).show();
     }
 };
+
+// Load Master Exchange options
+function loadMasterExchangeOptions() {
+    $.ajax({
+        url: '/master-exchanges',
+        method: 'GET',
+        success: function(response) {
+            if (response.data) {
+                const select = $('#master_exchange_id');
+                select.html('<option value="">-- Use Custom API Keys Below --</option>');
+                
+                response.data.forEach(exchange => {
+                    if (exchange.is_active) {
+                        select.append(`<option value="${exchange.id}">${exchange.name} (${exchange.exchange_type})</option>`);
+                    }
+                });
+            }
+        },
+        error: function() {
+            console.warn('Failed to load master exchanges');
+        }
+    });
+}
 
 window.viewMethod = function(id) {
     $.ajax({
@@ -209,6 +238,7 @@ window.saveMethod = function() {
         pair: $('#pair').val(),
         tf: $('#tf').val(),
         exchange: $('#exchange').val(),
+        master_exchange_id: $('#master_exchange_id').val() || null,
         cagr: $('#cagr').val() || null,
         drawdown: $('#drawdown').val() || null,
         winrate: $('#winrate').val() || null,
@@ -223,8 +253,6 @@ window.saveMethod = function() {
         qc_url: $('#qc_url').val(),
         qc_project_id: $('#qc_project_id').val() || null,
         webhook_token: $('#webhook_token').val() || null,
-        api_key: $('#api_key').val() || null,
-        secret_key: $('#secret_key').val() || null,
         risk_settings: $('#risk_settings').val() || null,
     };
     
@@ -377,17 +405,12 @@ function populateForm(method, disabled) {
         $(`#${f}`).val(method[f]).prop('disabled', disabled);
     });
     
+    // Master Exchange
+    $('#master_exchange_id').val(method.master_exchange_id || '').prop('disabled', disabled);
+    
     // Handle JSON and Secrets
     $('#kpi_extra').val(method.kpi_extra ? JSON.stringify(method.kpi_extra, null, 2) : '').prop('disabled', disabled);
     $('#risk_settings').val(method.risk_settings ? JSON.stringify(method.risk_settings, null, 2) : '').prop('disabled', disabled);
-    
-    $('#api_key').val(method.api_key ? '***ENCRYPTED***' : '').prop('disabled', disabled);
-    $('#secret_key').val(method.secret_key ? '***ENCRYPTED***' : '').prop('disabled', disabled);
-    
-    if (!disabled) {
-        $('#api_key').attr('placeholder', 'Leave empty to keep current');
-        $('#secret_key').attr('placeholder', 'Leave empty to keep current');
-    }
 }
 
 function handleError(xhr) {
