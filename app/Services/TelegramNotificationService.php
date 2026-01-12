@@ -8,8 +8,8 @@ use App\Models\QuantConnectSignal;
 
 class TelegramNotificationService
 {
-    private string $botToken;
-    private string $chatId;
+    private ?string $botToken;
+    private ?string $chatId;
     private bool $enabled;
 
     public function __construct()
