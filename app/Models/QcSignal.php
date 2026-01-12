@@ -1,0 +1,44 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+use App\Observers\QcSignalObserver;
+
+#[ObservedBy([QcSignalObserver::class])]
+class QcSignal extends Model
+{
+    // Use 'methods' connection (simulates remote database)
+    protected $connection = 'methods';
+    protected $table = 'qc_signal';
+    
+    protected $fillable = [
+        'id_method',
+        'datetime',
+        'type',
+        'jenis',
+        'price_entry',
+        'price_exit',
+        'target_tp',
+        'target_sl',
+        'real_tp',
+        'real_sl',
+        'message',
+        'telegram_sent',
+        'telegram_sent_at',
+        'telegram_response',
+    ];
+    
+    protected $casts = [
+        'datetime' => 'datetime',
+        'telegram_sent' => 'boolean',
+        'telegram_sent_at' => 'datetime',
+        'price_entry' => 'decimal:8',
+        'price_exit' => 'decimal:8',
+        'target_tp' => 'decimal:8',
+        'target_sl' => 'decimal:8',
+        'real_tp' => 'decimal:8',
+        'real_sl' => 'decimal:8',
+    ];
+}
