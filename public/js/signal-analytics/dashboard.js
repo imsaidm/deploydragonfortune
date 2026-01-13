@@ -292,11 +292,261 @@
       return json ?? text;
     };
 
-    const openModal = (title, content) => {
-      if (!modalEl || !modalTitleEl || !modalPreEl) return;
+    const modalFormattedEl = byId('sa-modal-formatted');
+
+    const createDetailRow = (label, value, valueClass = '') => {
+      const row = document.createElement('div');
+      row.className = 'sa-detail-row';
+      
+      const labelEl = document.createElement('span');
+      labelEl.className = 'sa-detail-label';
+      labelEl.textContent = label;
+      
+      const valueEl = document.createElement('span');
+      valueEl.className = 'sa-detail-value' + (valueClass ? ' ' + valueClass : '');
+      valueEl.textContent = value;
+      
+      row.appendChild(labelEl);
+      row.appendChild(valueEl);
+      return row;
+    };
+
+    const createDetailCard = (icon, title, rows) => {
+      const card = document.createElement('div');
+      card.className = 'sa-detail-card';
+      
+      const header = document.createElement('div');
+      header.className = 'sa-detail-card-header';
+      header.innerHTML = `${icon} ${escapeText(title)}`;
+      card.appendChild(header);
+      
+      rows.forEach(r => card.appendChild(r));
+      return card;
+    };
+
+    const createBadge = (type) => {
+      const badge = document.createElement('span');
+      badge.className = 'sa-badge ' + normalize(type);
+      badge.textContent = type;
+      return badge;
+    };
+
+    const formatSignalDetail = (data) => {
+      const container = document.createElement('div');
+      
+      // Header badges
+      const badgeRow = document.createElement('div');
+      badgeRow.className = 'd-flex gap-2 mb-3';
+      if (data.type) badgeRow.appendChild(createBadge(data.type));
+      if (data.jenis) badgeRow.appendChild(createBadge(data.jenis));
+      container.appendChild(badgeRow);
+      
+      // Grid
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      // Basic Info Card
+      const infoRows = [
+        createDetailRow('ID', data.id ?? '-'),
+        createDetailRow('Method ID', data.id_method ?? '-'),
+        createDetailRow('Date Time', data.datetime ?? data.created_at ?? '-'),
+        createDetailRow('Symbol', data.pair ?? data.symbol ?? state.methodMeta?.symbol ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📊', 'Signal Info', infoRows));
+      
+      // Price Card
+      const entryPrice = Number(data.price_entry || data.price || 0);
+      const exitPrice = Number(data.price_exit || 0);
+      const targetTp = Number(data.target_tp || 0);
+      const targetSl = Number(data.target_sl || 0);
+      
+      const priceRows = [
+        createDetailRow('Entry Price', entryPrice ? `$ ${formatNumber(entryPrice, 2)}` : '-'),
+        createDetailRow('Exit Price', exitPrice ? `$ ${formatNumber(exitPrice, 2)}` : '-'),
+        createDetailRow('Quantity', data.quantity ?? data.qty ?? '-'),
+        createDetailRow('Balance', data.balance ? `$ ${formatNumber(data.balance, 2)}` : '-'),
+      ];
+      grid.appendChild(createDetailCard('💰', 'Price Details', priceRows));
+      
+      // Target Card
+      const tpRows = [
+        createDetailRow('Target TP', targetTp ? `$ ${formatNumber(targetTp, 2)}` : '-', 'positive'),
+        createDetailRow('Target SL', targetSl ? `$ ${formatNumber(targetSl, 2)}` : '-', 'negative'),
+        createDetailRow('Real TP', data.real_tp ? `$ ${formatNumber(data.real_tp, 2)}` : '-', 'positive'),
+        createDetailRow('Real SL', data.real_sl ? `$ ${formatNumber(data.real_sl, 2)}` : '-', 'negative'),
+      ];
+      grid.appendChild(createDetailCard('🎯', 'TP / SL Targets', tpRows));
+      
+      // Status Card
+      const statusRows = [
+        createDetailRow('Telegram Sent', data.telegram_sent ? '✅ Yes' : '❌ No'),
+        createDetailRow('Sent At', data.telegram_sent_at ?? '-'),
+        createDetailRow('Created', data.created_at ?? '-'),
+        createDetailRow('Updated', data.updated_at ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📤', 'Status', statusRows));
+      
+      container.appendChild(grid);
+      
+      // Message
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'sa-detail-message';
+        msgDiv.textContent = data.message.replace(/\\n/g, '\n');
+        container.appendChild(msgDiv);
+      }
+      
+      return container;
+    };
+
+    const formatOrderDetail = (data) => {
+      const container = document.createElement('div');
+      
+      const badgeRow = document.createElement('div');
+      badgeRow.className = 'd-flex gap-2 mb-3';
+      if (data.type) badgeRow.appendChild(createBadge(data.type));
+      if (data.jenis) badgeRow.appendChild(createBadge(data.jenis));
+      container.appendChild(badgeRow);
+      
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const infoRows = [
+        createDetailRow('ID', data.id ?? '-'),
+        createDetailRow('Method ID', data.id_method ?? '-'),
+        createDetailRow('Date Time', data.datetime ?? data.created_at ?? '-'),
+        createDetailRow('Symbol', data.symbol ?? data.pair ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📊', 'Order Info', infoRows));
+      
+      const price = Number(data.price ?? data.price_entry ?? data.price_exit ?? 0);
+      const qty = Number(data.quantity ?? data.qty ?? 0);
+      const total = price * qty;
+      
+      const priceRows = [
+        createDetailRow('Price', price ? `$ ${formatNumber(price, 2)}` : '-'),
+        createDetailRow('Quantity', qty ? formatNumber(qty, 6) : '-'),
+        createDetailRow('Total', total ? `$ ${formatNumber(total, 2)}` : '-'),
+        createDetailRow('Balance', data.balance ? `$ ${formatNumber(data.balance, 2)}` : '-'),
+      ];
+      grid.appendChild(createDetailCard('💰', 'Trade Details', priceRows));
+      
+      container.appendChild(grid);
+      
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'sa-detail-message';
+        msgDiv.textContent = data.message.replace(/\\n/g, '\n');
+        container.appendChild(msgDiv);
+      }
+      
+      return container;
+    };
+
+    const formatReminderDetail = (data) => {
+      const container = document.createElement('div');
+      
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const infoRows = [
+        createDetailRow('ID', data.id ?? '-'),
+        createDetailRow('Method ID', data.id_method ?? '-'),
+        createDetailRow('Date Time', data.datetime ?? '-'),
+        createDetailRow('Telegram Sent', data.telegram_sent ? '✅ Yes' : '❌ No'),
+      ];
+      grid.appendChild(createDetailCard('🔔', 'Reminder Info', infoRows));
+      
+      const statusRows = [
+        createDetailRow('Sent At', data.telegram_sent_at ?? '-'),
+        createDetailRow('Created', data.created_at ?? '-'),
+        createDetailRow('Updated', data.updated_at ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📤', 'Status', statusRows));
+      
+      container.appendChild(grid);
+      
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'sa-detail-message';
+        msgDiv.textContent = data.message.replace(/\\n/g, '\n');
+        container.appendChild(msgDiv);
+      }
+      
+      return container;
+    };
+
+    const formatLogDetail = (data) => {
+      const container = document.createElement('div');
+      
+      const infoCard = document.createElement('div');
+      infoCard.className = 'sa-detail-card mb-3';
+      
+      const header = document.createElement('div');
+      header.className = 'sa-detail-card-header';
+      header.innerHTML = '📋 Log Entry';
+      infoCard.appendChild(header);
+      
+      infoCard.appendChild(createDetailRow('Date Time', data.datetime ?? data.date_time ?? data.created_at ?? '-'));
+      if (data.id) infoCard.appendChild(createDetailRow('ID', data.id));
+      if (data.id_method) infoCard.appendChild(createDetailRow('Method ID', data.id_method));
+      
+      container.appendChild(infoCard);
+      
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'sa-detail-message';
+        // Parse message sections
+        const msg = String(data.message).replace(/\\n/g, '\n').replace(/ \| /g, '\n');
+        msgDiv.textContent = msg;
+        container.appendChild(msgDiv);
+      }
+      
+      return container;
+    };
+
+    const openModal = (title, content, type = 'raw') => {
+      if (!modalEl || !modalTitleEl) return;
       modalTitleEl.textContent = title || 'Detail';
-      modalPreEl.textContent =
-        typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+      
+      // Hide both containers first
+      if (modalFormattedEl) modalFormattedEl.style.display = 'none';
+      if (modalPreEl) modalPreEl.style.display = 'none';
+      
+      if (type === 'raw' || typeof content === 'string') {
+        // Raw/text mode - use pre
+        if (modalPreEl) {
+          modalPreEl.style.display = 'block';
+          modalPreEl.textContent = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+        }
+      } else if (modalFormattedEl) {
+        // Formatted mode
+        modalFormattedEl.style.display = 'block';
+        modalFormattedEl.innerHTML = '';
+        
+        let formatted = null;
+        if (type === 'signal') {
+          formatted = formatSignalDetail(content);
+        } else if (type === 'order') {
+          formatted = formatOrderDetail(content);
+        } else if (type === 'reminder') {
+          formatted = formatReminderDetail(content);
+        } else if (type === 'log') {
+          formatted = formatLogDetail(content);
+        }
+        
+        if (formatted) {
+          modalFormattedEl.appendChild(formatted);
+        } else {
+          // Fallback to raw
+          if (modalPreEl) {
+            modalPreEl.style.display = 'block';
+            modalPreEl.textContent = JSON.stringify(content, null, 2);
+          }
+          modalFormattedEl.style.display = 'none';
+        }
+      }
+      
       modalEl.classList.add('is-open');
       modalEl.setAttribute('aria-hidden', 'false');
     };
@@ -1328,7 +1578,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/orders/${row.id}`);
-            openModal(`Order #${row.id}`, detail);
+            openModal(`Order #${row.id}`, detail, 'order');
           } catch (err) {
             openModal(`Order #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1392,7 +1642,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/signals/${row.id}`);
-            openModal(`Signal #${row.id}`, detail);
+            openModal(`Signal #${row.id}`, detail, 'signal');
           } catch (err) {
             openModal(`Signal #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1456,7 +1706,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/reminders/${row.id}`);
-            openModal(`Reminder #${row.id}`, detail);
+            openModal(`Reminder #${row.id}`, detail, 'reminder');
           } catch (err) {
             openModal(`Reminder #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1511,8 +1761,7 @@
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', () => {
-          const human = toHumanMessage(row.message || '');
-          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', human || '(no message)');
+          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', row, 'log');
         });
 
         const tdDt = document.createElement('td');
@@ -1713,9 +1962,10 @@
       }
     };
 
-    const loadLogs = async () => {
+    const loadLogs = async (page = null) => {
       if (!state.selectedMethodId) {
         state.latestLogs = [];
+        state.logsHasMore = false;
         updateTabCounts();
         clearTbody(logsBody, 2, 'Select a method to load logs.');
         clearPager(logsPagination);
@@ -1723,23 +1973,125 @@
         return;
       }
 
+      const currentPage = page !== null ? page : (state.pages.logs || 1);
+      const pageSize = getPageSize('logs');
+      const offset = (currentPage - 1) * pageSize;
+      
       const q = getGlobalQuery();
 
       setTableStatus(logsStatus, 'Loading...');
       try {
-        const items = await fetchJson('/logs', q);
-        const logs = Array.isArray(items) ? items : [];
+        // Server-side pagination using API's limit/offset
+        const items = await fetchJson('/logs', { 
+          ...q, 
+          limit: pageSize + 1, // Fetch one extra to know if there's more
+          offset: offset 
+        });
+        
+        const allLogs = Array.isArray(items) ? items : [];
+        
+        // Check if there are more pages
+        const hasMore = allLogs.length > pageSize;
+        state.logsHasMore = hasMore;
+        
+        // Only keep pageSize items for display
+        const logs = hasMore ? allLogs.slice(0, pageSize) : allLogs;
+        
         state.latestLogs = logs;
-        renderLogs(logs);
+        state.pages.logs = currentPage;
+        
+        renderLogsServerSide(logs, currentPage, hasMore, pageSize);
         updateTabCounts();
-        setTableStatus(logsStatus, `Loaded ${logs.length} logs.`);
+        setTableStatus(logsStatus, `Page ${currentPage} · ${logs.length} logs`);
       } catch (err) {
         state.latestLogs = [];
+        state.logsHasMore = false;
         updateTabCounts();
         clearTbody(logsBody, 2, 'Failed to load logs.');
         clearPager(logsPagination);
         setTableStatus(logsStatus, 'Error: ' + (err?.message || String(err)));
       }
+    };
+    
+    // Server-side pagination renderer for logs
+    const renderLogsServerSide = (items, currentPage, hasMore, pageSize) => {
+      if (!logsBody) return;
+      logsBody.innerHTML = '';
+      
+      if (!Array.isArray(items) || items.length === 0) {
+        clearTbody(logsBody, 2, currentPage > 1 ? 'No more logs.' : 'No logs.');
+        // Still show pagination for going back
+        if (currentPage > 1) {
+          renderServerPager(logsPagination, currentPage, hasMore);
+        } else {
+          clearPager(logsPagination);
+        }
+        return;
+      }
+
+      // Render table rows
+      items.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.style.cursor = 'pointer';
+        tr.addEventListener('click', () => {
+          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', row, 'log');
+        });
+
+        const tdDt = document.createElement('td');
+        tdDt.textContent = escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-');
+        tr.appendChild(tdDt);
+        tr.appendChild(createMessageCell(row.message));
+
+        logsBody.appendChild(tr);
+      });
+      
+      // Render server-side pagination
+      renderServerPager(logsPagination, currentPage, hasMore);
+    };
+    
+    // Simple prev/next pagination for server-side
+    const renderServerPager = (el, currentPage, hasMore) => {
+      if (!el) return;
+      el.innerHTML = '';
+      
+      const wrapper = document.createElement('div');
+      wrapper.className = 'd-flex align-items-center justify-content-center gap-2';
+      
+      // Previous button
+      const prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.className = 'btn btn-sm btn-outline-secondary';
+      prevBtn.innerHTML = '← Prev';
+      prevBtn.disabled = currentPage <= 1;
+      prevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (currentPage > 1) {
+          loadLogs(currentPage - 1);
+        }
+      });
+      wrapper.appendChild(prevBtn);
+      
+      // Page indicator
+      const pageInfo = document.createElement('span');
+      pageInfo.className = 'badge bg-primary px-3 py-2';
+      pageInfo.textContent = `Page ${currentPage}`;
+      wrapper.appendChild(pageInfo);
+      
+      // Next button
+      const nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.className = 'btn btn-sm btn-outline-secondary';
+      nextBtn.innerHTML = 'Next →';
+      nextBtn.disabled = !hasMore;
+      nextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (hasMore) {
+          loadLogs(currentPage + 1);
+        }
+      });
+      wrapper.appendChild(nextBtn);
+      
+      el.appendChild(wrapper);
     };
 
     const refreshAll = async () => {
