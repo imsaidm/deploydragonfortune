@@ -13,35 +13,34 @@ class SendTelegramSignalJob implements ShouldQueue
     use Queueable;
 
     public $tries = 3;
-    public $backoff = [10, 30, 60]; // Retry after 10s, 30s, 60s
+    public $backoff = [10, 30, 60];
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct(
         public QcSignal $signal
     ) {}
 
-    /**
-     * Execute the job.
-     */
     public function handle(TelegramNotificationService $telegram): void
     {
         try {
-            // Format message
-            $message = "🚀 *SIGNAL TRADING*\n\n";
-            $message .= "📊 Symbol: `{$this->signal->jenis}`\n";
-            $message .= "📈 Type: *{$this->signal->type}*\n";
-            $message .= "💰 Entry: `" . number_format($this->signal->price_entry, 2) . "`\n";
-            $message .= "🎯 TP: `" . number_format($this->signal->target_tp, 2) . "`\n";
-            $message .= "🛑 SL: `" . number_format($this->signal->target_sl, 2) . "`\n";
-            $message .= "\n📝 {$this->signal->message}\n";
-            $message .= "\n⏰ " . now()->format('Y-m-d H:i:s') . " WIB";
+            $this->signal->load('method');
+            $method = $this->signal->method;
             
-            // Send to Telegram
+            $isEntry = strtolower($this->signal->type) === 'entry';
+            $isBuy = strtolower($this->signal->jenis) === 'buy';
+            
+            // Direction styling
+            $directionEmoji = $isBuy ? '🟢' : '🔴';
+            $directionText = strtoupper($this->signal->jenis);
+            
+            // Build message based on signal type
+            if ($isEntry) {
+                $message = $this->buildEntryMessage($method, $directionEmoji, $directionText);
+            } else {
+                $message = $this->buildExitMessage($method, $directionEmoji, $directionText, $isBuy);
+            }
+            
             $response = $telegram->sendMessage($message);
             
-            // Update status
             $this->signal->update([
                 'telegram_sent' => true,
                 'telegram_sent_at' => now(),
@@ -53,11 +52,9 @@ class SendTelegramSignalJob implements ShouldQueue
         } catch (\Exception $e) {
             Log::error("❌ Signal #{$this->signal->id} failed: {$e->getMessage()}");
             
-            // Retry job if attempts remaining
             if ($this->attempts() < $this->tries) {
                 $this->release($this->backoff[$this->attempts() - 1] ?? 60);
             } else {
-                // Mark as failed after all retries
                 $this->signal->update([
                     'telegram_response' => 'Failed after ' . $this->tries . ' attempts: ' . $e->getMessage()
                 ]);
@@ -65,5 +62,132 @@ class SendTelegramSignalJob implements ShouldQueue
             
             throw $e;
         }
+    }
+
+    private function buildEntryMessage($method, string $directionEmoji, string $directionText): string
+    {
+        $entryPrice = (float) $this->signal->price_entry;
+        $tpPrice = (float) $this->signal->target_tp;
+        $slPrice = (float) $this->signal->target_sl;
+        
+        $potentialProfit = abs($tpPrice - $entryPrice);
+        $potentialLoss = abs($entryPrice - $slPrice);
+        $rrRatio = $potentialLoss > 0 ? round($potentialProfit / $potentialLoss, 2) : 0;
+        
+        $tpPercent = $entryPrice > 0 ? round(($potentialProfit / $entryPrice) * 100, 2) : 0;
+        $slPercent = $entryPrice > 0 ? round(($potentialLoss / $entryPrice) * 100, 2) : 0;
+        
+        $message = "━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "🐉 *DRAGONFORTUNE AI SIGNAL*\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
+        
+        if ($method) {
+            $message .= "📊 *Strategy Info*\n";
+            $message .= "├ Name: `{$method->nama_metode}`\n";
+            $message .= "├ Exchange: `{$method->exchange}`\n";
+            $message .= "├ Pair: `{$method->pair}`\n";
+            $message .= "└ Timeframe: `{$method->tf}`\n\n";
+            
+            $message .= "📈 *Performance KPI*\n";
+            $message .= "├ CAGR: `" . number_format($method->cagr, 2) . "%`\n";
+            $message .= "├ Max DD: `" . number_format($method->drawdown, 2) . "%`\n";
+            $message .= "├ Winrate: `" . number_format($method->winrate, 1) . "%`\n";
+            $message .= "├ Sharpe: `" . number_format($method->sharpen_ratio, 3) . "`\n";
+            $message .= "├ Sortino: `" . number_format($method->sortino_ratio, 3) . "`\n";
+            $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n\n";
+        }
+        
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "📥 {$directionEmoji} *ENTRY {$directionText}* {$directionEmoji}\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
+        
+        $message .= "💰 *Entry Price*\n";
+        $message .= "└ `\$ " . number_format($entryPrice, 2) . "`\n\n";
+        
+        $message .= "🎯 *Take Profit*\n";
+        $message .= "├ Price: `\$ " . number_format($tpPrice, 2) . "`\n";
+        $message .= "└ Gain: `+{$tpPercent}%`\n\n";
+        
+        $message .= "🛡️ *Stop Loss*\n";
+        $message .= "├ Price: `\$ " . number_format($slPrice, 2) . "`\n";
+        $message .= "└ Risk: `-{$slPercent}%`\n\n";
+        
+        $message .= "⚖️ *Risk/Reward Ratio*: `1:{$rrRatio}`\n\n";
+        
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "⏰ " . now()->format('d M Y, H:i:s') . " WIB\n";
+        $message .= "🤖 _Powered by DragonFortune AI_\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━";
+        
+        return $message;
+    }
+
+    private function buildExitMessage($method, string $directionEmoji, string $directionText, bool $isBuy): string
+    {
+        $entryPrice = (float) $this->signal->price_entry;
+        $exitPrice = (float) $this->signal->price_exit;
+        $realTp = (float) $this->signal->real_tp;
+        $realSl = (float) $this->signal->real_sl;
+        
+        // Calculate P/L
+        $priceDiff = $isBuy ? ($exitPrice - $entryPrice) : ($entryPrice - $exitPrice);
+        $plPercent = $entryPrice > 0 ? round(($priceDiff / $entryPrice) * 100, 2) : 0;
+        $isProfit = $priceDiff >= 0;
+        
+        // Determine result
+        $resultEmoji = $isProfit ? '✅' : '❌';
+        $resultText = $isProfit ? 'PROFIT' : 'LOSS';
+        $plSign = $isProfit ? '+' : '';
+        
+        $message = "━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "🐉 *DRAGONFORTUNE AI SIGNAL*\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
+        
+        if ($method) {
+            $message .= "📊 *Strategy Info*\n";
+            $message .= "├ Name: `{$method->nama_metode}`\n";
+            $message .= "├ Exchange: `{$method->exchange}`\n";
+            $message .= "├ Pair: `{$method->pair}`\n";
+            $message .= "└ Timeframe: `{$method->tf}`\n\n";
+        }
+        
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "📤 {$directionEmoji} *EXIT {$directionText}* {$directionEmoji}\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
+        
+        $message .= "📊 *Trade Summary*\n";
+        $message .= "├ Entry: `\$ " . number_format($entryPrice, 2) . "`\n";
+        $message .= "├ Exit: `\$ " . number_format($exitPrice, 2) . "`\n";
+        $message .= "└ Direction: `{$directionText}`\n\n";
+        
+        // Show result prominently
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "{$resultEmoji} *RESULT: {$resultText}* {$resultEmoji}\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
+        
+        $message .= "💵 *P/L Details*\n";
+        $message .= "├ Amount: `{$plSign}\$ " . number_format(abs($priceDiff), 2) . "`\n";
+        $message .= "└ Percentage: `{$plSign}{$plPercent}%`\n\n";
+        
+        // If real TP/SL was hit
+        if ($realTp > 0) {
+            $message .= "🎯 *TP Hit*: `\$ " . number_format($realTp, 2) . "`\n";
+        }
+        if ($realSl > 0) {
+            $message .= "🛑 *SL Hit*: `\$ " . number_format($realSl, 2) . "`\n";
+        }
+        
+        if ($method) {
+            $message .= "\n📈 *Updated KPI*\n";
+            $message .= "├ Winrate: `" . number_format($method->winrate, 1) . "%`\n";
+            $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n";
+        }
+        
+        $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "⏰ " . now()->format('d M Y, H:i:s') . " WIB\n";
+        $message .= "🤖 _Powered by DragonFortune AI_\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━━━";
+        
+        return $message;
     }
 }

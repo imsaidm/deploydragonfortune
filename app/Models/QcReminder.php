@@ -4,11 +4,20 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Observers\QcReminderObserver;
 
 #[ObservedBy([QcReminderObserver::class])]
 class QcReminder extends Model
 {
+    /**
+     * Get the method that this reminder belongs to.
+     */
+    public function method(): BelongsTo
+    {
+        return $this->belongsTo(QcMethod::class, 'id_method');
+    }
+
     // Use 'methods' connection (simulates remote database)
     protected $connection = 'methods';
     protected $table = 'qc_reminders';
