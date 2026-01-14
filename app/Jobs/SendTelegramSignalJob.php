@@ -104,11 +104,11 @@ class SendTelegramSignalJob implements ShouldQueue
         $message .= "💰 *Entry Price*\n";
         $message .= "└ `\$ " . number_format($entryPrice, 2) . "`\n\n";
         
-        $message .= "🎯 *Take Profit*\n";
+        $message .= "🎯 *Target Take Profit*\n";
         $message .= "├ Price: `\$ " . number_format($tpPrice, 2) . "`\n";
         $message .= "└ Gain: `+{$tpPercent}%`\n\n";
         
-        $message .= "🛡️ *Stop Loss*\n";
+        $message .= "🛡️ *Target Stop Loss*\n";
         $message .= "├ Price: `\$ " . number_format($slPrice, 2) . "`\n";
         $message .= "└ Risk: `-{$slPercent}%`\n\n";
         
@@ -169,12 +169,12 @@ class SendTelegramSignalJob implements ShouldQueue
         $message .= "├ Amount: `{$plSign}\$ " . number_format(abs($priceDiff), 2) . "`\n";
         $message .= "└ Percentage: `{$plSign}{$plPercent}%`\n\n";
         
-        // If real TP/SL was hit
+        // Show realized TP/SL
         if ($realTp > 0) {
-            $message .= "🎯 *TP Hit*: `\$ " . number_format($realTp, 2) . "`\n";
+            $message .= "🎯 *Realisasi TP*: `\$ " . number_format($realTp, 2) . "`\n";
         }
         if ($realSl > 0) {
-            $message .= "🛑 *SL Hit*: `\$ " . number_format($realSl, 2) . "`\n";
+            $message .= "🛑 *Realisasi SL*: `\$ " . number_format($realSl, 2) . "`\n";
         }
         
         if ($method) {
