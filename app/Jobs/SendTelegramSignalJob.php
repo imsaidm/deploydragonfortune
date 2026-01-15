@@ -177,11 +177,11 @@ class SendTelegramSignalJob implements ShouldQueue
             $message .= "🛑 *Realisasi SL*: `\$ " . number_format($realSl, 2) . "`\n";
         }
         
-        if ($method) {
-            $message .= "\n📈 *Updated KPI*\n";
-            $message .= "├ Winrate: `" . number_format($method->winrate, 1) . "%`\n";
-            $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n";
-        }
+        // if ($method) {
+        //     $message .= "\n📈 *Updated KPI*\n";
+        //     $message .= "├ Winrate: `" . number_format($method->winrate, 1) . "%`\n";
+        //     $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n";
+        // }
         
         $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "⏰ " . now()->format('d M Y, H:i:s') . " WIB\n";
