@@ -172,7 +172,7 @@
 	                                <span>Signal and Analytics</span>
 	                            </a>
 	                        </li>
-	                        <li class="df-sidebar-menu-item">
+	                        <!-- <li class="df-sidebar-menu-item">
 	                            <a href="/backtest-result" class="df-sidebar-menu-button {{ request()->routeIs('backtest-result.*') ? 'active' : '' }}" @click="closeSidebar()">
 	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 	                                    <path d="M3 3v18h18"/>
@@ -183,7 +183,7 @@
 	                                </svg>
 	                                <span>Backtest Result</span>
 	                            </a>
-	                        </li>
+	                        </li> -->
 	                    </ul>
 	                </div>
 

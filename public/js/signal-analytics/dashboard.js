@@ -160,25 +160,63 @@
       }
     };
 
-    const formatNumber = (value, decimals = 2) => {
+    // Number formatting with Indonesian locale (dot for thousands, comma for decimals)
+    const formatNumber = (value, decimals = 2, showZero = true) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      return n.toFixed(decimals);
+      if (n === 0 && !showZero) return '-';
+      
+      const fixed = Math.abs(n).toFixed(decimals);
+      const [integerPart, decimalPart] = fixed.split('.');
+      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      const result = decimals > 0 ? `${formattedInteger},${decimalPart}` : formattedInteger;
+      return n < 0 ? `-${result}` : result;
     };
 
-    const formatPercent = (value) => {
+    const formatPercent = (value, decimals = 2) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      return (n > 1 ? n : n * 100).toFixed(2) + '%';
+      const percentage = n > 1 ? n : n * 100;
+      return formatNumber(percentage, decimals) + '%';
     };
 
-    const formatRatioPercent = (value) => {
+    const formatRatioPercent = (value, decimals = 2) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      return (n * 100).toFixed(2) + '%';
+      return formatNumber(n * 100, decimals) + '%';
+    };
+
+    const formatCurrency = (value, decimals = 2, currency = '$') => {
+      if (value === null || value === undefined || value === '') return '-';
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '-';
+      const formatted = formatNumber(n, decimals);
+      return formatted === '-' ? '-' : `${currency} ${formatted}`;
+    };
+
+    /**
+     * Parse and format numbers inside a text message
+     * Matches floating points and integers after =, :, or space
+     */
+    const formatMessageText = (text) => {
+      if (!text) return '-';
+      // Regex matches numbers that look like prices or values: 
+      // 1. After =, :, or space
+      // 2. May have decimals
+      // 3. At least 2 digits total or has decimal to avoid small indices
+      return String(text).replace(/([=:\s])(\d+\.\d+|\d{2,})(\b)/g, (match, p1, p2, p3) => {
+        const n = Number(p2);
+        // Only format if it's a valid finite number and not a year-like integer
+        if (Number.isFinite(n) && (p2.includes('.') || n > 2100 || n < 1900)) {
+          // If it has decimals, keep original decimal count or 2
+          const decs = p2.includes('.') ? p2.split('.')[1].length : 0;
+          return p1 + formatNumber(n, decs) + p3;
+        }
+        return match;
+      });
     };
 
     const toApiDatetime = (dtLocalValue) => {
@@ -361,19 +399,19 @@
       const targetSl = Number(data.target_sl || 0);
       
       const priceRows = [
-        createDetailRow('Entry Price', entryPrice ? `$ ${formatNumber(entryPrice, 2)}` : '-'),
-        createDetailRow('Exit Price', exitPrice ? `$ ${formatNumber(exitPrice, 2)}` : '-'),
+        createDetailRow('Entry Price', entryPrice ? formatCurrency(entryPrice, 2) : '-'),
+        createDetailRow('Exit Price', exitPrice ? formatCurrency(exitPrice, 2) : '-'),
         createDetailRow('Quantity', data.quantity ?? data.qty ?? '-'),
-        createDetailRow('Balance', data.balance ? `$ ${formatNumber(data.balance, 2)}` : '-'),
+        createDetailRow('Balance', data.balance ? formatCurrency(data.balance, 2) : '-'),
       ];
       grid.appendChild(createDetailCard('💰', 'Price Details', priceRows));
       
       // Target Card
       const tpRows = [
-        createDetailRow('Target TP', targetTp ? `$ ${formatNumber(targetTp, 2)}` : '-', 'positive'),
-        createDetailRow('Target SL', targetSl ? `$ ${formatNumber(targetSl, 2)}` : '-', 'negative'),
-        createDetailRow('Real TP', data.real_tp ? `$ ${formatNumber(data.real_tp, 2)}` : '-', 'positive'),
-        createDetailRow('Real SL', data.real_sl ? `$ ${formatNumber(data.real_sl, 2)}` : '-', 'negative'),
+        createDetailRow('Target TP', targetTp ? formatCurrency(targetTp, 2) : '-', 'positive'),
+        createDetailRow('Target SL', targetSl ? formatCurrency(targetSl, 2) : '-', 'negative'),
+        createDetailRow('Real TP', data.real_tp ? formatCurrency(data.real_tp, 2) : '-', 'positive'),
+        createDetailRow('Real SL', data.real_sl ? formatCurrency(data.real_sl, 2) : '-', 'negative'),
       ];
       grid.appendChild(createDetailCard('🎯', 'TP / SL Targets', tpRows));
       
@@ -424,10 +462,10 @@
       const total = price * qty;
       
       const priceRows = [
-        createDetailRow('Price', price ? `$ ${formatNumber(price, 2)}` : '-'),
+        createDetailRow('Price', price ? formatCurrency(price, 2) : '-'),
         createDetailRow('Quantity', qty ? formatNumber(qty, 6) : '-'),
-        createDetailRow('Total', total ? `$ ${formatNumber(total, 2)}` : '-'),
-        createDetailRow('Balance', data.balance ? `$ ${formatNumber(data.balance, 2)}` : '-'),
+        createDetailRow('Total', total ? formatCurrency(total, 2) : '-'),
+        createDetailRow('Balance', data.balance ? formatCurrency(data.balance, 2) : '-'),
       ];
       grid.appendChild(createDetailCard('💰', 'Trade Details', priceRows));
       
@@ -436,10 +474,97 @@
       if (data.message) {
         const msgDiv = document.createElement('div');
         msgDiv.className = 'sa-detail-message';
-        msgDiv.textContent = data.message.replace(/\\n/g, '\n');
+        msgDiv.textContent = formatMessageText(data.message.replace(/\\n/g, '\n'));
         container.appendChild(msgDiv);
       }
       
+      return container;
+    };
+
+    const formatBinanceAssetDetail = (data) => {
+      const container = document.createElement('div');
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const infoRows = [
+        createDetailRow('Asset', data.asset ?? '-'),
+        createDetailRow('Free', formatNumber(data.free ?? 0, 8)),
+        createDetailRow('Locked', formatNumber(data.locked ?? 0, 8)),
+      ];
+      grid.appendChild(createDetailCard('💰', 'Asset Info', infoRows));
+      
+      const price = data.price_usdt ?? 0;
+      const amount = (Number(data.free) || 0) + (Number(data.locked) || 0);
+      const value = data.value_usdt ?? (price * amount);
+      
+      const valueRows = [
+        createDetailRow('Price (USDT)', formatNumber(price, 6)),
+        createDetailRow('Total Amount', formatNumber(amount, 8)),
+        createDetailRow('Total Value', formatCurrency(value, 2)),
+      ];
+      grid.appendChild(createDetailCard('📊', 'Market Value', valueRows));
+      
+      container.appendChild(grid);
+      return container;
+    };
+
+    const formatBinanceOrderDetail = (data) => {
+      const container = document.createElement('div');
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const infoRows = [
+        createDetailRow('Symbol', data.symbol ?? '-'),
+        createDetailRow('Side', data.side ?? '-'),
+        createDetailRow('Type', data.type ?? '-'),
+        createDetailRow('Status', data.status ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📋', 'Order Info', infoRows));
+      
+      const price = Number(data.price || 0);
+      const qty = Number(data.origQty || 0);
+      const exeQty = Number(data.executedQty || 0);
+      
+      const tradeRows = [
+        createDetailRow('Price', formatNumber(price, 6)),
+        createDetailRow('Orig Qty', formatNumber(qty, 6)),
+        createDetailRow('Executed', formatNumber(exeQty, 6)),
+        createDetailRow('Time', row.time ? formatEpochMs(data.time) : '-'),
+      ];
+      grid.appendChild(createDetailCard('💸', 'Trade Details', tradeRows));
+      
+      container.appendChild(grid);
+      return container;
+    };
+
+    const formatBinanceTradeDetail = (data) => {
+      const container = document.createElement('div');
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const side = data.isBuyer === true ? 'BUY' : data.isBuyer === false ? 'SELL' : data.side ?? '-';
+      
+      const infoRows = [
+        createDetailRow('Symbol', data.symbol ?? '-'),
+        createDetailRow('Side', side),
+        createDetailRow('ID', data.id ?? '-'),
+        createDetailRow('Order ID', data.orderId ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('🤝', 'Trade Info', infoRows));
+      
+      const price = Number(data.price || 0);
+      const qty = Number(data.qty || 0);
+      const quote = data.quoteQty ?? (price * qty);
+      
+      const mathRows = [
+        createDetailRow('Price', formatNumber(price, 6)),
+        createDetailRow('Quantity', formatNumber(qty, 6)),
+        createDetailRow('Quote Qty', formatNumber(quote, 6)),
+        createDetailRow('Time', data.time ? formatEpochMs(data.time) : '-'),
+      ];
+      grid.appendChild(createDetailCard('📊', 'Value Details', mathRows));
+      
+      container.appendChild(grid);
       return container;
     };
 
@@ -469,7 +594,7 @@
       if (data.message) {
         const msgDiv = document.createElement('div');
         msgDiv.className = 'sa-detail-message';
-        msgDiv.textContent = data.message.replace(/\\n/g, '\n');
+        msgDiv.textContent = formatMessageText(data.message.replace(/\\n/g, '\n'));
         container.appendChild(msgDiv);
       }
       
@@ -498,7 +623,7 @@
         msgDiv.className = 'sa-detail-message';
         // Parse message sections
         const msg = String(data.message).replace(/\\n/g, '\n').replace(/ \| /g, '\n');
-        msgDiv.textContent = msg;
+        msgDiv.textContent = formatMessageText(msg);
         container.appendChild(msgDiv);
       }
       
@@ -533,6 +658,12 @@
           formatted = formatReminderDetail(content);
         } else if (type === 'log') {
           formatted = formatLogDetail(content);
+        } else if (type === 'binance-asset') {
+          formatted = formatBinanceAssetDetail(content);
+        } else if (type === 'binance-order') {
+          formatted = formatBinanceOrderDetail(content);
+        } else if (type === 'binance-trade') {
+          formatted = formatBinanceTradeDetail(content);
         }
         
         if (formatted) {
@@ -591,7 +722,7 @@
       tbody.appendChild(tr);
     };
 
-    const PAGE_SIZE = 5;
+    const PAGE_SIZE = 10;
 
     const getPageSize = (name) => {
       const ps = state.pageSizes?.[name];
@@ -659,6 +790,19 @@
 
       parent.insertBefore(searchWrap, logsStatus);
       parent.insertBefore(pageWrap, logsStatus);
+
+      // Add listeners
+      searchInput.addEventListener('input', (e) => {
+        state.search = state.search || {};
+        state.search.logs = e.target.value;
+        loadLogs(1);
+      });
+
+      pageSelect.addEventListener('change', (e) => {
+        state.pageSizes = state.pageSizes || {};
+        state.pageSizes.logs = Number(e.target.value);
+        loadLogs(1);
+      });
     };
 
     const renderPager = (el, totalItems, currentPage, onChange, pageSize = PAGE_SIZE) => {
@@ -1255,7 +1399,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal(`Asset ${row.asset || ''}`, row));
+        tr.addEventListener('click', () => openModal(`Asset ${row.asset || ''}`, row, 'binance-asset'));
 
         const cols = [
           escapeText(row.asset ?? '-'),
@@ -1293,7 +1437,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal('Order', row));
+        tr.addEventListener('click', () => openModal('Binance Order', row, 'binance-order'));
 
         const cols = [
           formatEpochMs(row.time),
@@ -1332,7 +1476,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal('Trade', row));
+        tr.addEventListener('click', () => openModal('Binance Trade', row, 'binance-trade'));
 
         const side =
           row.isBuyer === true ? 'BUY' : row.isBuyer === false ? 'SELL' : row.side ?? '-';
@@ -1536,7 +1680,8 @@
 
     const createMessageCell = (value) => {
       const td = document.createElement('td');
-      const full = escapeText(value ?? '');
+      const raw = escapeText(value ?? '');
+      const full = formatMessageText(raw);
 
       const div = document.createElement('div');
       div.className = 'sa-message-snippet';
@@ -1984,6 +2129,7 @@
         // Server-side pagination using API's limit/offset
         const items = await fetchJson('/logs', { 
           ...q, 
+          q: state.search?.logs || '', // Pass search query to server
           limit: pageSize + 1, // Fetch one extra to know if there's more
           offset: offset 
         });
@@ -2002,7 +2148,7 @@
         
         renderLogsServerSide(logs, currentPage, hasMore, pageSize);
         updateTabCounts();
-        setTableStatus(logsStatus, `Page ${currentPage} · ${logs.length} logs`);
+        setTableStatus(logsStatus, `Page ${currentPage}`);
       } catch (err) {
         state.latestLogs = [];
         state.logsHasMore = false;
