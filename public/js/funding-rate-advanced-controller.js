@@ -134,13 +134,15 @@ export function createFundingRateAdvancedController() {
 
         async fetchExchangeList() {
             try {
-                const response = await fetch(`/api/coinglass/funding-rate/exchange-list?symbol=${this.selectedSymbol}`);
+                // Using database endpoint (has 108+ records)
+                const response = await fetch(`/api/db/funding-rate/exchange-list?symbol=${this.selectedSymbol}`);
                 const data = await response.json();
                 
                 if (data.success) {
+                    console.log('📊 Loaded from DATABASE:', data.data?.length || 0, 'exchanges');
                     return data;
                 } else {
-                    console.error('API error:', data.error);
+                    console.error('DB error:', data.error || data.message);
                     return null;
                 }
             } catch (error) {
@@ -151,20 +153,20 @@ export function createFundingRateAdvancedController() {
 
         async fetchHistory() {
             try {
-                const now = Date.now();
-                const daysMap = { '24h': 1, '7d': 7, '30d': 30 };
-                const days = daysMap[this.timeRange] || 7;
-                const startTime = now - (days * 24 * 60 * 60 * 1000);
+                const limitMap = { '24h': 24, '7d': 168, '30d': 500 };
+                const limit = limitMap[this.timeRange] || 100;
 
+                // Using database endpoint (has 500k+ history records)
                 const response = await fetch(
-                    `/api/coinglass/funding-rate/history?symbol=${this.selectedSymbol}&interval=8h&start_time=${startTime}&end_time=${now}`
+                    `/api/db/funding-rate/history?symbol=${this.selectedSymbol}&interval=1h&limit=${limit}`
                 );
                 const data = await response.json();
                 
                 if (data.success) {
+                    console.log('📈 Loaded history from DATABASE:', data.count || 0, 'records');
                     return data;
                 } else {
-                    console.error('History API error:', data.error);
+                    console.error('History DB error:', data.error || data.message);
                     return null;
                 }
             } catch (error) {
@@ -177,20 +179,35 @@ export function createFundingRateAdvancedController() {
             const data = response.data || [];
             const apiInsights = response.insights || [];
 
-            // Process exchange snapshots
-            this.exchangeSnapshots = data.map(ex => ({
-                name: ex.exchange,
-                funding: ex.funding_rate,
-                predicted: ex.predicted_rate || ex.funding_rate * 0.95, // Estimated if not available
-                basis: ((ex.price - ex.index_price) / ex.index_price * 100) || 0,
-                price: ex.price,
-                volume: ex.volume_24h,
-                oi: ex.open_interest,
-                deltaOI: { h1: 0, h4: 0, h24: 0 }, // Not available from this endpoint
-                lsRatio: 1.0, // Not available from this endpoint
-                nextFunding: ex.next_funding_time,
-                flags: this.generateFlags(ex)
-            }));
+            // Process exchange snapshots with all available fields from DATABASE
+            this.exchangeSnapshots = data.map(ex => {
+                // Use margin_type from database directly
+                // Database values: 'stablecoin', 'token', etc. -> normalize to USDT/COIN
+                let marginType = ex.margin_type || 'USDT';
+                if (marginType === 'stablecoin' || marginType === 'USDT') {
+                    marginType = 'USDT';
+                } else if (marginType === 'token' || marginType === 'COIN') {
+                    marginType = 'COIN';
+                }
+                
+                // Generate flags based on funding rate
+                const flags = [];
+                if (ex.funding_rate > 0.005) flags.push('elevated');
+                else if (ex.funding_rate > 0.001) flags.push('high');
+                else if (ex.funding_rate < -0.0005) flags.push('negative');
+                else if (ex.funding_rate < 0) flags.push('bearish');
+                else flags.push('normal');
+                
+                return {
+                    name: ex.exchange,
+                    funding: ex.funding_rate,
+                    predicted: ex.predicted_rate || ex.funding_rate * 0.95,
+                    interval: ex.funding_interval_hours || 8,
+                    margin_type: marginType,
+                    nextFunding: ex.next_funding_time,
+                    flags: flags
+                };
+            });
 
             // Calculate metrics
             if (this.exchangeSnapshots.length > 0) {
@@ -211,9 +228,13 @@ export function createFundingRateAdvancedController() {
                 this.metrics.basis = (avgRate * 100 * 365 * 3).toFixed(2); // Rough annualized
                 this.metrics.avgFunding = (avgRate * 100).toFixed(4); // Average funding rate
 
-                // Set next funding time from first exchange
-                if (this.exchangeSnapshots[0]?.nextFunding) {
-                    this.nextFundingTimestamp = this.exchangeSnapshots[0].nextFunding;
+                // Find earliest next funding time from all exchanges (skip 0 or null values)
+                const validFundingTimes = this.exchangeSnapshots
+                    .map(e => e.nextFunding)
+                    .filter(t => t && t > Date.now());
+                
+                if (validFundingTimes.length > 0) {
+                    this.nextFundingTimestamp = Math.min(...validFundingTimes);
                 }
 
                 // Calculate prediction stats (mock - would need real predicted data)
@@ -234,16 +255,23 @@ export function createFundingRateAdvancedController() {
             // Calculate spread matrix
             this.calculateSpreadMatrix();
 
-            // Process insights from API + local calculations
-            this.insights = [
-                ...apiInsights.map((insight, idx) => ({
+            // Process insights from database API
+            console.log('📋 API Insights received:', apiInsights);
+            
+            // Use insights from database (already calculated by backend)
+            if (apiInsights && apiInsights.length > 0) {
+                this.insights = apiInsights.map((insight, idx) => ({
                     id: idx + 1,
-                    type: insight.type,
+                    type: insight.type || 'info',
                     message: insight.message,
-                    time: 'just now'
-                })),
-                ...this.generateLocalInsights()
-            ].slice(0, 8); // Limit to 8 insights
+                    time: 'now'
+                }));
+            } else {
+                // Fallback to local calculation if no API insights
+                this.insights = this.generateLocalInsights();
+            }
+            
+            console.log('📋 Final insights:', this.insights.length);
         },
 
         processHistoryData(response) {
@@ -278,33 +306,89 @@ export function createFundingRateAdvancedController() {
 
         generateLocalInsights() {
             const insights = [];
+            const snapshots = this.exchangeSnapshots;
             
-            // Check for OI concentration
-            if (this.exchangeSnapshots.length > 0) {
-                const totalOI = this.exchangeSnapshots.reduce((sum, e) => sum + (e.oi || 0), 0);
-                const maxOI = Math.max(...this.exchangeSnapshots.map(e => e.oi || 0));
-                const concentration = maxOI / totalOI;
-                
-                if (concentration > 0.4) {
-                    const dominantEx = this.exchangeSnapshots.find(e => e.oi === maxOI);
-                    insights.push({
-                        id: 100,
-                        type: 'info',
-                        message: `${dominantEx?.name} dominates OI (${(concentration * 100).toFixed(0)}% market share)`,
-                        time: 'now'
-                    });
-                }
+            if (snapshots.length === 0) return insights;
+
+            const rates = snapshots.map(e => e.funding);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const positiveCount = rates.filter(r => r > 0).length;
+            const negativeCount = rates.filter(r => r < 0).length;
+            const extremeHighCount = rates.filter(r => r > 0.001).length;
+            const extremeLowCount = rates.filter(r => r < -0.0005).length;
+
+            // Market Sentiment Analysis
+            if (positiveCount > negativeCount * 2) {
+                insights.push({
+                    id: 1,
+                    type: 'warning',
+                    message: `Market bullish bias: ${positiveCount}/${snapshots.length} exchanges show positive funding`,
+                    time: 'now'
+                });
+            } else if (negativeCount > positiveCount * 2) {
+                insights.push({
+                    id: 2,
+                    type: 'info',
+                    message: `Market bearish bias: ${negativeCount}/${snapshots.length} exchanges show negative funding`,
+                    time: 'now'
+                });
             }
 
-            // Add success insight if market looks healthy
-            if (this.exchangeSnapshots.length >= 5) {
+            // Extreme Funding Warnings
+            if (extremeHighCount > 3) {
+                const extremeExchanges = snapshots.filter(e => e.funding > 0.001).map(e => e.name).slice(0, 3);
                 insights.push({
-                    id: 101,
+                    id: 3,
+                    type: 'warning',
+                    message: `High funding on ${extremeHighCount} exchanges (${extremeExchanges.join(', ')}) - potential long squeeze`,
+                    time: 'now'
+                });
+            }
+
+            if (extremeLowCount > 2) {
+                const lowExchanges = snapshots.filter(e => e.funding < -0.0005).map(e => e.name).slice(0, 3);
+                insights.push({
+                    id: 4,
+                    type: 'info',
+                    message: `Negative funding on ${extremeLowCount} exchanges (${lowExchanges.join(', ')}) - shorts paying longs`,
+                    time: 'now'
+                });
+            }
+
+            // Best Arbitrage Opportunity
+            const maxRate = Math.max(...rates);
+            const minRate = Math.min(...rates);
+            const spreadBps = (maxRate - minRate) * 10000;
+            const maxEx = snapshots.find(e => e.funding === maxRate);
+            const minEx = snapshots.find(e => e.funding === minRate);
+
+            if (spreadBps > 100) {
+                insights.push({
+                    id: 5,
                     type: 'success',
-                    message: `Tracking ${this.exchangeSnapshots.length} exchanges in real-time`,
+                    message: `Arbitrage: Short ${maxEx?.name} (${(maxRate*100).toFixed(3)}%) / Long ${minEx?.name} (${(minRate*100).toFixed(3)}%) = ${spreadBps.toFixed(0)} bps`,
                     time: 'live'
                 });
             }
+
+            // Average Rate Insight
+            const annualized = avgRate * 100 * 3 * 365;
+            insights.push({
+                id: 6,
+                type: annualized > 50 ? 'warning' : 'info',
+                message: `Average funding: ${(avgRate * 100).toFixed(4)}% (${annualized.toFixed(1)}% APY)`,
+                time: 'now'
+            });
+
+            // Data Coverage
+            const usdtCount = snapshots.filter(e => e.margin_type === 'USDT').length;
+            const coinCount = snapshots.filter(e => e.margin_type === 'COIN').length;
+            insights.push({
+                id: 7,
+                type: 'success',
+                message: `Live data: ${snapshots.length} markets (${usdtCount} USDT, ${coinCount} COIN-M)`,
+                time: 'live'
+            });
 
             return insights;
         },
@@ -605,6 +689,24 @@ export function createFundingRateAdvancedController() {
             if (!timestamp) return '--';
             const date = new Date(timestamp);
             return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+        },
+
+        formatNextFunding(timestamp) {
+            if (!timestamp || timestamp === 0) return '--';
+            
+            const now = Date.now();
+            const diff = timestamp - now;
+            
+            if (diff <= 0) return 'Now!';
+            
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            } else {
+                return `${minutes}m`;
+            }
         },
 
         getSpreadColor(value) {

@@ -213,38 +213,20 @@
                                         <th>Exchange</th>
                                         <th>Funding</th>
                                         <th>Predicted</th>
-                                        <th>Basis</th>
-                                        <th>Price</th>
-                                        <th>Volume</th>
-                                        <th>OI</th>
-                                        <th>ΔOI 1h</th>
-                                        <th>ΔOI 4h</th>
-                                        <th>ΔOI 24h</th>
-                                        <th>LS Ratio</th>
-                                        <th>Next</th>
-                                        <th>Flags</th>
+                                        <th>Interval</th>
+                                        <th>Next Funding</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <template x-for="exchange in exchangeSnapshots" :key="exchange.name">
+                                    <template x-for="(exchange, idx) in exchangeSnapshots" :key="idx">
                                         <tr>
                                             <td><strong x-text="exchange.name"></strong></td>
-                                            <td :class="exchange.funding > 0 ? 'text-success' : 'text-danger'" x-text="(exchange.funding * 100).toFixed(4) + '%'"></td>
-                                            <td class="text-muted" x-text="(exchange.predicted * 100).toFixed(4) + '%'"></td>
-                                            <td x-text="exchange.basis + '%'"></td>
-                                            <td x-text="'$' + exchange.price.toLocaleString()"></td>
-                                            <td x-text="formatVolume(exchange.volume)"></td>
-                                            <td x-text="formatVolume(exchange.oi)"></td>
-                                            <td :class="exchange.deltaOI.h1 > 0 ? 'text-success' : 'text-danger'" x-text="exchange.deltaOI.h1 + '%'"></td>
-                                            <td :class="exchange.deltaOI.h4 > 0 ? 'text-success' : 'text-danger'" x-text="exchange.deltaOI.h4 + '%'"></td>
-                                            <td :class="exchange.deltaOI.h24 > 0 ? 'text-success' : 'text-danger'" x-text="exchange.deltaOI.h24 + '%'"></td>
-                                            <td x-text="exchange.lsRatio"></td>
-                                            <td x-text="formatTime(exchange.nextFunding)"></td>
-                                            <td>
-                                                <template x-for="flag in exchange.flags" :key="flag">
-                                                    <span class="badge bg-info me-1" x-text="flag"></span>
-                                                </template>
+                                            <td :class="exchange.funding > 0 ? 'text-success' : 'text-danger'">
+                                                <span x-text="(exchange.funding * 100).toFixed(4) + '%'"></span>
                                             </td>
+                                            <td class="text-muted" x-text="(exchange.predicted * 100).toFixed(4) + '%'"></td>
+                                            <td x-text="exchange.interval + 'h'"></td>
+                                            <td x-text="formatNextFunding(exchange.nextFunding)"></td>
                                         </tr>
                                     </template>
                                 </tbody>
@@ -293,6 +275,23 @@
                         </h6>
                     </div>
                     <div class="insights-panel-body">
+                        <!-- Loading state -->
+                        <div x-show="isLoading" class="insight-item insight-info">
+                            <div class="insight-icon"><i class="bi bi-hourglass-split"></i></div>
+                            <div class="insight-content">
+                                <div class="insight-message">Loading insights...</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Empty state -->
+                        <div x-show="!isLoading && insights.length === 0" class="insight-item insight-info">
+                            <div class="insight-icon"><i class="bi bi-info-circle"></i></div>
+                            <div class="insight-content">
+                                <div class="insight-message">No insights available</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Insights list -->
                         <template x-for="insight in insights" :key="insight.id">
                             <div class="insight-item" :class="'insight-' + insight.type">
                                 <div class="insight-icon">
