@@ -12,7 +12,7 @@ class QcSignalObserver
     public function created(QcSignal $qcSignal): void
     {
         // Dispatch job to send Telegram notification
-        \App\Jobs\SendTelegramSignalJob::dispatch($qcSignal);
+        // \App\Jobs\SendTelegramSignalJob::dispatch($qcSignal);
     }
 
     /**
