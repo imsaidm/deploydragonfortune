@@ -56,7 +56,19 @@ export function createFundingRateAdvancedController() {
         // Insights - from API
         insights: [],
 
-        // Charts
+        // AI Risk Analysis - 5-dimensional market assessment
+        aiAnalysis: {
+            market_status: 'Loading...',
+            crowd_positioning: 'Loading...',
+            leverage_condition: 'Loading...',
+            primary_risk: 'Loading...',
+            risk_stance: 'Loading...',
+            reasons: [],
+            metrics: {},
+            detailed_analysis: {}
+        },
+
+        //Charts
         actualVsPredictedChart: null,
         historyOverlaysChart: null,
         distributionChart: null,
@@ -178,17 +190,19 @@ export function createFundingRateAdvancedController() {
         processExchangeListData(response) {
             const data = response.data || [];
             const apiInsights = response.insights || [];
+            const apiAiAnalysis = response.ai_analysis || null;
 
             // Process exchange snapshots with all available fields from DATABASE
             this.exchangeSnapshots = data.map(ex => {
-                // Use margin_type from database directly
-                // Database values: 'stablecoin', 'token', etc. -> normalize to USDT/COIN
+                // Backend now sends 'USDT' or 'COIN' directly
+                // But handle legacy formats just in case
                 let marginType = ex.margin_type || 'USDT';
-                if (marginType === 'stablecoin' || marginType === 'USDT') {
+                if (marginType === 'stablecoin') {
                     marginType = 'USDT';
-                } else if (marginType === 'token' || marginType === 'COIN') {
+                } else if (marginType === 'coin' || marginType === 'token') {
                     marginType = 'COIN';
                 }
+                // If already 'USDT' or 'COIN', keep as is
                 
                 // Generate flags based on funding rate
                 const flags = [];
@@ -254,6 +268,14 @@ export function createFundingRateAdvancedController() {
 
             // Calculate spread matrix
             this.calculateSpreadMatrix();
+
+            // Process AI Analysis from API
+            if (apiAiAnalysis) {
+                console.log('🤖 AI Analysis received:', apiAiAnalysis);
+                this.aiAnalysis = apiAiAnalysis;
+            } else {
+                console.log('⚠️ No AI analysis in response');
+            }
 
             // Process insights from database API
             console.log('📋 API Insights received:', apiInsights);

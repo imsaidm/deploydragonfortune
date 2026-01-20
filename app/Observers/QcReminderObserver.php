@@ -12,7 +12,7 @@ class QcReminderObserver
     public function created(QcReminder $qcReminder): void
     {
         // Dispatch job to send Telegram notification
-        \App\Jobs\SendTelegramReminderJob::dispatch($qcReminder);
+        // \App\Jobs\SendTelegramReminderJob::dispatch($qcReminder);
     }
 
     /**

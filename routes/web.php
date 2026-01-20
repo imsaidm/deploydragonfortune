@@ -192,6 +192,7 @@ Route::prefix('api/db/funding-rate')->group(function () {
     Route::get('/exchange-list', [App\Http\Controllers\Database\FundingRateDbController::class, 'exchangeList']);
     Route::get('/history', [App\Http\Controllers\Database\FundingRateDbController::class, 'history']);
     Route::get('/exchanges', [App\Http\Controllers\Database\FundingRateDbController::class, 'exchanges']);
+    Route::get('/ai-analysis', [App\Http\Controllers\Database\FundingRateDbController::class, 'aiAnalysis']);
 });
 
 // Coinglass Long-Short Ratio (new proxy endpoints)

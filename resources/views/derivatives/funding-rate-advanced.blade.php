@@ -92,38 +92,102 @@
             </div>
         </div>
 
-        <!-- Metrics Row -->
-        <div class="metrics-row mb-4">
-            <div class="row g-3">
-                <!-- Average Funding (replaced Wallet) -->
-                <div class="col-md-3 col-sm-6">
-                    <div class="metric-card">
-                        <div class="metric-label">AVG Funding</div>
-                        <div class="metric-value" :class="metrics.avgFunding >= 0 ? 'text-success' : 'text-danger'" x-text="metrics.avgFunding + '%'"></div>
-                        <div class="metric-sublabel">Across <span x-text="exchangeSnapshots.length"></span> exchanges</div>
+        <!-- 📊 RISK ASSESSMENT PANEL -->
+        <div class="risk-assessment-panel mb-4" x-show="aiAnalysis.market_status !== 'Loading...'">
+            <div class="panel-header">
+                <h5><i class="bi bi-shield-exclamation"></i> Risk Assessment</h5>
+                <span class="badge bg-light text-dark">Algorithmic Market Analysis</span>
+            </div>
+            <div class="panel-body">
+                <!-- Top Row: Key Metrics (5 cards) -->
+                <div class="row g-3 mb-3">
+                    <!-- Market Status -->
+                    <div class="col-lg col-6">
+                        <div class="ai-card">
+                            <span class="ai-label">Market Status</span>
+                            <span class="ai-value" 
+                                  :class="{
+                                      'status-healthy': aiAnalysis.market_status === 'Sehat',
+                                      'status-hot': aiAnalysis.market_status === 'Panas',
+                                      'status-unhealthy': aiAnalysis.market_status === 'Tidak Sehat'
+                                  }"
+                                  x-text="aiAnalysis.market_status || 'Loading...'"></span>
+                        </div>
                     </div>
-                </div>
-
-                <!-- Exchange Count (replaced 1W Volume) -->
-                <div class="col-md-3 col-sm-6">
-                    <div class="metric-card">
-                        <div class="metric-label">Exchanges</div>
-                        <div class="metric-value" x-text="exchangeSnapshots.length"></div>
-                        <div class="metric-sublabel">
-                            <span x-text="exchangeSnapshots.filter(e => e.margin_type === 'USDT').length"></span> USDT / 
-                            <span x-text="exchangeSnapshots.filter(e => e.margin_type === 'COIN').length"></span> COIN
+                    
+                    <!-- Crowd Positioning -->
+                    <div class="col-lg col-6">
+                        <div class="ai-card">
+                            <span class="ai-label">Crowd Positioning</span>
+                            <span class="ai-value positioning" x-text="aiAnalysis.crowd_positioning || 'Loading...'"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Leverage Condition (NEW) -->
+                    <div class="col-lg col-6">
+                        <div class="ai-card">
+                            <span class="ai-label">Leverage Condition</span>
+                            <span class="ai-value" 
+                                  :class="{
+                                      'leverage-low': aiAnalysis.leverage_condition === 'Rendah',
+                                      'leverage-increasing': aiAnalysis.leverage_condition === 'Meningkat',
+                                      'leverage-excessive': aiAnalysis.leverage_condition === 'Berlebihan'
+                                  }"
+                                  x-text="aiAnalysis.leverage_condition || 'Loading...'"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Primary Risk -->
+                    <div class="col-lg col-6">
+                        <div class="ai-card">
+                            <span class="ai-label">Primary Risk</span>
+                            <span class="ai-value risk" x-text="aiAnalysis.primary_risk || 'Loading...'"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Risk Stance -->
+                    <div class="col-lg col-6">
+                        <div class="ai-card">
+                            <span class="ai-label">Risk Stance</span>
+                            <span class="ai-value" 
+                                  :class="{
+                                      'stance-aggressive': aiAnalysis.risk_stance === 'Agresif',
+                                      'stance-neutral': aiAnalysis.risk_stance === 'Netral',
+                                      'stance-defensive': aiAnalysis.risk_stance === 'Defensif'
+                                  }"
+                                  x-text="aiAnalysis.risk_stance || 'Loading...'"></span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Basis/Premium -->
+                <!-- Bottom Row: Reasons/Insights -->
+                <div class="ai-reasons">
+                    <h6><i class="bi bi-lightbulb-fill"></i> Key Insights:</h6>
+                    <ul>
+                        <template x-for="(reason, idx) in aiAnalysis.reasons" :key="idx">
+                            <li x-text="reason"></li>
+                        </template>
+                        <template x-if="!aiAnalysis.reasons || aiAnalysis.reasons.length === 0">
+                            <li class="text-muted">Loading analysis...</li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Row -->
+        <div class="metrics-row mb-4">
+            <div class="row g-3">
+                <!-- Exchange Count -->
                 <div class="col-md-3 col-sm-6">
                     <div class="metric-card">
-                        <div class="metric-label">Basis/Premium</div>
-                        <div class="metric-value" x-text="metrics.basis + '%'"></div>
-                        <div class="metric-sublabel">Annualized</div>
+                        <div class="metric-label">Exchanges</div>
+                        <div class="metric-value" x-text="exchangeSnapshots.length"></div>
+                        <div class="metric-sublabel">Tracked Exchanges</div>
                     </div>
                 </div>
+
+
 
                 <!-- Min Funding -->
                 <div class="col-md-3 col-sm-6">
@@ -152,15 +216,6 @@
                     </div>
                 </div>
 
-                <!-- Next Funding -->
-                <div class="col-md-3 col-sm-6">
-                    <div class="metric-card">
-                        <div class="metric-label">Next Funding</div>
-                        <div class="metric-value countdown" x-text="nextFundingCountdown"></div>
-                        <div class="metric-sublabel">HH:MM:SS</div>
-                    </div>
-                </div>
-
                 <!-- Data Quality -->
                 <div class="col-md-3 col-sm-6">
                     <div class="metric-card">
@@ -177,24 +232,9 @@
         <!-- Main Content Grid -->
         <div class="row g-4 mb-4">
             
-            <!-- Left Column: Charts & Tables (60%) -->
-            <div class="col-lg-7">
+            <!-- Left Column: Tables & Charts (70%) -->
+            <div class="col-lg-8">
                 
-                <!-- Actual vs Predicted Funding -->
-                <div class="chart-panel mb-4">
-                    <div class="chart-panel-header">
-                        <h5>Actual vs Predicted Funding</h5>
-                        <div class="stats-row">
-                            <span class="stat-item">MAE: <strong x-text="predictionStats.mae"></strong></span>
-                            <span class="stat-item">MSE: <strong x-text="predictionStats.mse"></strong></span>
-                            <span class="stat-item">Correlation: <strong x-text="predictionStats.correlation"></strong></span>
-                        </div>
-                    </div>
-                    <div class="chart-panel-body">
-                        <canvas id="actualVsPredictedChart"></canvas>
-                    </div>
-                </div>
-
                 <!-- Per-Exchange Snapshot Table -->
                 <div class="table-panel">
                     <div class="table-panel-header">
@@ -211,10 +251,8 @@
                                 <thead>
                                     <tr>
                                         <th>Exchange</th>
-                                        <th>Funding</th>
-                                        <th>Predicted</th>
+                                        <th>Funding Rate</th>
                                         <th>Interval</th>
-                                        <th>Next Funding</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -224,9 +262,7 @@
                                             <td :class="exchange.funding > 0 ? 'text-success' : 'text-danger'">
                                                 <span x-text="(exchange.funding * 100).toFixed(4) + '%'"></span>
                                             </td>
-                                            <td class="text-muted" x-text="(exchange.predicted * 100).toFixed(4) + '%'"></td>
                                             <td x-text="exchange.interval + 'h'"></td>
-                                            <td x-text="formatNextFunding(exchange.nextFunding)"></td>
                                         </tr>
                                     </template>
                                 </tbody>
@@ -237,8 +273,8 @@
 
             </div>
 
-            <!-- Middle Column: Spread Matrix (20%) -->
-            <div class="col-lg-2">
+            <!-- Right Column: Spread Matrix & Distribution (30%) -->
+            <div class="col-lg-4">
                 <div class="matrix-panel">
                     <div class="matrix-panel-header">
                         <h6>Spread Matrix</h6>
@@ -264,100 +300,7 @@
                         </table>
                     </div>
                 </div>
-            </div>
-
-            <!-- Right Column: Insights (20%) -->
-            <div class="col-lg-3">
-                <div class="insights-panel">
-                    <div class="insights-panel-header">
-                        <h6>
-                            <i class="bi bi-lightbulb"></i> Insights
-                        </h6>
-                    </div>
-                    <div class="insights-panel-body">
-                        <!-- Loading state -->
-                        <div x-show="isLoading" class="insight-item insight-info">
-                            <div class="insight-icon"><i class="bi bi-hourglass-split"></i></div>
-                            <div class="insight-content">
-                                <div class="insight-message">Loading insights...</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Empty state -->
-                        <div x-show="!isLoading && insights.length === 0" class="insight-item insight-info">
-                            <div class="insight-icon"><i class="bi bi-info-circle"></i></div>
-                            <div class="insight-content">
-                                <div class="insight-message">No insights available</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Insights list -->
-                        <template x-for="insight in insights" :key="insight.id">
-                            <div class="insight-item" :class="'insight-' + insight.type">
-                                <div class="insight-icon">
-                                    <template x-if="insight.type === 'warning'">
-                                        <i class="bi bi-exclamation-triangle"></i>
-                                    </template>
-                                    <template x-if="insight.type === 'info'">
-                                        <i class="bi bi-info-circle"></i>
-                                    </template>
-                                    <template x-if="insight.type === 'success'">
-                                        <i class="bi bi-check-circle"></i>
-                                    </template>
-                                </div>
-                                <div class="insight-content">
-                                    <div class="insight-message" x-text="insight.message"></div>
-                                    <div class="insight-time text-muted" x-text="insight.time"></div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- Bottom Analytics Section -->
-        <div class="row g-4">
-            
-            <!-- History + Overlays Chart -->
-            <div class="col-lg-8">
-                <div class="chart-panel">
-                    <div class="chart-panel-header">
-                        <h5>History + Overlays</h5>
-                        <div class="overlay-toggles">
-                            <button class="btn btn-sm" :class="overlayFunding ? 'btn-primary' : 'btn-outline-secondary'" @click="overlayFunding = !overlayFunding">Funding</button>
-                            <button class="btn btn-sm" :class="overlayPrice ? 'btn-primary' : 'btn-outline-secondary'" @click="overlayPrice = !overlayPrice">Price</button>
-                            <button class="btn btn-sm" :class="overlayOI ? 'btn-primary' : 'btn-outline-secondary'" @click="overlayOI = !overlayOI">OI</button>
-                        </div>
-                    </div>
-                    <div class="chart-panel-body">
-                        <canvas id="historyOverlaysChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Side: Heatmap & Distribution -->
-            <div class="col-lg-4">
                 
-                <!-- Heatmap (Mini Sparklines) -->
-                <div class="chart-panel mb-3">
-                    <div class="chart-panel-header">
-                        <h6>Heatmap (Sparklines)</h6>
-                    </div>
-                    <div class="chart-panel-body p-2">
-                        <template x-for="exchange in exchangeSnapshots.slice(0, 6)" :key="exchange.name">
-                            <div class="sparkline-row">
-                                <span class="sparkline-label" x-text="exchange.name"></span>
-                                <div class="sparkline-chart">
-                                    <!-- Dummy sparkline visualization -->
-                                    <canvas :id="'sparkline-' + exchange.name" width="100" height="20"></canvas>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-
                 <!-- Distribution (Histogram) -->
                 <div class="chart-panel mb-3">
                     <div class="chart-panel-header">
@@ -367,19 +310,6 @@
                         <canvas id="distributionChart" height="150"></canvas>
                     </div>
                 </div>
-
-                <!-- Metrics Panel -->
-                <div class="metrics-small-panel">
-                    <div class="metric-small-item">
-                        <span class="label">Annualized</span>
-                        <span class="value" x-text="additionalMetrics.annualized + '%'"></span>
-                    </div>
-                    <div class="metric-small-item">
-                        <span class="label">Slope</span>
-                        <span class="value" x-text="additionalMetrics.slope"></span>
-                    </div>
-                </div>
-
             </div>
 
         </div>
@@ -466,6 +396,191 @@
             font-weight: 700;
             font-family: 'Courier New', monospace;
         }
+
+        /* 📊 Risk Assessment Panel */
+        .risk-assessment-panel {
+            background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+            border-radius: 16px;
+            padding: 0;
+            color: white;
+            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
+            overflow: hidden;
+        }
+
+        .risk-assessment-panel .panel-header {
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .risk-assessment-panel .panel-header h5 {
+            margin: 0;
+            font-weight: 700;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .risk-assessment-panel .panel-body {
+            padding: 1.5rem;
+        }
+
+        .risk-assessment-panel .ai-card {
+            text-align: center;
+            padding: 1.25rem 1rem;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .risk-assessment-panel .ai-card:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .risk-assessment-panel .ai-label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .risk-assessment-panel .ai-value {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 800;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            line-height: 1.2;
+        }
+
+        /* Market Status Colors */
+        .risk-assessment-panel .status-healthy { 
+            color: #4ade80 !important; 
+            text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+        }
+        
+        .risk-assessment-panel .status-hot { 
+            color: #fbbf24 !important; 
+            text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+        }
+        
+        .risk-assessment-panel .status-unhealthy { 
+            color: #f87171 !important; 
+            text-shadow: 0 0 20px rgba(248, 113, 113, 0.5);
+        }
+
+        /* Risk Stance Colors */
+        .risk-assessment-panel .stance-aggressive { 
+            color: #4ade80 !important;
+            text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+        }
+        
+        .risk-assessment-panel .stance-neutral { 
+            color: #fbbf24 !important;
+            text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+        }
+        
+        .risk-assessment-panel .stance-defensive { 
+            color: #f87171 !important;
+            text-shadow: 0 0 20px rgba(248, 113, 113, 0.5);
+        }
+
+        /* Positioning & Risk Values */
+        .risk-assessment-panel .ai-value.positioning,
+        .risk-assessment-panel .ai-value.risk {
+            color: #fef3c7;
+        }
+
+        /* Reasons Section */
+        .risk-assessment-panel .ai-reasons {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-top: 0.5rem;
+        }
+
+        .risk-assessment-panel .ai-reasons h6 {
+            margin-bottom: 1rem;
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .risk-assessment-panel .ai-reasons ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .risk-assessment-panel .ai-reasons li {
+            padding: 0.6rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .risk-assessment-panel .ai-reasons li:last-child {
+            border-bottom: none;
+        }
+
+        .risk-assessment-panel .ai-reasons li:before {
+            content: "→ ";
+            margin-right: 0.75rem;
+            font-weight: bold;
+            opacity: 0.8;
+        }
+
+        /* Leverage Condition Colors */
+        .risk-assessment-panel .leverage-low { 
+            color: #4ade80 !important;
+            text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
+        }
+        
+        .risk-assessment-panel .leverage-increasing { 
+            color: #fbbf24 !important;
+            text-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+        }
+        
+        .risk-assessment-panel .leverage-excessive { 
+            color: #f87171 !important;
+            text-shadow: 0 0 20px rgba(248, 113, 113, 0.5);
+        }
+
+        /* Responsive Risk Assessment Panel */
+        @media (max-width: 768px) {
+            .risk-assessment-panel .ai-value {
+                font-size: 1rem;
+            }
+            
+            .risk-assessment-panel .ai-label {
+                font-size: 0.6rem;
+            }
+            
+            .risk-assessment-panel .ai-card {
+                padding: 0.75rem 0.5rem;
+            }
+            
+            .risk-assessment-panel .row.g-3 {
+                --bs-gutter-x: 0.5rem;
+                --bs-gutter-y: 0.5rem;
+            }
+        }
+
 
         /* Metrics Row */
         .metrics-row .metric-card {

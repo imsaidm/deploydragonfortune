@@ -6,13 +6,21 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use App\Services\FundingRateAnalysisService;
 
 /**
  * Controller for Funding Rate data from local database
  * Reads from cg_funding_rate_exchange_list and cg_funding_rate_history tables
+ * Integrated with AI Risk Analysis
  */
 class FundingRateDbController extends Controller
 {
+    private FundingRateAnalysisService $analysisService;
+
+    public function __construct(FundingRateAnalysisService $analysisService)
+    {
+        $this->analysisService = $analysisService;
+    }
     /**
      * Get current funding rates for all exchanges
      * Reads from cg_funding_rate_exchange_list table
@@ -108,6 +116,67 @@ class FundingRateDbController extends Controller
     }
     
     /**
+     * Get AI risk analysis in formatted text
+     * Returns analysis in the structured format requested
+     */
+    public function aiAnalysis(Request $request)
+    {
+        $symbol = strtoupper($request->query('symbol', 'BTC'));
+        $format = $request->query('format', 'json'); // 'json' or 'text'
+        
+        // Cache for 10 seconds (same as exchange list)
+        $cacheKey = "db_funding_rate_ai_analysis_{$symbol}_{$format}";
+        
+        $result = Cache::remember($cacheKey, 10, function () use ($symbol, $format) {
+            // Get latest data for analysis
+            $rows = DB::table('cg_funding_rate_exchange_list')
+                ->where('symbol', $symbol)
+                ->orderBy('updated_at', 'desc')
+                ->get();
+            
+            if ($rows->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => "No data found for {$symbol}",
+                ];
+            }
+            
+            // Convert to array format for analysis
+            $data = $rows->map(function ($row) {
+                return [
+                    'exchange' => $row->exchange,
+                    'symbol' => $row->symbol,
+                    'margin_type' => $row->margin_type ?? 'stablecoin',
+                    'funding_rate' => (float) $row->funding_rate,
+                ];
+            })->toArray();
+            
+            // Perform AI analysis
+            $analysis = $this->analysisService->analyzeMarketCondition($data);
+            
+            if ($format === 'text') {
+                return [
+                    'success' => true,
+                    'analysis' => $this->analysisService->formatForDisplay($analysis),
+                    'raw' => $analysis,
+                ];
+            }
+            
+            return [
+                'success' => true,
+                'analysis' => $analysis,
+            ];
+        });
+        
+        if ($format === 'text') {
+            return response($result['analysis'] ?? 'No analysis available', 200)
+                ->header('Content-Type', 'text/plain');
+        }
+        
+        return response()->json($result);
+    }
+    
+    /**
      * Normalize exchange list data for frontend
      */
     private function normalizeExchangeList($rows, $symbol): array
@@ -117,6 +186,7 @@ class FundingRateDbController extends Controller
                 'success' => true,
                 'data' => [],
                 'insights' => [],
+                'ai_analysis' => $this->analysisService->analyzeMarketCondition([]),
                 'message' => "No data found for {$symbol}",
             ];
         }
@@ -124,10 +194,18 @@ class FundingRateDbController extends Controller
         $data = [];
         
         foreach ($rows as $row) {
+            // Map margin_type from database to frontend display
+            $marginType = 'USDT'; // default
+            if ($row->margin_type === 'coin') {
+                $marginType = 'COIN';
+            } elseif ($row->margin_type === 'stablecoin') {
+                $marginType = 'USDT';
+            }
+            
             $data[] = [
                 'exchange' => $row->exchange,
                 'symbol' => $row->symbol,
-                'margin_type' => $row->margin_type ?? 'stablecoin',
+                'margin_type' => $marginType,
                 'funding_rate' => (float) $row->funding_rate,
                 'predicted_rate' => (float) ($row->funding_rate * 0.95), // Estimate
                 'funding_interval_hours' => (int) ($row->funding_rate_interval ?? 8),
@@ -142,10 +220,14 @@ class FundingRateDbController extends Controller
         // Calculate insights from real data
         $insights = $this->calculateInsights($data);
         
+        // Perform AI risk analysis
+        $aiAnalysis = $this->analysisService->analyzeMarketCondition($data);
+        
         return [
             'success' => true,
             'data' => $data,
             'insights' => $insights,
+            'ai_analysis' => $aiAnalysis,
             'source' => 'database',
             'updated_at' => $rows->first()->updated_at ?? now(),
         ];

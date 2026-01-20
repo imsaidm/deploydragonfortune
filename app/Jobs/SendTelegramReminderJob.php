@@ -71,7 +71,7 @@ class SendTelegramReminderJob implements ShouldQueue
             
             // Footer
             $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
-            $message .= "⏰ " . now()->format('d M Y, H:i:s') . " WIB\n";
+            $message .= "⏰ " . now()->setTimezone('Asia/Jakarta')->format('d M Y, H:i:s') . " WIB\n";
             $message .= "🤖 _Powered by DragonFortune AI_\n";
             $message .= "━━━━━━━━━━━━━━━━━━━━━━";
             
