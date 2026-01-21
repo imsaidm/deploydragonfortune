@@ -160,6 +160,24 @@ Route::get('/api/binance/futures/trades', [BinanceFuturesController::class, 'tra
     ->middleware('throttle:20,1')
     ->name('api.binance.futures.trades');
 
+// Bybit API Proxy
+Route::get('/api/bybit/summary', [App\Http\Controllers\BybitController::class, 'summary'])
+    ->middleware('throttle:20,1')
+    ->name('api.bybit.summary');
+Route::get('/api/bybit/positions', [App\Http\Controllers\BybitController::class, 'positions'])
+    ->middleware('throttle:20,1')
+    ->name('api.bybit.positions');
+Route::get('/api/bybit/open-orders', [App\Http\Controllers\BybitController::class, 'openOrders'])
+    ->middleware('throttle:20,1')
+    ->name('api.bybit.open-orders');
+Route::get('/api/bybit/orders', [App\Http\Controllers\BybitController::class, 'orders'])
+    ->middleware('throttle:20,1')
+    ->name('api.bybit.orders');
+Route::get('/api/bybit/trades', [App\Http\Controllers\BybitController::class, 'trades'])
+    ->middleware('throttle:20,1')
+    ->name('api.bybit.trades');
+
+
 // Coinglass API Proxy Routes
 
 // On-Chain Metrics API Proxy
