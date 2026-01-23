@@ -117,6 +117,27 @@ export function createFundingRateAdvancedController() {
         
         // Data for spread matrix
         spreadMatrix: [],
+        
+        // Metrics for banner
+        metrics: {
+            avgFunding: '--',
+            minFunding: '--',
+            maxFunding: '--',
+            minExchange: '--',
+            maxExchange: '--',
+            spread: '--',
+            basis: '--'
+        },
+        
+        // AI Analysis data
+        aiAnalysis: {
+            market_status: 'Loading...',
+            crowd_positioning: 'Loading...',
+            leverage_condition: 'Loading...',
+            primary_risk: 'Loading...',
+            risk_stance: 'Loading...',
+            key_insights: []
+        },
 
         async init() {
             console.log('🚀 Advanced Funding Rate Dashboard initialized');
@@ -146,7 +167,7 @@ export function createFundingRateAdvancedController() {
             this.refreshTimeoutId = setTimeout(async () => {
                 console.log('🔄 Auto-refreshing data...');
                 try {
-                    await this.loadAllData();
+                    await this.loadAllData(true); // Is background update
                 } catch (err) {
                     console.error('Refresh error:', err);
                 } finally {
@@ -171,7 +192,13 @@ export function createFundingRateAdvancedController() {
             });
         },
 
-        async loadAllData() {
+        async loadAllData(isBackgroundUpdate = false) {
+            // Prevent parallel fetches, but allow if it's a forced refresh (user action)
+            if (this.isLoading) {
+                console.log('⏳ Fetch already in progress, skipping...');
+                return;
+            }
+            
             this.isLoading = true;
             
             try {
@@ -186,32 +213,37 @@ export function createFundingRateAdvancedController() {
                     this.fetchStatistics()
                 ]);
 
+                // Exchange List
                 if (exchangeListRes) {
                     this.processExchangeListData(exchangeListRes);
-                } else {
+                } else if (!isBackgroundUpdate) {
                      this.exchangeSnapshots = [];
                 }
 
+                // History
                 if (historyRes) {
                     this.processHistoryData(historyRes);
-                } else {
+                } else if (!isBackgroundUpdate) {
                     this.historyData = [];
                 }
                 
+                // OHLC
                 if (ohlcRes) {
                     this.processOHLCData(ohlcRes);
-                } else {
+                } else if (!isBackgroundUpdate) {
                     this.ohlcData = [];
-                    this.renderCandlestickChart(); // Clear chart
+                    this.renderCandlestickChart(); // Clear chart only if manual switch
                 }
                 
+                // Comparison
                 if (comparisonRes) {
                     this.processComparisonData(comparisonRes);
-                } else {
+                } else if (!isBackgroundUpdate) {
                     this.comparisonData = {};
-                    this.renderComparisonChart(); // Clear chart
+                    this.renderComparisonChart(); // Clear chart only if manual switch
                 }
                 
+                // Statistics
                 if (statisticsRes) {
                     this.processStatisticsData(statisticsRes);
                 }
@@ -521,7 +553,15 @@ export function createFundingRateAdvancedController() {
                 console.log('🤖 AI Analysis received:', apiAiAnalysis);
                 this.aiAnalysis = apiAiAnalysis;
             } else {
-                console.log('⚠️ No AI analysis in response');
+                console.log('⚠️ No AI analysis in response - resetting');
+                this.aiAnalysis = {
+                    market_status: 'N/A',
+                    crowd_positioning: 'N/A',
+                    leverage_condition: 'N/A',
+                    primary_risk: 'N/A',
+                    risk_stance: 'N/A',
+                    key_insights: []
+                };
             }
 
             // Process insights from database API
@@ -981,7 +1021,18 @@ export function createFundingRateAdvancedController() {
 
         renderComparisonChart() {
             const ctx = document.getElementById('comparisonChart');
-            if (!ctx || Object.keys(this.comparisonData).length === 0) return;
+            
+            // Fix: Check for canvas existence
+            if (!ctx) return;
+            
+            // Fix: Clear previous chart if comparisonData is empty instead of returning early
+            if (Object.keys(this.comparisonData).length === 0) {
+                 if (this.comparisonChart) {
+                    this.comparisonChart.destroy();
+                    this.comparisonChart = null;
+                 }
+                 return;
+            }
 
             if (this.comparisonChart) {
                 this.comparisonChart.destroy();
@@ -997,6 +1048,9 @@ export function createFundingRateAdvancedController() {
                 tension: 0.3,
                 pointRadius: 0
             }));
+            
+            // Ensure we have datasets
+            if (datasets.length === 0) return;
 
             this.comparisonChart = new Chart(ctx, {
                 type: 'line',
