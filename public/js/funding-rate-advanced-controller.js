@@ -214,21 +214,21 @@ export function createFundingRateAdvancedController() {
                 ]);
 
                 // Exchange List
-                if (exchangeListRes) {
+                if (exchangeListRes && exchangeListRes.data && exchangeListRes.data.length > 0) {
                     this.processExchangeListData(exchangeListRes);
                 } else if (!isBackgroundUpdate) {
                      this.exchangeSnapshots = [];
                 }
 
                 // History
-                if (historyRes) {
+                if (historyRes && historyRes.data && historyRes.data.length > 0) {
                     this.processHistoryData(historyRes);
                 } else if (!isBackgroundUpdate) {
                     this.historyData = [];
                 }
                 
                 // OHLC
-                if (ohlcRes) {
+                if (ohlcRes && ohlcRes.data && ohlcRes.data.length > 0) {
                     this.processOHLCData(ohlcRes);
                 } else if (!isBackgroundUpdate) {
                     this.ohlcData = [];
@@ -236,7 +236,7 @@ export function createFundingRateAdvancedController() {
                 }
                 
                 // Comparison
-                if (comparisonRes) {
+                if (comparisonRes && comparisonRes.data && Object.keys(comparisonRes.data || {}).length > 0) {
                     this.processComparisonData(comparisonRes);
                 } else if (!isBackgroundUpdate) {
                     this.comparisonData = {};
@@ -244,7 +244,7 @@ export function createFundingRateAdvancedController() {
                 }
                 
                 // Statistics
-                if (statisticsRes) {
+                if (statisticsRes && statisticsRes.data) {
                     this.processStatisticsData(statisticsRes);
                 }
 
