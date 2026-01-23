@@ -33,10 +33,12 @@ class FundingRateDbController extends Controller
         $cacheKey = "db_funding_rate_exchange_list_{$symbol}";
         
         $data = Cache::remember($cacheKey, 10, function () use ($symbol) {
-            // Get latest data for each exchange (most recent record per exchange)
-            $rows = DB::table('cg_funding_rate_exchange_list')
-                ->where('symbol', $symbol)
-                ->orderBy('updated_at', 'desc')
+            // Get latest data for each exchange (deduplicated - one record per exchange)
+            $rows = DB::table('cg_funding_rate_exchange_list as t1')
+                ->select('t1.*')
+                ->where('t1.symbol', $symbol)
+                ->whereRaw('t1.updated_at = (SELECT MAX(t2.updated_at) FROM cg_funding_rate_exchange_list t2 WHERE t2.exchange = t1.exchange AND t2.symbol = t1.symbol)')
+                ->orderBy('t1.exchange')
                 ->get();
             
             return $rows;
@@ -301,5 +303,253 @@ class FundingRateDbController extends Controller
         ];
         
         return $insights;
+    }
+    
+    /**
+     * Get OHLC funding rate data for candlestick chart
+     * Uses open, high, low, close from cg_funding_rate_history
+     */
+    public function ohlc(Request $request)
+    {
+        $symbol = strtoupper($request->query('symbol', 'BTC'));
+        $interval = $request->query('interval', '1h');
+        $exchange = $request->query('exchange', 'Binance');
+        $limit = min((int) $request->query('limit', 100), 500);
+        
+        $cacheKey = "db_funding_rate_ohlc_{$symbol}_{$exchange}_{$interval}_{$limit}";
+        
+        $data = Cache::remember($cacheKey, 30, function () use ($symbol, $exchange, $interval, $limit) {
+            $pair = $symbol . 'USDT';
+            
+            $rows = DB::table('cg_funding_rate_history')
+                ->where('exchange', $exchange)
+                ->where('pair', $pair)
+                ->where('interval', $interval)
+                ->orderBy('time', 'desc')
+                ->limit($limit)
+                ->get();
+            
+            return $rows->reverse()->values();
+        });
+        
+        $formatted = $data->map(function ($row) {
+            return [
+                'time' => (int) $row->time,
+                'open' => (float) $row->open * 100,
+                'high' => (float) $row->high * 100,
+                'low' => (float) $row->low * 100,
+                'close' => (float) $row->close * 100,
+            ];
+        });
+        
+        return response()->json([
+            'success' => true,
+            'data' => $formatted,
+            'count' => count($formatted),
+            'exchange' => $exchange,
+            'interval' => $interval,
+        ]);
+    }
+    
+    /**
+     * Get cross-exchange comparison for same symbol
+     * Returns latest funding rate from all exchanges for comparison
+     */
+    public function comparison(Request $request)
+    {
+        $symbol = strtoupper($request->query('symbol', 'BTC'));
+        $interval = $request->query('interval', '1h');
+        $limit = min((int) $request->query('limit', 24), 100);
+        
+        $cacheKey = "db_funding_rate_comparison_{$symbol}_{$interval}_{$limit}";
+        
+        $data = Cache::remember($cacheKey, 30, function () use ($symbol, $interval, $limit) {
+            $pair = $symbol . 'USDT';
+            
+            // Get unique exchanges
+            $exchanges = DB::table('cg_funding_rate_history')
+                ->where('pair', $pair)
+                ->where('interval', $interval)
+                ->select('exchange')
+                ->distinct()
+                ->pluck('exchange');
+            
+            $result = [];
+            foreach ($exchanges as $exchange) {
+                $rows = DB::table('cg_funding_rate_history')
+                    ->where('exchange', $exchange)
+                    ->where('pair', $pair)
+                    ->where('interval', $interval)
+                    ->orderBy('time', 'desc')
+                    ->limit($limit)
+                    ->get(['time', 'close']);
+                
+                $result[$exchange] = $rows->reverse()->values()->map(function ($row) {
+                    return [
+                        'time' => (int) $row->time,
+                        'rate' => (float) $row->close * 100,
+                    ];
+                });
+            }
+            
+            return $result;
+        });
+        
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+            'exchanges' => array_keys($data),
+            'interval' => $interval,
+        ]);
+    }
+    
+    /**
+     * Get volatility analysis (high-low range)
+     * Measures funding rate volatility over time
+     */
+    public function volatility(Request $request)
+    {
+        $symbol = strtoupper($request->query('symbol', 'BTC'));
+        $interval = $request->query('interval', '1h');
+        $exchange = $request->query('exchange', 'Binance');
+        $limit = min((int) $request->query('limit', 100), 500);
+        
+        $cacheKey = "db_funding_rate_volatility_{$symbol}_{$exchange}_{$interval}_{$limit}";
+        
+        $data = Cache::remember($cacheKey, 30, function () use ($symbol, $exchange, $interval, $limit) {
+            $pair = $symbol . 'USDT';
+            
+            $rows = DB::table('cg_funding_rate_history')
+                ->where('exchange', $exchange)
+                ->where('pair', $pair)
+                ->where('interval', $interval)
+                ->orderBy('time', 'desc')
+                ->limit($limit)
+                ->get();
+            
+            return $rows->reverse()->values();
+        });
+        
+        $formatted = $data->map(function ($row) {
+            $range = ((float) $row->high - (float) $row->low) * 100;
+            return [
+                'time' => (int) $row->time,
+                'range' => $range,
+                'high' => (float) $row->high * 100,
+                'low' => (float) $row->low * 100,
+            ];
+        });
+        
+        // Calculate volatility statistics
+        $ranges = $formatted->pluck('range')->toArray();
+        $avgVolatility = count($ranges) > 0 ? array_sum($ranges) / count($ranges) : 0;
+        $maxVolatility = count($ranges) > 0 ? max($ranges) : 0;
+        
+        return response()->json([
+            'success' => true,
+            'data' => $formatted,
+            'count' => count($formatted),
+            'stats' => [
+                'avg_volatility' => round($avgVolatility, 6),
+                'max_volatility' => round($maxVolatility, 6),
+            ],
+        ]);
+    }
+    
+    /**
+     * Get enhanced statistics for funding rates
+     * Returns median, percentiles, trend, std dev
+     */
+    public function statistics(Request $request)
+    {
+        $symbol = strtoupper($request->query('symbol', 'BTC'));
+        
+        $cacheKey = "db_funding_rate_statistics_{$symbol}";
+        
+        $data = Cache::remember($cacheKey, 30, function () use ($symbol) {
+            // Get latest from exchange list
+            $exchangeData = DB::table('cg_funding_rate_exchange_list')
+                ->where('symbol', $symbol)
+                ->orderBy('updated_at', 'desc')
+                ->get();
+            
+            if ($exchangeData->isEmpty()) {
+                return null;
+            }
+            
+            $rates = $exchangeData->pluck('funding_rate')->map(fn($r) => (float) $r)->toArray();
+            sort($rates);
+            
+            $count = count($rates);
+            $sum = array_sum($rates);
+            $mean = $sum / $count;
+            
+            // Median
+            $median = $count % 2 === 0
+                ? ($rates[$count/2 - 1] + $rates[$count/2]) / 2
+                : $rates[floor($count/2)];
+            
+            // Percentiles
+            $p25Index = (int) floor($count * 0.25);
+            $p75Index = (int) floor($count * 0.75);
+            $p25 = $rates[$p25Index] ?? $rates[0];
+            $p75 = $rates[$p75Index] ?? end($rates);
+            
+            // Standard deviation
+            $variance = array_sum(array_map(fn($r) => pow($r - $mean, 2), $rates)) / $count;
+            $stdDev = sqrt($variance);
+            
+            // Count by sentiment
+            $positiveCount = count(array_filter($rates, fn($r) => $r > 0));
+            $negativeCount = count(array_filter($rates, fn($r) => $r < 0));
+            $neutralCount = count(array_filter($rates, fn($r) => $r == 0));
+            
+            // Determine market sentiment
+            $sentimentRatio = $count > 0 ? $positiveCount / $count : 0.5;
+            if ($sentimentRatio > 0.7) {
+                $sentiment = 'Bullish';
+                $sentimentScore = 80 + ($sentimentRatio - 0.7) * 66.67;
+            } elseif ($sentimentRatio > 0.5) {
+                $sentiment = 'Slightly Bullish';
+                $sentimentScore = 50 + ($sentimentRatio - 0.5) * 150;
+            } elseif ($sentimentRatio > 0.3) {
+                $sentiment = 'Slightly Bearish';
+                $sentimentScore = 20 + ($sentimentRatio - 0.3) * 150;
+            } else {
+                $sentiment = 'Bearish';
+                $sentimentScore = $sentimentRatio * 66.67;
+            }
+            
+            return [
+                'count' => $count,
+                'mean' => round($mean * 100, 4),
+                'median' => round($median * 100, 4),
+                'min' => round(min($rates) * 100, 4),
+                'max' => round(max($rates) * 100, 4),
+                'std_dev' => round($stdDev * 100, 4),
+                'p25' => round($p25 * 100, 4),
+                'p75' => round($p75 * 100, 4),
+                'spread_bps' => round((max($rates) - min($rates)) * 10000, 1),
+                'positive_count' => $positiveCount,
+                'negative_count' => $negativeCount,
+                'neutral_count' => $neutralCount,
+                'sentiment' => $sentiment,
+                'sentiment_score' => round($sentimentScore),
+                'annualized_apy' => round($mean * 100 * 3 * 365, 2),
+            ];
+        });
+        
+        if ($data === null) {
+            return response()->json([
+                'success' => false,
+                'message' => "No data found for {$symbol}",
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+            'symbol' => $symbol,
+        ]);
     }
 }
