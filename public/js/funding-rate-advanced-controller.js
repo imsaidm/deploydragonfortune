@@ -1,6 +1,6 @@
 /**
  * Advanced Funding Rate Dashboard Controller
- * Integrated with Coinglass API
+ * Reads data from local database via /data/funding-rate endpoints
  */
 
 export function createFundingRateAdvancedController() {
@@ -76,25 +76,84 @@ export function createFundingRateAdvancedController() {
         // History data
         historyData: [],
 
-        // Refresh interval
-        refreshIntervalId: null,
+        // OHLC data for candlestick chart
+        ohlcData: [],
+        
+        // Cross-exchange comparison data
+        comparisonData: {},
+        
+        // Volatility data
+        volatilityData: [],
+        
+        // Statistics from backend
+        statistics: {
+            mean: '--',
+            median: '--',
+            std_dev: '--',
+            p25: '--',
+            p75: '--',
+            sentiment: '--',
+            sentiment_score: 50,
+            positive_count: 0,
+            negative_count: 0,
+            annualized_apy: '--'
+        },
+        
+        // Additional charts
+        candlestickChart: null,
+        comparisonChart: null,
+        volatilityChart: null,
+        heatmapChart: null,
+        sentimentGaugeChart: null,
+        
+        // Selected exchange for OHLC
+        selectedExchange: 'Binance',
+        
+        // Selected interval for charts
+        selectedInterval: '1h',
+        
+        // Arbitrage opportunities
+        arbitrageOpportunities: [],
+        
+        // Data for spread matrix
+        spreadMatrix: [],
 
         async init() {
             console.log('🚀 Advanced Funding Rate Dashboard initialized');
             
-            // Wait for Chart.js to be ready
-            await this.waitForChartJs();
+            try {
+                // Wait for Chart.js to be ready
+                await this.waitForChartJs();
+                
+                // Initial data load
+                await this.loadAllData();
+                
+                // Start countdown timer
+                this.startCountdown();
+            } catch (error) {
+                console.error('❌ Error during initialization:', error);
+            }
             
-            // Initial data load
-            await this.loadAllData();
+            // Auto-refresh loop using recursive setTimeout (to bypass global setInterval blocks)
+            this.scheduleAutoRefresh();
+        },
+        
+        scheduleAutoRefresh() {
+            console.log('⏰ Scheduling next auto-refresh in 10s');
+            // Clear any existing timeout just in case
+            if (this.refreshTimeoutId) clearTimeout(this.refreshTimeoutId);
             
-            // Start countdown timer
-            this.startCountdown();
-            
-            // Auto-refresh every 30 seconds
-            this.refreshIntervalId = setInterval(() => {
-                this.loadAllData();
-            }, 30000);
+            this.refreshTimeoutId = setTimeout(async () => {
+                console.log('🔄 Auto-refreshing data...');
+                try {
+                    await this.loadAllData();
+                } catch (err) {
+                    console.error('Refresh error:', err);
+                } finally {
+                    // Schedule next refresh regardless of success/fail
+                    this.scheduleAutoRefresh();
+                }
+            }, 10000);
         },
 
         async waitForChartJs() {
@@ -116,25 +175,52 @@ export function createFundingRateAdvancedController() {
             this.isLoading = true;
             
             try {
-                // Fetch all data in parallel
-                const [exchangeListRes, historyRes] = await Promise.all([
+                // Fetch all data in parallel from database
+                console.log(`🔄 Fetching data for ${this.selectedSymbol} (${this.timeRange})...`);
+                
+                const [exchangeListRes, historyRes, ohlcRes, comparisonRes, statisticsRes] = await Promise.all([
                     this.fetchExchangeList(),
-                    this.fetchHistory()
+                    this.fetchHistory(),
+                    this.fetchOHLC(),
+                    this.fetchComparison(),
+                    this.fetchStatistics()
                 ]);
 
                 if (exchangeListRes) {
                     this.processExchangeListData(exchangeListRes);
+                } else {
+                     this.exchangeSnapshots = [];
                 }
 
                 if (historyRes) {
                     this.processHistoryData(historyRes);
+                } else {
+                    this.historyData = [];
+                }
+                
+                if (ohlcRes) {
+                    this.processOHLCData(ohlcRes);
+                } else {
+                    this.ohlcData = [];
+                    this.renderCandlestickChart(); // Clear chart
+                }
+                
+                if (comparisonRes) {
+                    this.processComparisonData(comparisonRes);
+                } else {
+                    this.comparisonData = {};
+                    this.renderComparisonChart(); // Clear chart
+                }
+                
+                if (statisticsRes) {
+                    this.processStatisticsData(statisticsRes);
                 }
 
                 // Update last sync time
                 this.lastUpdate = Date.now();
                 this.lastSync = 'just now';
 
-                console.log('✅ Data loaded successfully');
+                console.log('✅ All data loaded successfully');
 
             } catch (error) {
                 console.error('❌ Error loading data:', error);
@@ -147,7 +233,7 @@ export function createFundingRateAdvancedController() {
         async fetchExchangeList() {
             try {
                 // Using database endpoint (has 108+ records)
-                const response = await fetch(`/api/db/funding-rate/exchange-list?symbol=${this.selectedSymbol}`);
+                const response = await fetch(`/data/funding-rate/exchange-list?symbol=${this.selectedSymbol}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -170,7 +256,7 @@ export function createFundingRateAdvancedController() {
 
                 // Using database endpoint (has 500k+ history records)
                 const response = await fetch(
-                    `/api/db/funding-rate/history?symbol=${this.selectedSymbol}&interval=1h&limit=${limit}`
+                    `/data/funding-rate/history?symbol=${this.selectedSymbol}&interval=1h&limit=${limit}`
                 );
                 const data = await response.json();
                 
@@ -185,6 +271,167 @@ export function createFundingRateAdvancedController() {
                 console.error('History fetch error:', error);
                 return null;
             }
+        },
+
+        async fetchOHLC() {
+            try {
+                const limitMap = { '24h': 24, '7d': 168, '30d': 500 };
+                const limit = limitMap[this.timeRange] || 100;
+
+                // Try fetching for selected exchange
+                let response = await fetch(
+                    `/data/funding-rate/ohlc?symbol=${this.selectedSymbol}&exchange=${this.selectedExchange}&interval=${this.selectedInterval}&limit=${limit}`
+                );
+                let data = await response.json();
+                
+                // If no data and exchange is not Binance, try fallback to Binance
+                if ((!data.success || !data.data || data.data.length === 0) && this.selectedExchange !== 'Binance') {
+                    console.log('⚠️ No OHLC data for', this.selectedExchange, '- falling back to Binance');
+                    response = await fetch(
+                        `/data/funding-rate/ohlc?symbol=${this.selectedSymbol}&exchange=Binance&interval=${this.selectedInterval}&limit=${limit}`
+                    );
+                    data = await response.json();
+                    if (data.success && data.data?.length > 0) {
+                        this.selectedExchange = 'Binance'; // Update selection to match data
+                    }
+                }
+                
+                if (data.success) {
+                    console.log('📊 Loaded OHLC from DATABASE:', data.count || 0, 'candles');
+                    return data;
+                } else {
+                    console.error('OHLC DB error:', data.error || data.message);
+                    return null;
+                }
+            } catch (error) {
+                console.error('OHLC fetch error:', error);
+                return null;
+            }
+        },
+
+        async fetchComparison() {
+            try {
+                const limitMap = { '24h': 24, '7d': 168, '30d': 500 };
+                const limit = Math.min(limitMap[this.timeRange] || 24, 100);
+
+                const response = await fetch(
+                    `/data/funding-rate/comparison?symbol=${this.selectedSymbol}&interval=${this.selectedInterval}&limit=${limit}`
+                );
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('📈 Loaded comparison from DATABASE:', data.exchanges?.length || 0, 'exchanges');
+                    return data;
+                } else {
+                    console.error('Comparison DB error:', data.error || data.message);
+                    return null;
+                }
+            } catch (error) {
+                console.error('Comparison fetch error:', error);
+                return null;
+            }
+        },
+
+        async fetchStatistics() {
+            try {
+                const response = await fetch(
+                    `/data/funding-rate/statistics?symbol=${this.selectedSymbol}`
+                );
+                const data = await response.json();
+                
+                if (data.success) {
+                    console.log('📊 Loaded statistics from DATABASE');
+                    return data;
+                } else {
+                    console.error('Statistics DB error:', data.error || data.message);
+                    return null;
+                }
+            } catch (error) {
+                console.error('Statistics fetch error:', error);
+                return null;
+            }
+        },
+
+        processOHLCData(response) {
+            const data = response.data || [];
+            this.ohlcData = data;
+            
+            // Render candlestick chart
+            this.$nextTick(() => {
+                this.renderCandlestickChart();
+            });
+        },
+
+        processComparisonData(response) {
+            this.comparisonData = response.data || {};
+            
+            // Render comparison chart
+            this.$nextTick(() => {
+                this.renderComparisonChart();
+            });
+        },
+
+        processStatisticsData(response) {
+            const data = response.data || {};
+            
+            this.statistics = {
+                mean: data.mean || '--',
+                median: data.median || '--',
+                std_dev: data.std_dev || '--',
+                p25: data.p25 || '--',
+                p75: data.p75 || '--',
+                sentiment: data.sentiment || '--',
+                sentiment_score: data.sentiment_score || 50,
+                positive_count: data.positive_count || 0,
+                negative_count: data.negative_count || 0,
+                annualized_apy: data.annualized_apy || '--'
+            };
+            
+            // Calculate arbitrage opportunities from exchange snapshots
+            this.calculateArbitrageOpportunities();
+            
+            // Render sentiment gauge
+            this.$nextTick(() => {
+                this.renderSentimentGauge();
+            });
+        },
+
+        calculateArbitrageOpportunities() {
+            const snapshots = this.exchangeSnapshots;
+            if (snapshots.length < 2) return;
+            
+            const opportunities = [];
+            
+            // Compare all exchange pairs
+            for (let i = 0; i < snapshots.length; i++) {
+                for (let j = i + 1; j < snapshots.length; j++) {
+                    const ex1 = snapshots[i];
+                    const ex2 = snapshots[j];
+                    
+                    // Skip if same exchange (different margin types)
+                    if (ex1.name === ex2.name) continue;
+                    
+                    const spreadBps = Math.abs((ex1.funding - ex2.funding) * 10000);
+                    
+                    if (spreadBps > 50) { // Only significant spreads
+                        const longEx = ex1.funding < ex2.funding ? ex1 : ex2;
+                        const shortEx = ex1.funding < ex2.funding ? ex2 : ex1;
+                        
+                        opportunities.push({
+                            longExchange: longEx.name,
+                            shortExchange: shortEx.name,
+                            longRate: (longEx.funding * 100).toFixed(4),
+                            shortRate: (shortEx.funding * 100).toFixed(4),
+                            spreadBps: spreadBps.toFixed(1),
+                            annualizedProfit: (spreadBps * 3 * 365 / 100).toFixed(1)
+                        });
+                    }
+                }
+            }
+            
+            // Sort by spread and take top 10
+            opportunities.sort((a, b) => parseFloat(b.spreadBps) - parseFloat(a.spreadBps));
+            this.arbitrageOpportunities = opportunities.slice(0, 10);
         },
 
         processExchangeListData(response) {
@@ -660,6 +907,164 @@ export function createFundingRateAdvancedController() {
                 });
 
                 ctx.stroke();
+            });
+        },
+
+        renderCandlestickChart() {
+            const ctx = document.getElementById('candlestickChart');
+            if (!ctx || !this.ohlcData.length) return;
+
+            if (this.candlestickChart) {
+                this.candlestickChart.destroy();
+            }
+
+            // Use close values for bar heights, colored by bullish/bearish
+            const colors = this.ohlcData.map(d => d.close >= d.open ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)');
+            const borderColors = this.ohlcData.map(d => d.close >= d.open ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)');
+
+            this.candlestickChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: this.ohlcData.map(d => new Date(d.time * 1000)),
+                    datasets: [{
+                        label: 'Funding Rate',
+                        data: this.ohlcData.map(d => d.close),
+                        backgroundColor: colors,
+                        borderColor: borderColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const idx = context.dataIndex;
+                                    if (this.ohlcData[idx]) {
+                                        const d = this.ohlcData[idx];
+                                        return [
+                                            `Open: ${d.open.toFixed(4)}%`,
+                                            `High: ${d.high.toFixed(4)}%`,
+                                            `Low: ${d.low.toFixed(4)}%`,
+                                            `Close: ${d.close.toFixed(4)}%`
+                                        ];
+                                    }
+                                    return `${context.parsed.y.toFixed(4)}%`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { 
+                                unit: this.timeRange === '24h' ? 'hour' : 'day',
+                                displayFormats: { hour: 'HH:mm', day: 'MMM d' }
+                            },
+                            ticks: { maxRotation: 0, font: { size: 10 } },
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: (value) => value.toFixed(3) + '%',
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+        },
+
+        renderComparisonChart() {
+            const ctx = document.getElementById('comparisonChart');
+            if (!ctx || Object.keys(this.comparisonData).length === 0) return;
+
+            if (this.comparisonChart) {
+                this.comparisonChart.destroy();
+            }
+
+            const colors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
+            const datasets = Object.keys(this.comparisonData).map((exchange, idx) => ({
+                label: exchange,
+                data: this.comparisonData[exchange].map(d => ({ x: d.time, y: d.rate })),
+                borderColor: colors[idx % colors.length],
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                tension: 0.3,
+                pointRadius: 0
+            }));
+
+            this.comparisonChart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 6 } },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(4)}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: this.timeRange === '24h' ? 'hour' : 'day' },
+                            ticks: { maxRotation: 0, font: { size: 10 } }
+                        },
+                        y: {
+                            ticks: {
+                                callback: (value) => value.toFixed(3) + '%',
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            });
+        },
+
+        renderSentimentGauge() {
+            const ctx = document.getElementById('sentimentGaugeChart');
+            if (!ctx) return;
+
+            if (this.sentimentGaugeChart) {
+                this.sentimentGaugeChart.destroy();
+            }
+
+            const score = this.statistics.sentiment_score;
+            
+            // Simple doughnut chart as gauge
+            this.sentimentGaugeChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Bearish', 'Neutral', 'Bullish'],
+                    datasets: [{
+                        data: [
+                            score < 33 ? score : 33,
+                            score >= 33 && score <= 67 ? score - 33 : score < 33 ? 33 - score : 0,
+                            score > 67 ? score - 67 : 0
+                        ],
+                        backgroundColor: ['#ef4444', '#f59e0b', '#22c55e'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    rotation: -90,
+                    circumference: 180,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    }
+                }
             });
         },
 

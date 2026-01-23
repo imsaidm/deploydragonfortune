@@ -16,6 +16,24 @@
 
     <div class="funding-advanced-dashboard" x-data="fundingRateAdvancedController()">
         
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" x-show="isLoading && !lastUpdate" x-cloak>
+            <div class="loading-content">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5 class="mb-2">Loading Funding Rate Data</h5>
+                <p class="text-muted mb-0">Fetching real-time data from database...</p>
+            </div>
+        </div>
+        
+        <!-- Real-time indicator -->
+        <div class="realtime-indicator" x-show="lastUpdate">
+            <span class="pulse-dot" :class="isLoading ? 'pulse-loading' : 'pulse-live'"></span>
+            <span x-text="isLoading ? 'Updating...' : 'Live'"></span>
+            <span class="text-muted ms-2" x-text="'• ' + lastSync"></span>
+        </div>
+
         <!-- Page Header with controls -->
         <div class="dashboard-header mb-4">
             <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -229,6 +247,158 @@
             </div>
         </div>
 
+        <!-- Enhanced Statistics & Sentiment Row -->
+        <div class="row g-4 mb-4">
+            <!-- Sentiment Gauge -->
+            <div class="col-md-4">
+                <div class="chart-panel">
+                    <div class="chart-panel-header">
+                        <h6>Market Sentiment</h6>
+                    </div>
+                    <div class="chart-panel-body text-center">
+                        <div style="height: 120px; width: 100%; position: relative;">
+                            <canvas id="sentimentGaugeChart"></canvas>
+                        </div>
+                        <div class="mt-2">
+                            <h5 class="mb-1" x-text="statistics.sentiment"></h5>
+                            <p class="text-muted small mb-0">
+                                <span class="text-success" x-text="statistics.positive_count"></span> positive / 
+                                <span class="text-danger" x-text="statistics.negative_count"></span> negative
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enhanced Statistics Grid -->
+            <div class="col-md-8">
+                <div class="row g-3">
+                    <div class="col-md-4 col-sm-6">
+                        <div class="metric-card">
+                            <div class="metric-label">Median</div>
+                            <div class="metric-value" x-text="statistics.median + '%'"></div>
+                            <div class="metric-sublabel">Middle Value</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="metric-card">
+                            <div class="metric-label">Std Dev</div>
+                            <div class="metric-value" x-text="statistics.std_dev + '%'"></div>
+                            <div class="metric-sublabel">Volatility</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="metric-card">
+                            <div class="metric-label">P25</div>
+                            <div class="metric-value" x-text="statistics.p25 + '%'"></div>
+                            <div class="metric-sublabel">25th Percentile</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="metric-card">
+                            <div class="metric-label">P75</div>
+                            <div class="metric-value" x-text="statistics.p75 + '%'"></div>
+                            <div class="metric-sublabel">75th Percentile</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="metric-card">
+                            <div class="metric-label">Annualized</div>
+                            <div class="metric-value text-warning" x-text="statistics.annualized_apy + '%'"></div>
+                            <div class="metric-sublabel">Cost/Year</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-sm-6">
+                        <div class="metric-card">
+                            <div class="metric-label">Score</div>
+                            <div class="metric-value" :class="{
+                                'text-danger': statistics.sentiment_score < 33,
+                                'text-warning': statistics.sentiment_score >= 33 && statistics.sentiment_score < 67,
+                                'text-success': statistics.sentiment_score >= 67
+                            }" x-text="statistics.sentiment_score"></div>
+                            <div class="metric-sublabel">0-100</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+                <div class="chart-panel">
+                    <div class="chart-panel-header">
+                        <h5>Funding Rate OHLC</h5>
+                        <select x-model="selectedExchange" @change="refreshData()" class="form-select form-select-sm" style="width: 120px;">
+                            <option value="Binance">Binance</option>
+                            <option value="Bybit">Bybit</option>
+                        </select>
+                    </div>
+                    <div class="chart-panel-body">
+                        <div style="height: 250px; position: relative;">
+                            <canvas id="candlestickChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="chart-panel">
+                    <div class="chart-panel-header">
+                        <h5>Multi-Exchange Comparison</h5>
+                    </div>
+                    <div class="chart-panel-body">
+                        <div style="height: 250px; position: relative;">
+                            <canvas id="comparisonChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Arbitrage Opportunities -->
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="table-panel">
+                    <div class="table-panel-header">
+                        <h5>🎯 Top Arbitrage Opportunities</h5>
+                        <span class="badge bg-success" x-text="arbitrageOpportunities.length + ' opportunities'"></span>
+                    </div>
+                    <div class="table-panel-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Long Exchange</th>
+                                        <th>Short Exchange</th>
+                                        <th>Spread</th>
+                                        <th>Est. Annual Profit</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="(opp, idx) in arbitrageOpportunities.slice(0, 10)" :key="idx">
+                                        <tr>
+                                            <td x-text="idx + 1"></td>
+                                            <td>
+                                                <strong x-text="opp.longExchange"></strong>
+                                                <span class="text-muted small"> (<span x-text="opp.longRate"></span>%)</span>
+                                            </td>
+                                            <td>
+                                                <strong x-text="opp.shortExchange"></strong>
+                                                <span class="text-muted small"> (<span x-text="opp.shortRate"></span>%)</span>
+                                            </td>
+                                            <td><span class="badge bg-success" x-text="opp.spreadBps + ' bps'"></span></td>
+                                            <td class="text-success fw-bold" x-text="opp.annualizedProfit + '%'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Main Content Grid -->
         <div class="row g-4 mb-4">
             
@@ -330,6 +500,75 @@
         /* Advanced Dashboard Styles */
         .funding-advanced-dashboard {
             padding: 1rem;
+            position: relative;
+        }
+
+        /* Hide elements until Alpine loads */
+        [x-cloak] { display: none !important; }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .loading-content {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .loading-content .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+
+        /* Real-time Indicator */
+        .realtime-indicator {
+            position: fixed;
+            top: 70px;
+            right: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 0.75rem;
+            font-weight: 600;
+            z-index: 1000;
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .pulse-live {
+            background: #22c55e;
+            box-shadow: 0 0 0 rgba(34, 197, 94, 0.4);
+        }
+
+        .pulse-loading {
+            background: #f59e0b;
+            box-shadow: 0 0 0 rgba(245, 158, 11, 0.4);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
 
         /* Actual Funding Banner - Hero Display */

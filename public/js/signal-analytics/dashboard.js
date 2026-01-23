@@ -160,63 +160,25 @@
       }
     };
 
-    // Number formatting with Indonesian locale (dot for thousands, comma for decimals)
-    const formatNumber = (value, decimals = 2, showZero = true) => {
+    const formatNumber = (value, decimals = 2) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      if (n === 0 && !showZero) return '-';
-      
-      const fixed = Math.abs(n).toFixed(decimals);
-      const [integerPart, decimalPart] = fixed.split('.');
-      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-      const result = decimals > 0 ? `${formattedInteger},${decimalPart}` : formattedInteger;
-      return n < 0 ? `-${result}` : result;
+      return n.toFixed(decimals);
     };
 
-    const formatPercent = (value, decimals = 2) => {
+    const formatPercent = (value) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      const percentage = n > 1 ? n : n * 100;
-      return formatNumber(percentage, decimals) + '%';
+      return (n > 1 ? n : n * 100).toFixed(2) + '%';
     };
 
-    const formatRatioPercent = (value, decimals = 2) => {
+    const formatRatioPercent = (value) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      return formatNumber(n * 100, decimals) + '%';
-    };
-
-    const formatCurrency = (value, decimals = 2, currency = '$') => {
-      if (value === null || value === undefined || value === '') return '-';
-      const n = Number(value);
-      if (!Number.isFinite(n)) return '-';
-      const formatted = formatNumber(n, decimals);
-      return formatted === '-' ? '-' : `${currency} ${formatted}`;
-    };
-
-    /**
-     * Parse and format numbers inside a text message
-     * Matches floating points and integers after =, :, or space
-     */
-    const formatMessageText = (text) => {
-      if (!text) return '-';
-      // Regex matches numbers that look like prices or values: 
-      // 1. After =, :, or space
-      // 2. May have decimals
-      // 3. At least 2 digits total or has decimal to avoid small indices
-      return String(text).replace(/([=:\s])(\d+\.\d+|\d{2,})(\b)/g, (match, p1, p2, p3) => {
-        const n = Number(p2);
-        // Only format if it's a valid finite number and not a year-like integer
-        if (Number.isFinite(n) && (p2.includes('.') || n > 2100 || n < 1900)) {
-          // If it has decimals, keep original decimal count or 2
-          const decs = p2.includes('.') ? p2.split('.')[1].length : 0;
-          return p1 + formatNumber(n, decs) + p3;
-        }
-        return match;
-      });
+      return (n * 100).toFixed(2) + '%';
     };
 
     const toApiDatetime = (dtLocalValue) => {
@@ -330,354 +292,11 @@
       return json ?? text;
     };
 
-    const modalFormattedEl = byId('sa-modal-formatted');
-
-    const createDetailRow = (label, value, valueClass = '') => {
-      const row = document.createElement('div');
-      row.className = 'sa-detail-row';
-      
-      const labelEl = document.createElement('span');
-      labelEl.className = 'sa-detail-label';
-      labelEl.textContent = label;
-      
-      const valueEl = document.createElement('span');
-      valueEl.className = 'sa-detail-value' + (valueClass ? ' ' + valueClass : '');
-      valueEl.textContent = value;
-      
-      row.appendChild(labelEl);
-      row.appendChild(valueEl);
-      return row;
-    };
-
-    const createDetailCard = (icon, title, rows) => {
-      const card = document.createElement('div');
-      card.className = 'sa-detail-card';
-      
-      const header = document.createElement('div');
-      header.className = 'sa-detail-card-header';
-      header.innerHTML = `${icon} ${escapeText(title)}`;
-      card.appendChild(header);
-      
-      rows.forEach(r => card.appendChild(r));
-      return card;
-    };
-
-    const createBadge = (type) => {
-      const badge = document.createElement('span');
-      badge.className = 'sa-badge ' + normalize(type);
-      badge.textContent = type;
-      return badge;
-    };
-
-    const formatSignalDetail = (data) => {
-      const container = document.createElement('div');
-      
-      // Header badges
-      const badgeRow = document.createElement('div');
-      badgeRow.className = 'd-flex gap-2 mb-3';
-      if (data.type) badgeRow.appendChild(createBadge(data.type));
-      if (data.jenis) badgeRow.appendChild(createBadge(data.jenis));
-      container.appendChild(badgeRow);
-      
-      // Grid
-      const grid = document.createElement('div');
-      grid.className = 'sa-detail-grid';
-      
-      // Basic Info Card
-      const infoRows = [
-        createDetailRow('ID', data.id ?? '-'),
-        createDetailRow('Method ID', data.id_method ?? '-'),
-        createDetailRow('Date Time', data.datetime ?? data.created_at ?? '-'),
-        createDetailRow('Symbol', data.pair ?? data.symbol ?? state.methodMeta?.symbol ?? '-'),
-      ];
-      grid.appendChild(createDetailCard('📊', 'Signal Info', infoRows));
-      
-      // Price Card
-      const entryPrice = Number(data.price_entry || data.price || 0);
-      const exitPrice = Number(data.price_exit || 0);
-      const targetTp = Number(data.target_tp || 0);
-      const targetSl = Number(data.target_sl || 0);
-      
-      const priceRows = [
-        createDetailRow('Entry Price', entryPrice ? formatCurrency(entryPrice, 2) : '-'),
-        createDetailRow('Exit Price', exitPrice ? formatCurrency(exitPrice, 2) : '-'),
-        createDetailRow('Quantity', data.quantity ?? data.qty ?? '-'),
-        createDetailRow('Balance', data.balance ? formatCurrency(data.balance, 2) : '-'),
-      ];
-      grid.appendChild(createDetailCard('💰', 'Price Details', priceRows));
-      
-      // Target Card
-      const tpRows = [
-        createDetailRow('Target TP', targetTp ? formatCurrency(targetTp, 2) : '-', 'positive'),
-        createDetailRow('Target SL', targetSl ? formatCurrency(targetSl, 2) : '-', 'negative'),
-        createDetailRow('Real TP', data.real_tp ? formatCurrency(data.real_tp, 2) : '-', 'positive'),
-        createDetailRow('Real SL', data.real_sl ? formatCurrency(data.real_sl, 2) : '-', 'negative'),
-      ];
-      grid.appendChild(createDetailCard('🎯', 'TP / SL Targets', tpRows));
-      
-      // Status Card
-      const statusRows = [
-        createDetailRow('Telegram Sent', data.telegram_sent ? '✅ Yes' : '❌ No'),
-        createDetailRow('Sent At', data.telegram_sent_at ?? '-'),
-        createDetailRow('Created', data.created_at ?? '-'),
-        createDetailRow('Updated', data.updated_at ?? '-'),
-      ];
-      grid.appendChild(createDetailCard('📤', 'Status', statusRows));
-      
-      container.appendChild(grid);
-      
-      // Message
-      if (data.message) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'sa-detail-message';
-        msgDiv.textContent = data.message.replace(/\\n/g, '\n');
-        container.appendChild(msgDiv);
-      }
-      
-      return container;
-    };
-
-    const formatOrderDetail = (data) => {
-      const container = document.createElement('div');
-      
-      const badgeRow = document.createElement('div');
-      badgeRow.className = 'd-flex gap-2 mb-3';
-      if (data.type) badgeRow.appendChild(createBadge(data.type));
-      if (data.jenis) badgeRow.appendChild(createBadge(data.jenis));
-      container.appendChild(badgeRow);
-      
-      const grid = document.createElement('div');
-      grid.className = 'sa-detail-grid';
-      
-      const infoRows = [
-        createDetailRow('ID', data.id ?? '-'),
-        createDetailRow('Method ID', data.id_method ?? '-'),
-        createDetailRow('Date Time', data.datetime ?? data.created_at ?? '-'),
-        createDetailRow('Symbol', data.symbol ?? data.pair ?? '-'),
-      ];
-      grid.appendChild(createDetailCard('📊', 'Order Info', infoRows));
-      
-      const price = Number(data.price ?? data.price_entry ?? data.price_exit ?? 0);
-      const qty = Number(data.quantity ?? data.qty ?? 0);
-      const total = price * qty;
-      
-      const priceRows = [
-        createDetailRow('Price', price ? formatCurrency(price, 2) : '-'),
-        createDetailRow('Quantity', qty ? formatNumber(qty, 6) : '-'),
-        createDetailRow('Total', total ? formatCurrency(total, 2) : '-'),
-        createDetailRow('Balance', data.balance ? formatCurrency(data.balance, 2) : '-'),
-      ];
-      grid.appendChild(createDetailCard('💰', 'Trade Details', priceRows));
-      
-      container.appendChild(grid);
-      
-      if (data.message) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'sa-detail-message';
-        msgDiv.textContent = formatMessageText(data.message.replace(/\\n/g, '\n'));
-        container.appendChild(msgDiv);
-      }
-      
-      return container;
-    };
-
-    const formatBinanceAssetDetail = (data) => {
-      const container = document.createElement('div');
-      const grid = document.createElement('div');
-      grid.className = 'sa-detail-grid';
-      
-      const infoRows = [
-        createDetailRow('Asset', data.asset ?? '-'),
-        createDetailRow('Free', formatNumber(data.free ?? 0, 8)),
-        createDetailRow('Locked', formatNumber(data.locked ?? 0, 8)),
-      ];
-      grid.appendChild(createDetailCard('💰', 'Asset Info', infoRows));
-      
-      const price = data.price_usdt ?? 0;
-      const amount = (Number(data.free) || 0) + (Number(data.locked) || 0);
-      const value = data.value_usdt ?? (price * amount);
-      
-      const valueRows = [
-        createDetailRow('Price (USDT)', formatNumber(price, 6)),
-        createDetailRow('Total Amount', formatNumber(amount, 8)),
-        createDetailRow('Total Value', formatCurrency(value, 2)),
-      ];
-      grid.appendChild(createDetailCard('📊', 'Market Value', valueRows));
-      
-      container.appendChild(grid);
-      return container;
-    };
-
-    const formatBinanceOrderDetail = (data) => {
-      const container = document.createElement('div');
-      const grid = document.createElement('div');
-      grid.className = 'sa-detail-grid';
-      
-      const infoRows = [
-        createDetailRow('Symbol', data.symbol ?? '-'),
-        createDetailRow('Side', data.side ?? '-'),
-        createDetailRow('Type', data.type ?? '-'),
-        createDetailRow('Status', data.status ?? '-'),
-      ];
-      grid.appendChild(createDetailCard('📋', 'Order Info', infoRows));
-      
-      const price = Number(data.price || 0);
-      const qty = Number(data.origQty || 0);
-      const exeQty = Number(data.executedQty || 0);
-      
-      const tradeRows = [
-        createDetailRow('Price', formatNumber(price, 6)),
-        createDetailRow('Orig Qty', formatNumber(qty, 6)),
-        createDetailRow('Executed', formatNumber(exeQty, 6)),
-        createDetailRow('Time', row.time ? formatEpochMs(data.time) : '-'),
-      ];
-      grid.appendChild(createDetailCard('💸', 'Trade Details', tradeRows));
-      
-      container.appendChild(grid);
-      return container;
-    };
-
-    const formatBinanceTradeDetail = (data) => {
-      const container = document.createElement('div');
-      const grid = document.createElement('div');
-      grid.className = 'sa-detail-grid';
-      
-      const side = data.isBuyer === true ? 'BUY' : data.isBuyer === false ? 'SELL' : data.side ?? '-';
-      
-      const infoRows = [
-        createDetailRow('Symbol', data.symbol ?? '-'),
-        createDetailRow('Side', side),
-        createDetailRow('ID', data.id ?? '-'),
-        createDetailRow('Order ID', data.orderId ?? '-'),
-      ];
-      grid.appendChild(createDetailCard('🤝', 'Trade Info', infoRows));
-      
-      const price = Number(data.price || 0);
-      const qty = Number(data.qty || 0);
-      const quote = data.quoteQty ?? (price * qty);
-      
-      const mathRows = [
-        createDetailRow('Price', formatNumber(price, 6)),
-        createDetailRow('Quantity', formatNumber(qty, 6)),
-        createDetailRow('Quote Qty', formatNumber(quote, 6)),
-        createDetailRow('Time', data.time ? formatEpochMs(data.time) : '-'),
-      ];
-      grid.appendChild(createDetailCard('📊', 'Value Details', mathRows));
-      
-      container.appendChild(grid);
-      return container;
-    };
-
-    const formatReminderDetail = (data) => {
-      const container = document.createElement('div');
-      
-      const grid = document.createElement('div');
-      grid.className = 'sa-detail-grid';
-      
-      const infoRows = [
-        createDetailRow('ID', data.id ?? '-'),
-        createDetailRow('Method ID', data.id_method ?? '-'),
-        createDetailRow('Date Time', data.datetime ?? '-'),
-        createDetailRow('Telegram Sent', data.telegram_sent ? '✅ Yes' : '❌ No'),
-      ];
-      grid.appendChild(createDetailCard('🔔', 'Reminder Info', infoRows));
-      
-      const statusRows = [
-        createDetailRow('Sent At', data.telegram_sent_at ?? '-'),
-        createDetailRow('Created', data.created_at ?? '-'),
-        createDetailRow('Updated', data.updated_at ?? '-'),
-      ];
-      grid.appendChild(createDetailCard('📤', 'Status', statusRows));
-      
-      container.appendChild(grid);
-      
-      if (data.message) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'sa-detail-message';
-        msgDiv.textContent = formatMessageText(data.message.replace(/\\n/g, '\n'));
-        container.appendChild(msgDiv);
-      }
-      
-      return container;
-    };
-
-    const formatLogDetail = (data) => {
-      const container = document.createElement('div');
-      
-      const infoCard = document.createElement('div');
-      infoCard.className = 'sa-detail-card mb-3';
-      
-      const header = document.createElement('div');
-      header.className = 'sa-detail-card-header';
-      header.innerHTML = '📋 Log Entry';
-      infoCard.appendChild(header);
-      
-      infoCard.appendChild(createDetailRow('Date Time', data.datetime ?? data.date_time ?? data.created_at ?? '-'));
-      if (data.id) infoCard.appendChild(createDetailRow('ID', data.id));
-      if (data.id_method) infoCard.appendChild(createDetailRow('Method ID', data.id_method));
-      
-      container.appendChild(infoCard);
-      
-      if (data.message) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'sa-detail-message';
-        // Parse message sections
-        const msg = String(data.message).replace(/\\n/g, '\n').replace(/ \| /g, '\n');
-        msgDiv.textContent = formatMessageText(msg);
-        container.appendChild(msgDiv);
-      }
-      
-      return container;
-    };
-
-    const openModal = (title, content, type = 'raw') => {
-      if (!modalEl || !modalTitleEl) return;
+    const openModal = (title, content) => {
+      if (!modalEl || !modalTitleEl || !modalPreEl) return;
       modalTitleEl.textContent = title || 'Detail';
-      
-      // Hide both containers first
-      if (modalFormattedEl) modalFormattedEl.style.display = 'none';
-      if (modalPreEl) modalPreEl.style.display = 'none';
-      
-      if (type === 'raw' || typeof content === 'string') {
-        // Raw/text mode - use pre
-        if (modalPreEl) {
-          modalPreEl.style.display = 'block';
-          modalPreEl.textContent = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
-        }
-      } else if (modalFormattedEl) {
-        // Formatted mode
-        modalFormattedEl.style.display = 'block';
-        modalFormattedEl.innerHTML = '';
-        
-        let formatted = null;
-        if (type === 'signal') {
-          formatted = formatSignalDetail(content);
-        } else if (type === 'order') {
-          formatted = formatOrderDetail(content);
-        } else if (type === 'reminder') {
-          formatted = formatReminderDetail(content);
-        } else if (type === 'log') {
-          formatted = formatLogDetail(content);
-        } else if (type === 'binance-asset') {
-          formatted = formatBinanceAssetDetail(content);
-        } else if (type === 'binance-order') {
-          formatted = formatBinanceOrderDetail(content);
-        } else if (type === 'binance-trade') {
-          formatted = formatBinanceTradeDetail(content);
-        }
-        
-        if (formatted) {
-          modalFormattedEl.appendChild(formatted);
-        } else {
-          // Fallback to raw
-          if (modalPreEl) {
-            modalPreEl.style.display = 'block';
-            modalPreEl.textContent = JSON.stringify(content, null, 2);
-          }
-          modalFormattedEl.style.display = 'none';
-        }
-      }
-      
+      modalPreEl.textContent =
+        typeof content === 'string' ? content : JSON.stringify(content, null, 2);
       modalEl.classList.add('is-open');
       modalEl.setAttribute('aria-hidden', 'false');
     };
@@ -722,7 +341,7 @@
       tbody.appendChild(tr);
     };
 
-    const PAGE_SIZE = 10;
+    const PAGE_SIZE = 5;
 
     const getPageSize = (name) => {
       const ps = state.pageSizes?.[name];
@@ -790,19 +409,6 @@
 
       parent.insertBefore(searchWrap, logsStatus);
       parent.insertBefore(pageWrap, logsStatus);
-
-      // Add listeners
-      searchInput.addEventListener('input', (e) => {
-        state.search = state.search || {};
-        state.search.logs = e.target.value;
-        loadLogs(1);
-      });
-
-      pageSelect.addEventListener('change', (e) => {
-        state.pageSizes = state.pageSizes || {};
-        state.pageSizes.logs = Number(e.target.value);
-        loadLogs(1);
-      });
     };
 
     const renderPager = (el, totalItems, currentPage, onChange, pageSize = PAGE_SIZE) => {
@@ -1399,7 +1005,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal(`Asset ${row.asset || ''}`, row, 'binance-asset'));
+        tr.addEventListener('click', () => openModal(`Asset ${row.asset || ''}`, row));
 
         const cols = [
           escapeText(row.asset ?? '-'),
@@ -1437,7 +1043,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal('Binance Order', row, 'binance-order'));
+        tr.addEventListener('click', () => openModal('Order', row));
 
         const cols = [
           formatEpochMs(row.time),
@@ -1476,7 +1082,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal('Binance Trade', row, 'binance-trade'));
+        tr.addEventListener('click', () => openModal('Trade', row));
 
         const side =
           row.isBuyer === true ? 'BUY' : row.isBuyer === false ? 'SELL' : row.side ?? '-';
@@ -1680,8 +1286,7 @@
 
     const createMessageCell = (value) => {
       const td = document.createElement('td');
-      const raw = escapeText(value ?? '');
-      const full = formatMessageText(raw);
+      const full = escapeText(value ?? '');
 
       const div = document.createElement('div');
       div.className = 'sa-message-snippet';
@@ -1723,7 +1328,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/orders/${row.id}`);
-            openModal(`Order #${row.id}`, detail, 'order');
+            openModal(`Order #${row.id}`, detail);
           } catch (err) {
             openModal(`Order #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1787,7 +1392,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/signals/${row.id}`);
-            openModal(`Signal #${row.id}`, detail, 'signal');
+            openModal(`Signal #${row.id}`, detail);
           } catch (err) {
             openModal(`Signal #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1851,7 +1456,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/reminders/${row.id}`);
-            openModal(`Reminder #${row.id}`, detail, 'reminder');
+            openModal(`Reminder #${row.id}`, detail);
           } catch (err) {
             openModal(`Reminder #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1906,7 +1511,8 @@
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', () => {
-          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', row, 'log');
+          const human = toHumanMessage(row.message || '');
+          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', human || '(no message)');
         });
 
         const tdDt = document.createElement('td');
@@ -2107,10 +1713,9 @@
       }
     };
 
-    const loadLogs = async (page = null) => {
+    const loadLogs = async () => {
       if (!state.selectedMethodId) {
         state.latestLogs = [];
-        state.logsHasMore = false;
         updateTabCounts();
         clearTbody(logsBody, 2, 'Select a method to load logs.');
         clearPager(logsPagination);
@@ -2118,126 +1723,23 @@
         return;
       }
 
-      const currentPage = page !== null ? page : (state.pages.logs || 1);
-      const pageSize = getPageSize('logs');
-      const offset = (currentPage - 1) * pageSize;
-      
       const q = getGlobalQuery();
 
       setTableStatus(logsStatus, 'Loading...');
       try {
-        // Server-side pagination using API's limit/offset
-        const items = await fetchJson('/logs', { 
-          ...q, 
-          q: state.search?.logs || '', // Pass search query to server
-          limit: pageSize + 1, // Fetch one extra to know if there's more
-          offset: offset 
-        });
-        
-        const allLogs = Array.isArray(items) ? items : [];
-        
-        // Check if there are more pages
-        const hasMore = allLogs.length > pageSize;
-        state.logsHasMore = hasMore;
-        
-        // Only keep pageSize items for display
-        const logs = hasMore ? allLogs.slice(0, pageSize) : allLogs;
-        
+        const items = await fetchJson('/logs', q);
+        const logs = Array.isArray(items) ? items : [];
         state.latestLogs = logs;
-        state.pages.logs = currentPage;
-        
-        renderLogsServerSide(logs, currentPage, hasMore, pageSize);
+        renderLogs(logs);
         updateTabCounts();
-        setTableStatus(logsStatus, `Page ${currentPage}`);
+        setTableStatus(logsStatus, `Loaded ${logs.length} logs.`);
       } catch (err) {
         state.latestLogs = [];
-        state.logsHasMore = false;
         updateTabCounts();
         clearTbody(logsBody, 2, 'Failed to load logs.');
         clearPager(logsPagination);
         setTableStatus(logsStatus, 'Error: ' + (err?.message || String(err)));
       }
-    };
-    
-    // Server-side pagination renderer for logs
-    const renderLogsServerSide = (items, currentPage, hasMore, pageSize) => {
-      if (!logsBody) return;
-      logsBody.innerHTML = '';
-      
-      if (!Array.isArray(items) || items.length === 0) {
-        clearTbody(logsBody, 2, currentPage > 1 ? 'No more logs.' : 'No logs.');
-        // Still show pagination for going back
-        if (currentPage > 1) {
-          renderServerPager(logsPagination, currentPage, hasMore);
-        } else {
-          clearPager(logsPagination);
-        }
-        return;
-      }
-
-      // Render table rows
-      items.forEach((row) => {
-        const tr = document.createElement('tr');
-        tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => {
-          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', row, 'log');
-        });
-
-        const tdDt = document.createElement('td');
-        tdDt.textContent = escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-');
-        tr.appendChild(tdDt);
-        tr.appendChild(createMessageCell(row.message));
-
-        logsBody.appendChild(tr);
-      });
-      
-      // Render server-side pagination
-      renderServerPager(logsPagination, currentPage, hasMore);
-    };
-    
-    // Simple prev/next pagination for server-side
-    const renderServerPager = (el, currentPage, hasMore) => {
-      if (!el) return;
-      el.innerHTML = '';
-      
-      const wrapper = document.createElement('div');
-      wrapper.className = 'd-flex align-items-center justify-content-center gap-2';
-      
-      // Previous button
-      const prevBtn = document.createElement('button');
-      prevBtn.type = 'button';
-      prevBtn.className = 'btn btn-sm btn-outline-secondary';
-      prevBtn.innerHTML = '← Prev';
-      prevBtn.disabled = currentPage <= 1;
-      prevBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (currentPage > 1) {
-          loadLogs(currentPage - 1);
-        }
-      });
-      wrapper.appendChild(prevBtn);
-      
-      // Page indicator
-      const pageInfo = document.createElement('span');
-      pageInfo.className = 'badge bg-primary px-3 py-2';
-      pageInfo.textContent = `Page ${currentPage}`;
-      wrapper.appendChild(pageInfo);
-      
-      // Next button
-      const nextBtn = document.createElement('button');
-      nextBtn.type = 'button';
-      nextBtn.className = 'btn btn-sm btn-outline-secondary';
-      nextBtn.innerHTML = 'Next →';
-      nextBtn.disabled = !hasMore;
-      nextBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (hasMore) {
-          loadLogs(currentPage + 1);
-        }
-      });
-      wrapper.appendChild(nextBtn);
-      
-      el.appendChild(wrapper);
     };
 
     const refreshAll = async () => {

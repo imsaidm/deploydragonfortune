@@ -188,11 +188,16 @@ Route::prefix('api/coinglass/funding-rate')->group(function () {
 });
 
 // Database Funding Rate (reads from local cg_funding_rate tables)
-Route::prefix('api/db/funding-rate')->group(function () {
+Route::prefix('data/funding-rate')->group(function () {
     Route::get('/exchange-list', [App\Http\Controllers\Database\FundingRateDbController::class, 'exchangeList']);
     Route::get('/history', [App\Http\Controllers\Database\FundingRateDbController::class, 'history']);
     Route::get('/exchanges', [App\Http\Controllers\Database\FundingRateDbController::class, 'exchanges']);
     Route::get('/ai-analysis', [App\Http\Controllers\Database\FundingRateDbController::class, 'aiAnalysis']);
+    // New enhanced endpoints
+    Route::get('/ohlc', [App\Http\Controllers\Database\FundingRateDbController::class, 'ohlc']);
+    Route::get('/comparison', [App\Http\Controllers\Database\FundingRateDbController::class, 'comparison']);
+    Route::get('/volatility', [App\Http\Controllers\Database\FundingRateDbController::class, 'volatility']);
+    Route::get('/statistics', [App\Http\Controllers\Database\FundingRateDbController::class, 'statistics']);
 });
 
 // Coinglass Long-Short Ratio (new proxy endpoints)
