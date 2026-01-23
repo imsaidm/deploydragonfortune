@@ -139,6 +139,9 @@ export function createFundingRateAdvancedController() {
             key_insights: []
         },
 
+        // Abort controller for cancelling pending requests
+        abortController: null,
+
         async init() {
             console.log('🚀 Advanced Funding Rate Dashboard initialized');
             
@@ -160,20 +163,23 @@ export function createFundingRateAdvancedController() {
         },
         
         scheduleAutoRefresh() {
-            console.log('⏰ Scheduling next auto-refresh in 10s');
             // Clear any existing timeout just in case
             if (this.refreshTimeoutId) clearTimeout(this.refreshTimeoutId);
             
             this.refreshTimeoutId = setTimeout(async () => {
-                console.log('🔄 Auto-refreshing data...');
-                try {
-                    await this.loadAllData(true); // Is background update
-                } catch (err) {
-                    console.error('Refresh error:', err);
-                } finally {
-                    // Schedule next refresh regardless of success/fail
-                    this.scheduleAutoRefresh();
+                if (!document.hidden) { // Only refresh if tab is visible
+                    console.log('🔄 Auto-refreshing data...');
+                    try {
+                        await this.loadAllData(true); // Is background update
+                    } catch (err) {
+                        // Ignore abort errors
+                        if (err.name !== 'AbortError') {
+                            console.error('Refresh error:', err);
+                        }
+                    } 
                 }
+                // Schedule next refresh
+                this.scheduleAutoRefresh();
             }, 10000);
         },
 
@@ -193,12 +199,26 @@ export function createFundingRateAdvancedController() {
         },
 
         async loadAllData(isBackgroundUpdate = false) {
-            // Prevent parallel fetches, but allow if it's a forced refresh (user action)
-            if (this.isLoading) {
-                console.log('⏳ Fetch already in progress, skipping...');
-                return;
+            // If manual update, abort any running background update
+            if (!isBackgroundUpdate) {
+                if (this.abortController) {
+                    this.abortController.abort();
+                    console.log('🛑 Aborted previous fetch for new manual request');
+                }
+                // Reset loading state if we aborted
+                this.isLoading = false;
+            } else {
+                // If background update but loading is true (manual in progress), skip
+                if (this.isLoading) {
+                    console.log('⏳ Manual fetch in progress, skipping background update...');
+                    return;
+                }
             }
-            
+
+            // Create new controller for this batch
+            this.abortController = new AbortController();
+            const signal = this.abortController.signal;
+
             this.isLoading = true;
             
             try {
@@ -206,12 +226,15 @@ export function createFundingRateAdvancedController() {
                 console.log(`🔄 Fetching data for ${this.selectedSymbol} (${this.timeRange})...`);
                 
                 const [exchangeListRes, historyRes, ohlcRes, comparisonRes, statisticsRes] = await Promise.all([
-                    this.fetchExchangeList(),
-                    this.fetchHistory(),
-                    this.fetchOHLC(),
-                    this.fetchComparison(),
-                    this.fetchStatistics()
+                    this.fetchExchangeList(signal),
+                    this.fetchHistory(signal),
+                    this.fetchOHLC(signal),
+                    this.fetchComparison(signal),
+                    this.fetchStatistics(signal)
                 ]);
+
+                // Check abort again (in case it was aborted during await)
+                if (signal.aborted) return;
 
                 // Exchange List
                 if (exchangeListRes && exchangeListRes.data && exchangeListRes.data.length > 0) {
@@ -255,64 +278,74 @@ export function createFundingRateAdvancedController() {
                 console.log('✅ All data loaded successfully');
 
             } catch (error) {
-                console.error('❌ Error loading data:', error);
-                this.lastSync = 'error';
+                if (error.name === 'AbortError') {
+                    console.log('⏹️ Fetch aborted');
+                } else {
+                    console.error('❌ Error loading data:', error);
+                    this.lastSync = 'error';
+                }
             } finally {
-                this.isLoading = false;
+                // Only reset loading if this wasn't aborted by a newer request
+                if (this.abortController && this.abortController.signal === signal) {
+                    this.isLoading = false;
+                    this.abortController = null;
+                }
             }
         },
 
-        async fetchExchangeList() {
+        async fetchExchangeList(signal) {
             try {
                 // Using database endpoint (has 108+ records)
-                const response = await fetch(`/data/funding-rate/exchange-list?symbol=${this.selectedSymbol}`);
+                const response = await fetch(`/data/funding-rate/exchange-list?symbol=${this.selectedSymbol}`, { signal });
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log('📊 Loaded from DATABASE:', data.data?.length || 0, 'exchanges');
+                    // console.log('📊 Loaded from DATABASE:', data.data?.length || 0, 'exchanges');
                     return data;
                 } else {
                     console.error('DB error:', data.error || data.message);
                     return null;
                 }
             } catch (error) {
-                console.error('Fetch error:', error);
-                return null;
+                if (error.name !== 'AbortError') console.error('Fetch error:', error);
+                throw error; // Re-throw for handling in loadAllData
             }
         },
 
-        async fetchHistory() {
+        async fetchHistory(signal) {
             try {
                 const limitMap = { '24h': 24, '7d': 168, '30d': 500 };
                 const limit = limitMap[this.timeRange] || 100;
 
                 // Using database endpoint (has 500k+ history records)
                 const response = await fetch(
-                    `/data/funding-rate/history?symbol=${this.selectedSymbol}&interval=1h&limit=${limit}`
+                    `/data/funding-rate/history?symbol=${this.selectedSymbol}&interval=1h&limit=${limit}`,
+                    { signal }
                 );
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log('📈 Loaded history from DATABASE:', data.count || 0, 'records');
+                    // console.log('📈 Loaded history from DATABASE:', data.count || 0, 'records');
                     return data;
                 } else {
                     console.error('History DB error:', data.error || data.message);
                     return null;
                 }
             } catch (error) {
-                console.error('History fetch error:', error);
-                return null;
+                if (error.name !== 'AbortError') console.error('History fetch error:', error);
+                throw error;
             }
         },
 
-        async fetchOHLC() {
+        async fetchOHLC(signal) {
             try {
                 const limitMap = { '24h': 24, '7d': 168, '30d': 500 };
                 const limit = limitMap[this.timeRange] || 100;
 
                 // Try fetching for selected exchange
                 let response = await fetch(
-                    `/data/funding-rate/ohlc?symbol=${this.selectedSymbol}&exchange=${this.selectedExchange}&interval=${this.selectedInterval}&limit=${limit}`
+                    `/data/funding-rate/ohlc?symbol=${this.selectedSymbol}&exchange=${this.selectedExchange}&interval=${this.selectedInterval}&limit=${limit}`,
+                    { signal }
                 );
                 let data = await response.json();
                 
@@ -320,7 +353,8 @@ export function createFundingRateAdvancedController() {
                 if ((!data.success || !data.data || data.data.length === 0) && this.selectedExchange !== 'Binance') {
                     console.log('⚠️ No OHLC data for', this.selectedExchange, '- falling back to Binance');
                     response = await fetch(
-                        `/data/funding-rate/ohlc?symbol=${this.selectedSymbol}&exchange=Binance&interval=${this.selectedInterval}&limit=${limit}`
+                        `/data/funding-rate/ohlc?symbol=${this.selectedSymbol}&exchange=Binance&interval=${this.selectedInterval}&limit=${limit}`,
+                        { signal }
                     );
                     data = await response.json();
                     if (data.success && data.data?.length > 0) {
@@ -329,58 +363,60 @@ export function createFundingRateAdvancedController() {
                 }
                 
                 if (data.success) {
-                    console.log('📊 Loaded OHLC from DATABASE:', data.count || 0, 'candles');
+                    // console.log('📊 Loaded OHLC from DATABASE:', data.count || 0, 'candles');
                     return data;
                 } else {
                     console.error('OHLC DB error:', data.error || data.message);
                     return null;
                 }
             } catch (error) {
-                console.error('OHLC fetch error:', error);
-                return null;
+                if (error.name !== 'AbortError') console.error('OHLC fetch error:', error);
+                throw error;
             }
         },
 
-        async fetchComparison() {
+        async fetchComparison(signal) {
             try {
                 const limitMap = { '24h': 24, '7d': 168, '30d': 500 };
                 const limit = Math.min(limitMap[this.timeRange] || 24, 100);
 
                 const response = await fetch(
-                    `/data/funding-rate/comparison?symbol=${this.selectedSymbol}&interval=${this.selectedInterval}&limit=${limit}`
+                    `/data/funding-rate/comparison?symbol=${this.selectedSymbol}&interval=${this.selectedInterval}&limit=${limit}`,
+                    { signal }
                 );
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log('📈 Loaded comparison from DATABASE:', data.exchanges?.length || 0, 'exchanges');
+                    // console.log('📈 Loaded comparison from DATABASE:', data.exchanges?.length || 0, 'exchanges');
                     return data;
                 } else {
                     console.error('Comparison DB error:', data.error || data.message);
                     return null;
                 }
             } catch (error) {
-                console.error('Comparison fetch error:', error);
-                return null;
+                if (error.name !== 'AbortError') console.error('Comparison fetch error:', error);
+                throw error;
             }
         },
 
-        async fetchStatistics() {
+        async fetchStatistics(signal) {
             try {
                 const response = await fetch(
-                    `/data/funding-rate/statistics?symbol=${this.selectedSymbol}`
+                    `/data/funding-rate/statistics?symbol=${this.selectedSymbol}`,
+                    { signal }
                 );
                 const data = await response.json();
                 
                 if (data.success) {
-                    console.log('📊 Loaded statistics from DATABASE');
+                    // console.log('📊 Loaded statistics from DATABASE');
                     return data;
                 } else {
                     console.error('Statistics DB error:', data.error || data.message);
                     return null;
                 }
             } catch (error) {
-                console.error('Statistics fetch error:', error);
-                return null;
+                if (error.name !== 'AbortError') console.error('Statistics fetch error:', error);
+                throw error;
             }
         },
 
