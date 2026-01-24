@@ -45,6 +45,8 @@
     const binanceDetailPanel = byId('sa-detail-binance');
 
     const binanceLiveEl = byId('sa-binance-live');
+    const binanceLabelEl = byId('sa-binance-label');
+    const binanceLogoImg = document.querySelector('.sa-binance-logo .sa-logo-img');
     const binanceAccountEl = byId('sa-binance-account');
     const binanceTotalEl = byId('sa-binance-total');
     const binanceAvailableEl = byId('sa-binance-available');
@@ -140,6 +142,7 @@
       search: { logs: '' },
       scroll: { preserve: true, lastY: 0 },
       autoTimer: null,
+      currentExchange: 'binance', // Track current exchange: 'binance' or 'bybit'
     };
 
     const escapeText = (value) => {
@@ -848,21 +851,75 @@
       }
     };
 
-    const detectBinanceType = () => {
+    /**
+     * Detect exchange and type from method detail
+     * Returns { exchange: 'binance'|'bybit', type: 'spot'|'futures'|'linear' }
+     */
+    const detectExchangeInfo = () => {
       const method = state.methodDetail || state.methods.find((x) => Number(x.id) === Number(state.selectedMethodId)) || null;
-      if (!method) return 'spot';
+      if (!method) return { exchange: 'binance', type: 'spot' };
       
+      // Get exchange from method.exchange column (lowercase)
+      const exchange = String(method.exchange || 'binance').toLowerCase().trim();
+      
+      // Detect type from method name
       const name = String(method.nama_metode || '').toLowerCase();
-      if (name.includes('futures') || name.includes('future')) {
-        return 'futures';
+      let type = 'spot';
+      
+      if (exchange === 'bybit') {
+        // Bybit: linear, inverse, or spot
+        if (name.includes('linear') || name.includes('futures') || name.includes('future')) {
+          type = 'linear';
+        } else if (name.includes('inverse')) {
+          type = 'inverse';
+        } else {
+          type = 'spot';
+        }
+      } else {
+        // Binance: spot or futures
+        if (name.includes('futures') || name.includes('future')) {
+          type = 'futures';
+        } else {
+          type = 'spot';
+        }
       }
-      return 'spot';
+      
+      return { exchange, type };
+    };
+    
+    // Legacy function for backward compatibility
+    const detectBinanceType = () => {
+      const info = detectExchangeInfo();
+      return info.type;
+    };
+
+    /**
+     * Update exchange branding (logo, label) based on current exchange
+     */
+    const updateExchangeBranding = () => {
+      const exchangeInfo = detectExchangeInfo();
+      const exchange = exchangeInfo.exchange;
+      
+      if (exchange === 'bybit') {
+        // Update to Bybit branding
+        if (binanceLabelEl) binanceLabelEl.textContent = 'Bybit';
+        if (binanceLogoImg) binanceLogoImg.src = '/images/bybitlogo.png';
+        if (binanceLogoImg) binanceLogoImg.alt = 'Bybit';
+      } else {
+        // Update to Binance branding
+        if (binanceLabelEl) binanceLabelEl.textContent = 'Binance';
+        if (binanceLogoImg) binanceLogoImg.src = '/images/binancelogo.png';
+        if (binanceLogoImg) binanceLogoImg.alt = 'Binance';
+      }
     };
 
     const renderBinanceSummary = () => {
       const summary = state.binanceSummary?.summary ?? {};
       const account = state.binanceSummary?.account ?? {};
       const assets = state.binanceSummary?.assets ?? [];
+      
+      // Update branding first
+      updateExchangeBranding();
 
       const accountLabel = account?.label || account?.type || 'SPOT';
       if (binanceAccountEl) {
@@ -915,8 +972,18 @@
         binanceLiveEl.textContent = 'Loading';
         binanceLiveEl.className = 'badge text-bg-secondary';
       }
-      const binanceType = detectBinanceType();
-      const endpoint = binanceType === 'futures' ? '/api/binance/futures/summary' : '/api/binance/spot/summary';
+      
+      // Detect exchange and type
+      const exchangeInfo = detectExchangeInfo();
+      state.currentExchange = exchangeInfo.exchange;
+      
+      let endpoint;
+      if (exchangeInfo.exchange === 'bybit') {
+        endpoint = '/api/bybit/summary';
+      } else {
+        endpoint = exchangeInfo.type === 'futures' ? '/api/binance/futures/summary' : '/api/binance/spot/summary';
+      }
+      
       const url = buildBinanceUrl(endpoint);
       try {
         const res = await fetch(url, { headers: { Accept: 'application/json' } });
@@ -1120,9 +1187,14 @@
       const symbol = getBinanceSymbol();
       setTableStatus(binanceOpenOrdersStatus, 'Loading...');
       try {
-        const binanceType = detectBinanceType();
-        const endpoint = binanceType === 'futures' ? '/api/binance/futures/open-orders' : '/api/binance/spot/open-orders';
-        const res = await fetchLocalJson(buildBinanceUrl(endpoint, { symbol }));
+        const exchangeInfo = detectExchangeInfo();
+        let endpoint;
+        if (exchangeInfo.exchange === 'bybit') {
+          endpoint = '/api/bybit/open-orders';
+        } else {
+          endpoint = exchangeInfo.type === 'futures' ? '/api/binance/futures/open-orders' : '/api/binance/spot/open-orders';
+        }
+        const res = await fetchLocalJson(buildBinanceUrl(endpoint, { symbol, category: exchangeInfo.type }));
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOpenOrders = items;
         updateTabCounts();
@@ -1144,15 +1216,20 @@
       const symbol = getBinanceSymbol();
       setTableStatus(binanceOrdersStatus, 'Loading...');
       try {
-        const binanceType = detectBinanceType();
-        const endpoint = binanceType === 'futures' ? '/api/binance/futures/orders' : '/api/binance/spot/orders';
+        const exchangeInfo = detectExchangeInfo();
+        let endpoint;
+        if (exchangeInfo.exchange === 'bybit') {
+          endpoint = '/api/bybit/orders';
+        } else {
+          endpoint = exchangeInfo.type === 'futures' ? '/api/binance/futures/orders' : '/api/binance/spot/orders';
+        }
         const res = await fetchLocalJson(
-          buildBinanceUrl(endpoint, { symbol, limit: 50 }),
+          buildBinanceUrl(endpoint, { symbol, limit: 50, category: exchangeInfo.type }),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceOrders = items;
         updateTabCounts();
-        renderBinanceOrdersTable(binanceOrdersBody, items, 'No orders.');
+        renderBinanceOrdersTable(binanceOrdersBody, items, 'No order history.');
         setTableStatus(binanceOrdersStatus, `Loaded ${items.length} orders.`);
       } catch (err) {
         state.binanceOrders = [];
@@ -1167,10 +1244,15 @@
       const symbol = getBinanceSymbol();
       setTableStatus(binanceTradesStatus, 'Loading...');
       try {
-        const binanceType = detectBinanceType();
-        const endpoint = binanceType === 'futures' ? '/api/binance/futures/trades' : '/api/binance/spot/trades';
+        const exchangeInfo = detectExchangeInfo();
+        let endpoint;
+        if (exchangeInfo.exchange === 'bybit') {
+          endpoint = '/api/bybit/trades';
+        } else {
+          endpoint = exchangeInfo.type === 'futures' ? '/api/binance/futures/trades' : '/api/binance/spot/trades';
+        }
         const res = await fetchLocalJson(
-          buildBinanceUrl(endpoint, { symbol, limit: 50 }),
+          buildBinanceUrl(endpoint, { symbol, limit: 50, category: exchangeInfo.type }),
         );
         const items = Array.isArray(res?.data) ? res.data : [];
         state.binanceTrades = items;
