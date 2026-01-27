@@ -238,37 +238,37 @@ export function createFundingRateAdvancedController() {
 
                 // Exchange List
                 if (exchangeListRes && exchangeListRes.data && exchangeListRes.data.length > 0) {
-                    this.processExchangeListData(exchangeListRes);
+                    this.processExchangeListData(exchangeListRes, isBackgroundUpdate);
                 } else if (!isBackgroundUpdate) {
                      this.exchangeSnapshots = [];
                 }
 
                 // History
                 if (historyRes && historyRes.data && historyRes.data.length > 0) {
-                    this.processHistoryData(historyRes);
+                    this.processHistoryData(historyRes, isBackgroundUpdate);
                 } else if (!isBackgroundUpdate) {
                     this.historyData = [];
                 }
                 
                 // OHLC
                 if (ohlcRes && ohlcRes.data && ohlcRes.data.length > 0) {
-                    this.processOHLCData(ohlcRes);
+                    this.processOHLCData(ohlcRes, isBackgroundUpdate);
                 } else if (!isBackgroundUpdate) {
                     this.ohlcData = [];
-                    this.renderCandlestickChart(); // Clear chart only if manual switch
+                    this.renderCandlestickChart(false); // Clear chart only if manual switch
                 }
                 
                 // Comparison
                 if (comparisonRes && comparisonRes.data && Object.keys(comparisonRes.data || {}).length > 0) {
-                    this.processComparisonData(comparisonRes);
+                    this.processComparisonData(comparisonRes, isBackgroundUpdate);
                 } else if (!isBackgroundUpdate) {
                     this.comparisonData = {};
-                    this.renderComparisonChart(); // Clear chart only if manual switch
+                    this.renderComparisonChart(false); // Clear chart only if manual switch
                 }
                 
                 // Statistics
                 if (statisticsRes && statisticsRes.data) {
-                    this.processStatisticsData(statisticsRes);
+                    this.processStatisticsData(statisticsRes, isBackgroundUpdate);
                 }
 
                 // Update last sync time
@@ -420,26 +420,26 @@ export function createFundingRateAdvancedController() {
             }
         },
 
-        processOHLCData(response) {
+        processOHLCData(response, isBackgroundUpdate = false) {
             const data = response.data || [];
             this.ohlcData = data;
             
             // Render candlestick chart
             this.$nextTick(() => {
-                this.renderCandlestickChart();
+                this.renderCandlestickChart(isBackgroundUpdate);
             });
         },
 
-        processComparisonData(response) {
+        processComparisonData(response, isBackgroundUpdate = false) {
             this.comparisonData = response.data || {};
             
             // Render comparison chart
             this.$nextTick(() => {
-                this.renderComparisonChart();
+                this.renderComparisonChart(isBackgroundUpdate);
             });
         },
 
-        processStatisticsData(response) {
+        processStatisticsData(response, isBackgroundUpdate = false) {
             const data = response.data || {};
             
             this.statistics = {
@@ -460,7 +460,7 @@ export function createFundingRateAdvancedController() {
             
             // Render sentiment gauge
             this.$nextTick(() => {
-                this.renderSentimentGauge();
+                this.renderSentimentGauge(isBackgroundUpdate);
             });
         },
 
@@ -502,7 +502,7 @@ export function createFundingRateAdvancedController() {
             this.arbitrageOpportunities = opportunities.slice(0, 10);
         },
 
-        processExchangeListData(response) {
+        processExchangeListData(response, isBackgroundUpdate = false) {
             const data = response.data || [];
             const apiInsights = response.insights || [];
             const apiAiAnalysis = response.ai_analysis || null;
@@ -619,7 +619,7 @@ export function createFundingRateAdvancedController() {
             console.log('📋 Final insights:', this.insights.length);
         },
 
-        processHistoryData(response) {
+        processHistoryData(response, isBackgroundUpdate = false) {
             const data = response.data || [];
             
             this.historyData = data.map(d => ({
@@ -631,10 +631,10 @@ export function createFundingRateAdvancedController() {
 
             // Render charts
             this.$nextTick(() => {
-                this.renderActualVsPredictedChart();
-                this.renderHistoryOverlaysChart();
-                this.renderDistributionChart();
-                this.initSparklines();
+                this.renderActualVsPredictedChart(isBackgroundUpdate);
+                this.renderHistoryOverlaysChart(isBackgroundUpdate);
+                this.renderDistributionChart(isBackgroundUpdate);
+                this.initSparklines(isBackgroundUpdate);
             });
         },
 
@@ -759,13 +759,14 @@ export function createFundingRateAdvancedController() {
             this.spreadMatrix = this.spreadMatrix.slice(0, 8); // Top 8 spreads
         },
 
-        renderActualVsPredictedChart() {
+        renderActualVsPredictedChart(isBackgroundUpdate = false) {
             const ctx = document.getElementById('actualVsPredictedChart');
             if (!ctx || !this.historyData.length) return;
-
-            // Destroy existing chart
-            if (this.actualVsPredictedChart) {
+            
+            // Hybrid Update: Destroy if manual update to ensure fresh context/scales
+            if (!isBackgroundUpdate && this.actualVsPredictedChart) {
                 this.actualVsPredictedChart.destroy();
+                this.actualVsPredictedChart = null;
             }
 
             // Generate predicted data (slight variation of actual)
@@ -775,134 +776,162 @@ export function createFundingRateAdvancedController() {
                 predicted: d.funding * (0.9 + Math.random() * 0.2) // Simulated prediction
             }));
 
-            this.actualVsPredictedChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: chartData.map(d => d.timestamp),
-                    datasets: [
-                        {
-                            label: 'Actual Funding',
-                            data: chartData.map(d => d.actual),
-                            borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            borderWidth: 2,
-                            tension: 0.3,
-                            fill: true,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Predicted',
-                            data: chartData.map(d => d.predicted),
-                            borderColor: '#8b5cf6',
-                            backgroundColor: 'transparent',
-                            borderWidth: 1.5,
-                            borderDash: [5, 5],
-                            tension: 0.3,
-                            pointRadius: 0
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
+            // Prepare data arrays
+            const labels = chartData.map(d => d.timestamp);
+            const actualData = chartData.map(d => d.actual);
+            const predictedData = chartData.map(d => d.predicted);
+
+            if (this.actualVsPredictedChart) {
+                // Update existing chart
+                this.actualVsPredictedChart.data.labels = labels;
+                this.actualVsPredictedChart.data.datasets[0].data = actualData;
+                this.actualVsPredictedChart.data.datasets[1].data = predictedData;
+                this.actualVsPredictedChart.update('none'); // 'none' mode prevents animation
+            } else {
+                // Create new chart
+                this.actualVsPredictedChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Actual Funding',
+                                data: actualData,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3,
+                                fill: true,
+                                pointRadius: 0
+                            },
+                            {
+                                label: 'Predicted',
+                                data: predictedData,
+                                borderColor: '#8b5cf6',
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.5,
+                                borderDash: [5, 5],
+                                tension: 0.3,
+                                pointRadius: 0
+                            }
+                        ]
                     },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'bottom',
-                            labels: { usePointStyle: true, boxWidth: 6 }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
                         },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(4) + '%';
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: { usePointStyle: true, boxWidth: 6 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ' + context.parsed.y.toFixed(4) + '%';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                                ticks: { maxRotation: 0, font: { size: 10 } },
+                                grid: { display: false }
+                            },
+                            y: {
+                                ticks: {
+                                    callback: function(value) { return value.toFixed(3) + '%'; },
+                                    font: { size: 10 }
                                 }
                             }
                         }
-                    },
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
-                            ticks: { maxRotation: 0, font: { size: 10 } },
-                            grid: { display: false }
-                        },
-                        y: {
-                            ticks: {
-                                callback: function(value) { return value.toFixed(3) + '%'; },
-                                font: { size: 10 }
-                            }
-                        }
                     }
-                }
-            });
+                });
+            }
         },
 
-        renderHistoryOverlaysChart() {
+        renderHistoryOverlaysChart(isBackgroundUpdate = false) {
             const ctx = document.getElementById('historyOverlaysChart');
             if (!ctx || !this.historyData.length) return;
 
-            if (this.historyOverlaysChart) {
+            // Hybrid Update
+            if (!isBackgroundUpdate && this.historyOverlaysChart) {
                 this.historyOverlaysChart.destroy();
+                this.historyOverlaysChart = null;
             }
 
-            this.historyOverlaysChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: this.historyData.map(d => d.timestamp),
-                    datasets: [
-                        {
-                            label: 'Funding Rate',
-                            data: this.historyData.map(d => d.funding),
-                            borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                            borderWidth: 2,
-                            tension: 0.3,
-                            fill: true,
-                            yAxisID: 'y',
-                            pointRadius: 0
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { intersect: false, mode: 'index' },
-                    plugins: {
-                        legend: {
-                            display: true,
-                            position: 'bottom',
-                            labels: { usePointStyle: true, boxWidth: 6 }
-                        }
+            const labels = this.historyData.map(d => d.timestamp);
+            const data = this.historyData.map(d => d.funding);
+
+            if (this.historyOverlaysChart) {
+                this.historyOverlaysChart.data.labels = labels;
+                this.historyOverlaysChart.data.datasets[0].data = data;
+                this.historyOverlaysChart.options.scales.x.time.unit = this.timeRange === '24h' ? 'hour' : 'day';
+                this.historyOverlaysChart.update('none');
+            } else {
+                this.historyOverlaysChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Funding Rate',
+                                data: data,
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3,
+                                fill: true,
+                                yAxisID: 'y',
+                                pointRadius: 0
+                            }
+                        ]
                     },
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: { unit: this.timeRange === '24h' ? 'hour' : 'day' },
-                            ticks: { maxRotation: 0, font: { size: 10 } },
-                            grid: { display: false }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: { usePointStyle: true, boxWidth: 6 }
+                            }
                         },
-                        y: {
-                            type: 'linear',
-                            display: true,
-                            position: 'left',
-                            title: { display: true, text: 'Funding Rate (%)' },
-                            ticks: { font: { size: 10 } }
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: this.timeRange === '24h' ? 'hour' : 'day' },
+                                ticks: { maxRotation: 0, font: { size: 10 } },
+                                grid: { display: false }
+                            },
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: { display: true, text: 'Funding Rate (%)' },
+                                ticks: { font: { size: 10 } }
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         },
 
-        renderDistributionChart() {
+        renderDistributionChart(isBackgroundUpdate = false) {
             const ctx = document.getElementById('distributionChart');
             if (!ctx || !this.historyData.length) return;
-
-            if (this.distributionChart) {
+            
+            // Hybrid Update
+            if (!isBackgroundUpdate && this.distributionChart) {
                 this.distributionChart.destroy();
+                this.distributionChart = null;
             }
 
             // Create histogram bins
@@ -925,33 +954,40 @@ export function createFundingRateAdvancedController() {
                 if (binIndex >= 0) bins[binIndex]++;
             });
 
-            this.distributionChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Frequency',
-                        data: bins,
-                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                        borderColor: '#3b82f6',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        x: {
-                            ticks: { maxRotation: 45, minRotation: 45, font: { size: 8 } }
-                        },
-                        y: { ticks: { font: { size: 10 } } }
+            if (this.distributionChart) {
+                this.distributionChart.data.labels = labels;
+                this.distributionChart.data.datasets[0].data = bins;
+                this.distributionChart.update('none');
+            } else {
+                this.distributionChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Frequency',
+                            data: bins,
+                            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                            borderColor: '#3b82f6',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: {
+                                ticks: { maxRotation: 45, minRotation: 45, font: { size: 8 } }
+                            },
+                            y: { ticks: { font: { size: 10 } } }
+                        }
                     }
-                }
-            });
+                });
+            }
         },
 
-        initSparklines() {
+        initSparklines(isBackgroundUpdate = false) {
+            // Sparklines use 2D context directly, simple redraw is always fine/fast.
             this.exchangeSnapshots.slice(0, 6).forEach(exchange => {
                 const canvas = document.getElementById('sparkline-' + exchange.name);
                 if (!canvas) return;
@@ -986,82 +1022,98 @@ export function createFundingRateAdvancedController() {
             });
         },
 
-        renderCandlestickChart() {
+        renderCandlestickChart(isBackgroundUpdate = false) {
             const ctx = document.getElementById('candlestickChart');
             if (!ctx || !this.ohlcData.length) return;
-
-            if (this.candlestickChart) {
+            
+            // Hybrid Update: Destroy on manual update to prevent 'stuck' charts
+            if (!isBackgroundUpdate && this.candlestickChart) {
                 this.candlestickChart.destroy();
+                this.candlestickChart = null;
             }
 
             // Use close values for bar heights, colored by bullish/bearish
             const colors = this.ohlcData.map(d => d.close >= d.open ? 'rgba(34, 197, 94, 0.8)' : 'rgba(239, 68, 68, 0.8)');
             const borderColors = this.ohlcData.map(d => d.close >= d.open ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)');
+            const labels = this.ohlcData.map(d => new Date(d.time * 1000));
+            const data = this.ohlcData.map(d => d.close);
 
-            this.candlestickChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: this.ohlcData.map(d => new Date(d.time * 1000)),
-                    datasets: [{
-                        label: 'Funding Rate',
-                        data: this.ohlcData.map(d => d.close),
-                        backgroundColor: colors,
-                        borderColor: borderColors,
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: true, position: 'top' },
-                        tooltip: {
-                            callbacks: {
-                                label: (context) => {
-                                    const idx = context.dataIndex;
-                                    if (this.ohlcData[idx]) {
-                                        const d = this.ohlcData[idx];
-                                        return [
-                                            `Open: ${d.open.toFixed(4)}%`,
-                                            `High: ${d.high.toFixed(4)}%`,
-                                            `Low: ${d.low.toFixed(4)}%`,
-                                            `Close: ${d.close.toFixed(4)}%`
-                                        ];
+            if (this.candlestickChart) {
+                this.candlestickChart.data.labels = labels;
+                this.candlestickChart.data.datasets[0].data = data;
+                this.candlestickChart.data.datasets[0].backgroundColor = colors;
+                this.candlestickChart.data.datasets[0].borderColor = borderColors;
+                
+                // Update time unit if changed
+                this.candlestickChart.options.scales.x.time.unit = this.timeRange === '24h' ? 'hour' : 'day';
+                
+                this.candlestickChart.update('none');
+            } else {
+                this.candlestickChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Funding Rate',
+                            data: data,
+                            backgroundColor: colors,
+                            borderColor: borderColors,
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true, position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const idx = context.dataIndex;
+                                        if (this.ohlcData[idx]) {
+                                            const d = this.ohlcData[idx];
+                                            return [
+                                                `Open: ${d.open.toFixed(4)}%`,
+                                                `High: ${d.high.toFixed(4)}%`,
+                                                `Low: ${d.low.toFixed(4)}%`,
+                                                `Close: ${d.close.toFixed(4)}%`
+                                            ];
+                                        }
+                                        return `${context.parsed.y.toFixed(4)}%`;
                                     }
-                                    return `${context.parsed.y.toFixed(4)}%`;
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { 
+                                    unit: this.timeRange === '24h' ? 'hour' : 'day',
+                                    displayFormats: { hour: 'HH:mm', day: 'MMM d' }
+                                },
+                                ticks: { maxRotation: 0, font: { size: 10 } },
+                                grid: { display: false }
+                            },
+                            y: {
+                                beginAtZero: false,
+                                ticks: {
+                                    callback: (value) => value.toFixed(3) + '%',
+                                    font: { size: 10 }
                                 }
                             }
                         }
-                    },
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: { 
-                                unit: this.timeRange === '24h' ? 'hour' : 'day',
-                                displayFormats: { hour: 'HH:mm', day: 'MMM d' }
-                            },
-                            ticks: { maxRotation: 0, font: { size: 10 } },
-                            grid: { display: false }
-                        },
-                        y: {
-                            beginAtZero: false,
-                            ticks: {
-                                callback: (value) => value.toFixed(3) + '%',
-                                font: { size: 10 }
-                            }
-                        }
                     }
-                }
-            });
+                });
+            }
         },
 
-        renderComparisonChart() {
+        renderComparisonChart(isBackgroundUpdate = false) {
             const ctx = document.getElementById('comparisonChart');
             
             // Fix: Check for canvas existence
             if (!ctx) return;
             
-            // Fix: Clear previous chart if comparisonData is empty instead of returning early
+            // Fix: Clear previous chart if comparisonData is empty
             if (Object.keys(this.comparisonData).length === 0) {
                  if (this.comparisonChart) {
                     this.comparisonChart.destroy();
@@ -1070,8 +1122,10 @@ export function createFundingRateAdvancedController() {
                  return;
             }
 
-            if (this.comparisonChart) {
+            // Hybrid Update
+            if (!isBackgroundUpdate && this.comparisonChart) {
                 this.comparisonChart.destroy();
+                this.comparisonChart = null;
             }
 
             const colors = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
@@ -1088,74 +1142,89 @@ export function createFundingRateAdvancedController() {
             // Ensure we have datasets
             if (datasets.length === 0) return;
 
-            this.comparisonChart = new Chart(ctx, {
-                type: 'line',
-                data: { datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { intersect: false, mode: 'index' },
-                    plugins: {
-                        legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 6 } },
-                        tooltip: {
-                            callbacks: {
-                                label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(4)}%`
+            if (this.comparisonChart) {
+                // For comparison chart, datasets might change dynamically (different exchanges),
+                // so we replace the datasets array completely but keep options.
+                this.comparisonChart.data.datasets = datasets;
+                this.comparisonChart.options.scales.x.time.unit = this.timeRange === '24h' ? 'hour' : 'day';
+                this.comparisonChart.update('none');
+            } else {
+                this.comparisonChart = new Chart(ctx, {
+                    type: 'line',
+                    data: { datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { display: true, position: 'top', labels: { usePointStyle: true, boxWidth: 6 } },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(4)}%`
+                                }
                             }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            type: 'time',
-                            time: { unit: this.timeRange === '24h' ? 'hour' : 'day' },
-                            ticks: { maxRotation: 0, font: { size: 10 } }
                         },
-                        y: {
-                            ticks: {
-                                callback: (value) => value.toFixed(3) + '%',
-                                font: { size: 10 }
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: this.timeRange === '24h' ? 'hour' : 'day' },
+                                ticks: { maxRotation: 0, font: { size: 10 } }
+                            },
+                            y: {
+                                ticks: {
+                                    callback: (value) => value.toFixed(3) + '%',
+                                    font: { size: 10 }
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }
         },
 
-        renderSentimentGauge() {
+        renderSentimentGauge(isBackgroundUpdate = false) {
             const ctx = document.getElementById('sentimentGaugeChart');
             if (!ctx) return;
-
-            if (this.sentimentGaugeChart) {
+            
+            // Hybrid Update
+            if (!isBackgroundUpdate && this.sentimentGaugeChart) {
                 this.sentimentGaugeChart.destroy();
+                this.sentimentGaugeChart = null;
             }
 
             const score = this.statistics.sentiment_score;
-            
-            // Simple doughnut chart as gauge
-            this.sentimentGaugeChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Bearish', 'Neutral', 'Bullish'],
-                    datasets: [{
-                        data: [
-                            score < 33 ? score : 33,
-                            score >= 33 && score <= 67 ? score - 33 : score < 33 ? 33 - score : 0,
-                            score > 67 ? score - 67 : 0
-                        ],
-                        backgroundColor: ['#ef4444', '#f59e0b', '#22c55e'],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    rotation: -90,
-                    circumference: 180,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: false }
+            const data = [
+                score < 33 ? score : 33,
+                score >= 33 && score <= 67 ? score - 33 : score < 33 ? 33 - score : 0,
+                score > 67 ? score - 67 : 0
+            ];
+
+            if (this.sentimentGaugeChart) {
+                this.sentimentGaugeChart.data.datasets[0].data = data;
+                this.sentimentGaugeChart.update('none');
+            } else {
+                this.sentimentGaugeChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Bearish', 'Neutral', 'Bullish'],
+                        datasets: [{
+                            data: data,
+                            backgroundColor: ['#ef4444', '#f59e0b', '#22c55e'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        rotation: -90,
+                        circumference: 180,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: false }
+                        }
                     }
-                }
-            });
+                });
+            }
         },
 
         startCountdown() {
