@@ -20,6 +20,8 @@ Route::view('/derivatives/funding-rate-advanced', 'derivatives.funding-rate-adva
 Route::view('/derivatives/open-interest', 'derivatives.open-interest')->name('derivatives.open-interest');
 Route::view('/derivatives/open-interest-old', 'derivatives.open-interest-old')->name('derivatives.open-interest-old');
 Route::view('/derivatives/long-short-ratio', 'derivatives.long-short-ratio-new')->name('derivatives.long-short-ratio');
+Route::get('/derivatives/long-short-advanced', [App\Http\Controllers\LongShortAnalysisController::class, 'index'])->name('derivatives.long-short-analysis');
+Route::get('/api/long-short-analysis/data', [App\Http\Controllers\LongShortAnalysisController::class, 'getData'])->name('api.long-short-analysis.data');
 
 Route::view('/derivatives/liquidations', 'derivatives.liquidations-new')->name('derivatives.liquidations');
 Route::view('/derivatives/liquidations-stream', 'derivatives.liquidations-stream')->name('derivatives.liquidations-stream');
