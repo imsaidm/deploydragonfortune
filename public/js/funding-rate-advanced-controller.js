@@ -214,7 +214,7 @@ export function createFundingRateAdvancedController() {
             this.refreshDebounceTimer = setTimeout(async () => {
                 console.log('🔄 Manual refresh triggered (Debounced)');
                 await this.loadAllData();
-            }, 500);
+            }, 1000);
         },
 
         async loadAllData(isBackgroundUpdate = false) {
