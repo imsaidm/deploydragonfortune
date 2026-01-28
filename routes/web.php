@@ -204,6 +204,7 @@ Route::prefix('data/funding-rate')->group(function () {
 Route::prefix('data/open-interest')->group(function () {
     Route::get('/aggregated', [App\Http\Controllers\Database\OpenInterestDbController::class, 'aggregatedHistory']);
     Route::get('/stablecoin', [App\Http\Controllers\Database\OpenInterestDbController::class, 'stablecoinHistory']);
+    Route::get('/symbols', [App\Http\Controllers\Database\OpenInterestDbController::class, 'getSymbols']);
     Route::get('/analysis', [App\Http\Controllers\Database\OpenInterestDbController::class, 'aiAnalysis']);
 });
 

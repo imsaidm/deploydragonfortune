@@ -13,6 +13,7 @@ const OpenInterestNewController = {
     init: async function() {
         console.log('Open Interest Controller Initialized (Chart.js)');
         this.bindEvents();
+        await this.loadSymbols();
         await this.loadData();
     },
 
@@ -27,6 +28,46 @@ const OpenInterestNewController = {
         console.log("Switching timeframe to", frame);
         // this.interval = frame; 
         // this.loadData();
+    },
+
+    loadSymbols: async function() {
+        try {
+            const res = await fetch('/data/open-interest/symbols');
+            const data = await res.json();
+            if (data.success && data.data && data.data.length > 0) {
+                const select = document.getElementById('symbol-select');
+                const currentVal = select.value;
+                
+                // Keep 'BTC' if it was default, otherwise clear
+                select.innerHTML = '';
+                
+                // Prioritize current selection being in list
+                let foundCurrent = false;
+
+                data.data.forEach(sym => {
+                    const opt = document.createElement('option');
+                    opt.value = sym;
+                    opt.textContent = sym;
+                    if (sym === currentVal) {
+                        opt.selected = true;
+                        foundCurrent = true;
+                    }
+                    select.appendChild(opt);
+                });
+                
+                // If current wasn't found (and we have data), select first
+                if (!foundCurrent && data.data.length > 0) {
+                     // But wait, if we just loaded page, currentVal is BTC (hardcoded). 
+                     // If BTC is in list, we good. If not, pick first.
+                     if (currentVal === 'BTC' && !data.data.includes('BTC')) {
+                         select.value = data.data[0];
+                         this.symbol = data.data[0];
+                     }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load symbol list', e);
+        }
     },
 
     initMainChart: function(priceData, oiData, labels) {
@@ -173,7 +214,7 @@ const OpenInterestNewController = {
             const aggRes = await fetch(`/data/open-interest/aggregated?symbol=${this.symbol}&limit=100`);
             const aggData = await aggRes.json();
             
-            if (aggData.success && aggData.data) {
+            if (aggData.success && aggData.data && aggData.data.length > 0) {
                 const sortedData = aggData.data.sort((a,b) => a.time - b.time);
                 this.cachedAggData = sortedData; 
 
@@ -184,18 +225,49 @@ const OpenInterestNewController = {
                 
                 this.initMainChart(priceData, oiData, labels);
                 this.updateStats(aggData.data);
+            } else {
+                 this.cachedAggData = null; // Signal fallback
+                 console.warn("Aggregated history empty, falling back to Stablecoin data.");
             }
 
             // 3. Stablecoin Data
             const stableRes = await fetch(`/data/open-interest/stablecoin?symbol=${this.symbol}&limit=50`);
             const stableData = await stableRes.json();
-             if (stableData.success && stableData.data) {
+             if (stableData.success && stableData.data && stableData.data.length > 0) {
                 const sortedS = stableData.data.sort((a,b) => a.time - b.time);
                 this.cachedStableData = sortedS;
 
-                const sData = sortedS.map(d => d.value); // Keep as Units for mini chart? Or convert? Keep units.
+                const sData = sortedS.map(d => d.value);
                 const sLabels = sortedS.map(d => d.time);
                 this.initStablecoinChart(sData, sLabels);
+                
+                // Fallback: Use Stablecoin data for Main Chart if Agg is empty
+                if (!this.cachedAggData) {
+                    const labels = sortedS.map(d => new Date(d.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
+                    
+                    const p = this.currentPrice || 0;
+                    // Convert Units -> USD if we have price, else keep as Units (better than 0)
+                    // If p is 0, arguably we should show 0 USD, but user wants to see *something*. 
+                    // Let's assume if p=0 we show units but label might be wrong ($). 
+                    // Actually if p=0, showing units as $ is misleading. 
+                    // But for BNB, we expect p > 0 from Binance API.
+                    
+                    const oiDataUSD = sortedS.map(d => d.value * (p > 0 ? p : 1));
+                    const priceDataZero = sortedS.map(d => 0); 
+                    
+                    this.initMainChart(priceDataZero, oiDataUSD, labels);
+                    
+                    const mockAggData = sortedS.map(d => ({
+                        time: d.time,
+                        value: d.value * (p > 0 ? p : 1), // USD est
+                        high: d.value * (p > 0 ? p : 1) * 1.01, // dummy volatility
+                        low: d.value * (p > 0 ? p : 1) * 0.99,
+                        price: 0
+                    }));
+                    
+                    this.updateStats(mockAggData);
+                    this.cachedAggData = mockAggData.map(d => ({...d, isFallback: true}));
+                }
              }
 
              // Render Advanced Metrics (using live price)
