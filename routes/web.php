@@ -200,6 +200,18 @@ Route::prefix('data/funding-rate')->group(function () {
     Route::get('/statistics', [App\Http\Controllers\Database\FundingRateDbController::class, 'statistics']);
 });
 
+// Database Open Interest (reads from local cg_open_interest tables)
+Route::prefix('data/open-interest')->group(function () {
+    Route::get('/aggregated', [App\Http\Controllers\Database\OpenInterestDbController::class, 'aggregatedHistory']);
+    Route::get('/stablecoin', [App\Http\Controllers\Database\OpenInterestDbController::class, 'stablecoinHistory']);
+    Route::get('/analysis', [App\Http\Controllers\Database\OpenInterestDbController::class, 'aiAnalysis']);
+});
+
+// View Routes for Derivatives
+Route::prefix('derivatives')->name('derivatives.')->group(function () {
+    Route::view('/open-interest-advanced', 'derivatives.open-interest-new')->name('open-interest-new');
+});
+
 // Coinglass Long-Short Ratio (new proxy endpoints)
 Route::prefix('api/coinglass/long-short-ratio')->group(function () {
     Route::get('/global-account/history', [App\Http\Controllers\Coinglass\LongShortRatioController::class, 'globalAccountHistory']);
