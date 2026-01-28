@@ -186,10 +186,10 @@
                     <h5 class="mb-0 fw-bold fs-6">
                         <span class="text-primary me-2">●</span> Aggregated Open Interest vs Price
                     </h5>
-                    <div class="btn-group btn-group-sm">
+                    <!-- <div class="btn-group btn-group-sm">
                         <button class="btn btn-outline-secondary active" onclick="OpenInterestNewController.setFrame('1h')">1H</button>
                         <button class="btn btn-outline-secondary" onclick="OpenInterestNewController.setFrame('4h')">4H</button>
-                    </div>
+                    </div> -->
                 </div>
                 <div class="flex-grow-1 p-0 chart-container-wrapper" style="min-height: 450px;">
                     <canvas id="chart-container" class="w-100 h-100"></canvas>
