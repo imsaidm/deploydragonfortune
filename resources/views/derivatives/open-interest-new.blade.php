@@ -235,11 +235,23 @@
     </div>
 </div>
 
-<script src="{{ asset('js/open-interest-new-controller.js') }}"></script>
+<script src="{{ asset('js/open-interest-new-controller.js') }}?v={{ time() }}"></script>
 <!-- Initialize Feather Icons if available in layout, otherwise safe fail -->
 <script>
     if (typeof feather !== 'undefined') {
         feather.replace();
     }
+    
+    // Direct Clock Fix
+    (function() {
+        function updateClock() {
+            const el = document.getElementById('last-updated');
+            if (el) {
+                el.textContent = new Date().toLocaleTimeString();
+            }
+        }
+        setInterval(updateClock, 1000);
+        updateClock(); // Initial run
+    })();
 </script>
 @endsection
