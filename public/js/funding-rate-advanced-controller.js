@@ -141,6 +141,9 @@ export function createFundingRateAdvancedController() {
 
         // Abort controller for cancelling pending requests
         abortController: null,
+        
+        // Debounce timer for manual refreshes
+        refreshDebounceTimer: null,
 
         async init() {
             console.log('🚀 Advanced Funding Rate Dashboard initialized');
@@ -180,7 +183,7 @@ export function createFundingRateAdvancedController() {
                 }
                 // Schedule next refresh
                 this.scheduleAutoRefresh();
-            }, 10000);
+            }, 60000);
         },
 
         async waitForChartJs() {
@@ -196,6 +199,22 @@ export function createFundingRateAdvancedController() {
                     }
                 }, 100);
             });
+        },
+
+        refreshData() {
+            // Cancel any pending refresh
+            if (this.refreshDebounceTimer) {
+                clearTimeout(this.refreshDebounceTimer);
+            }
+
+            // Set loading state immediately for UI feedback
+            this.isLoading = true;
+
+            // Debounce the actual fetch
+            this.refreshDebounceTimer = setTimeout(async () => {
+                console.log('🔄 Manual refresh triggered (Debounced)');
+                await this.loadAllData();
+            }, 500);
         },
 
         async loadAllData(isBackgroundUpdate = false) {
@@ -781,15 +800,14 @@ export function createFundingRateAdvancedController() {
             const actualData = chartData.map(d => d.actual);
             const predictedData = chartData.map(d => d.predicted);
 
+            // Destroy existing chart to ensure clean state
             if (this.actualVsPredictedChart) {
-                // Update existing chart
-                this.actualVsPredictedChart.data.labels = labels;
-                this.actualVsPredictedChart.data.datasets[0].data = actualData;
-                this.actualVsPredictedChart.data.datasets[1].data = predictedData;
-                this.actualVsPredictedChart.update('none'); // 'none' mode prevents animation
-            } else {
-                // Create new chart
-                this.actualVsPredictedChart = new Chart(ctx, {
+                this.actualVsPredictedChart.destroy();
+                this.actualVsPredictedChart = null;
+            }
+
+            // Create new chart
+            this.actualVsPredictedChart = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: labels,
@@ -853,7 +871,6 @@ export function createFundingRateAdvancedController() {
                         }
                     }
                 });
-            }
         },
 
         renderHistoryOverlaysChart(isBackgroundUpdate = false) {
@@ -870,12 +887,11 @@ export function createFundingRateAdvancedController() {
             const data = this.historyData.map(d => d.funding);
 
             if (this.historyOverlaysChart) {
-                this.historyOverlaysChart.data.labels = labels;
-                this.historyOverlaysChart.data.datasets[0].data = data;
-                this.historyOverlaysChart.options.scales.x.time.unit = this.timeRange === '24h' ? 'hour' : 'day';
-                this.historyOverlaysChart.update('none');
-            } else {
-                this.historyOverlaysChart = new Chart(ctx, {
+                this.historyOverlaysChart.destroy();
+                this.historyOverlaysChart = null;
+            }
+
+            this.historyOverlaysChart = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: labels,
@@ -921,7 +937,6 @@ export function createFundingRateAdvancedController() {
                         }
                     }
                 });
-            }
         },
 
         renderDistributionChart(isBackgroundUpdate = false) {
@@ -955,11 +970,11 @@ export function createFundingRateAdvancedController() {
             });
 
             if (this.distributionChart) {
-                this.distributionChart.data.labels = labels;
-                this.distributionChart.data.datasets[0].data = bins;
-                this.distributionChart.update('none');
-            } else {
-                this.distributionChart = new Chart(ctx, {
+                this.distributionChart.destroy();
+                this.distributionChart = null;
+            }
+
+            this.distributionChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: labels,
@@ -983,7 +998,6 @@ export function createFundingRateAdvancedController() {
                         }
                     }
                 });
-            }
         },
 
         initSparklines(isBackgroundUpdate = false) {
@@ -1038,18 +1052,13 @@ export function createFundingRateAdvancedController() {
             const labels = this.ohlcData.map(d => new Date(d.time * 1000));
             const data = this.ohlcData.map(d => d.close);
 
+            // Always destroy and recreate to ensure clean state
             if (this.candlestickChart) {
-                this.candlestickChart.data.labels = labels;
-                this.candlestickChart.data.datasets[0].data = data;
-                this.candlestickChart.data.datasets[0].backgroundColor = colors;
-                this.candlestickChart.data.datasets[0].borderColor = borderColors;
-                
-                // Update time unit if changed
-                this.candlestickChart.options.scales.x.time.unit = this.timeRange === '24h' ? 'hour' : 'day';
-                
-                this.candlestickChart.update('none');
-            } else {
-                this.candlestickChart = new Chart(ctx, {
+                this.candlestickChart.destroy();
+                this.candlestickChart = null;
+            }
+
+            this.candlestickChart = new Chart(ctx, {
                     type: 'bar',
                     data: {
                         labels: labels,
@@ -1104,7 +1113,6 @@ export function createFundingRateAdvancedController() {
                         }
                     }
                 });
-            }
         },
 
         renderComparisonChart(isBackgroundUpdate = false) {
@@ -1143,13 +1151,11 @@ export function createFundingRateAdvancedController() {
             if (datasets.length === 0) return;
 
             if (this.comparisonChart) {
-                // For comparison chart, datasets might change dynamically (different exchanges),
-                // so we replace the datasets array completely but keep options.
-                this.comparisonChart.data.datasets = datasets;
-                this.comparisonChart.options.scales.x.time.unit = this.timeRange === '24h' ? 'hour' : 'day';
-                this.comparisonChart.update('none');
-            } else {
-                this.comparisonChart = new Chart(ctx, {
+                this.comparisonChart.destroy();
+                this.comparisonChart = null;
+            }
+            
+            this.comparisonChart = new Chart(ctx, {
                     type: 'line',
                     data: { datasets },
                     options: {
@@ -1179,7 +1185,6 @@ export function createFundingRateAdvancedController() {
                         }
                     }
                 });
-            }
         },
 
         renderSentimentGauge(isBackgroundUpdate = false) {
@@ -1200,10 +1205,11 @@ export function createFundingRateAdvancedController() {
             ];
 
             if (this.sentimentGaugeChart) {
-                this.sentimentGaugeChart.data.datasets[0].data = data;
-                this.sentimentGaugeChart.update('none');
-            } else {
-                this.sentimentGaugeChart = new Chart(ctx, {
+                this.sentimentGaugeChart.destroy();
+                this.sentimentGaugeChart = null;
+            }
+
+            this.sentimentGaugeChart = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
                         labels: ['Bearish', 'Neutral', 'Bullish'],
@@ -1224,7 +1230,6 @@ export function createFundingRateAdvancedController() {
                         }
                     }
                 });
-            }
         },
 
         startCountdown() {
@@ -1322,24 +1327,24 @@ export function createFundingRateAdvancedController() {
             const ex = this.exchangeSnapshots.find(e => e.name === 'Bybit');
             return ex ? ex.funding * 100 : 0;
         },
-
         getBitgetFunding() {
             const ex = this.exchangeSnapshots.find(e => e.name === 'Bitget');
             return ex ? ex.funding * 100 : 0;
-        },
-
-        async refreshData() {
-            console.log('🔄 Manual refresh triggered');
-            await this.loadAllData();
         },
 
         destroy() {
             if (this.refreshIntervalId) {
                 clearInterval(this.refreshIntervalId);
             }
+            if (this.refreshDebounceTimer) {
+                clearTimeout(this.refreshDebounceTimer);
+            }
             if (this.actualVsPredictedChart) this.actualVsPredictedChart.destroy();
             if (this.historyOverlaysChart) this.historyOverlaysChart.destroy();
             if (this.distributionChart) this.distributionChart.destroy();
+            if (this.candlestickChart) this.candlestickChart.destroy();
+            if (this.comparisonChart) this.comparisonChart.destroy();
+            if (this.sentimentGaugeChart) this.sentimentGaugeChart.destroy();
         }
     };
 }
