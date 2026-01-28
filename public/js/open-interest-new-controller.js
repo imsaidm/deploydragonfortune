@@ -13,8 +13,19 @@ const OpenInterestNewController = {
     init: async function() {
         console.log('Open Interest Controller Initialized (Chart.js)');
         this.bindEvents();
+        this.startClock();
         await this.loadSymbols();
         await this.loadData();
+    },
+
+    startClock: function() {
+        // Update immediately
+        const updateTime = () => {
+             document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+        };
+        updateTime();
+        // Update every second
+        setInterval(updateTime, 1000);
     },
 
     bindEvents: function() {
@@ -285,7 +296,7 @@ const OpenInterestNewController = {
             console.error("Failed to load data", e);
         }
         
-        document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+        // document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
     },
 
     updateStats: function(data) {
