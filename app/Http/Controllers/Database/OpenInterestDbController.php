@@ -113,6 +113,39 @@ class OpenInterestDbController extends Controller
      */
     
     /**
+     * Get list of available symbols
+     */
+    public function getSymbols(Request $request)
+    {
+        $cacheKey = "db_oi_symbols_list_v2";
+
+        $symbols = Cache::remember($cacheKey, 600, function () {
+            // Get symbols from aggregated history
+            $aggSymbols = DB::table('cg_open_interest_aggregated_history')
+                ->select('symbol')
+                ->distinct();
+
+            // Union with stablecoin history symbols (since user said some coins only exist there)
+            $allSymbols = DB::table('cg_open_interest_aggregated_stablecoin_history')
+                ->select('symbol')
+                ->distinct()
+                ->union($aggSymbols)
+                ->pluck('symbol')
+                ->unique()
+                ->values()
+                ->sort()
+                ->values();
+
+            return $allSymbols;
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $symbols
+        ]);
+    }
+
+    /**
      * AI Analysis Endpoint
      */
     public function aiAnalysis(Request $request)
@@ -120,20 +153,58 @@ class OpenInterestDbController extends Controller
         $symbol = strtoupper($request->query('symbol', 'BTC'));
         $limit = 24; // Analyze last 24 points (assuming hourly ~ 24h)
         
-        // Fetch recent history for analysis
-        $history = DB::table('cg_open_interest_aggregated_history')
+        // 1. Fetch Aggregated History
+        $historyResults = DB::table('cg_open_interest_aggregated_history')
             ->where('symbol', $symbol)
             ->orderBy('time', 'desc')
             ->limit($limit)
-            ->get()
-            ->map(function ($row) {
-                return [
-                    'time' => $row->time,
-                    'open_interest' => (float) $row->close, // Map close -> OI
-                    'price' => 0 // properties not in table
-                ];
-            })
-            ->toArray();
+            ->get();
+
+        // 2. FALLBACK: If Aggregated is empty, try Stablecoin History (Aggregated)
+        if ($historyResults->isEmpty()) {
+            $historyResults = DB::table('cg_open_interest_aggregated_stablecoin_history')
+                ->select('time', DB::raw('SUM(close) as close')) // Sum stablecoin OI as proxy
+                ->where('symbol', $symbol)
+                ->groupBy('time')
+                ->orderBy('time', 'desc')
+                ->limit($limit)
+                ->get();
+        }
+
+        // 3. Fetch Price History (for Correlation)
+        $prices = collect([]);
+        try {
+            $pair = $symbol . 'USDT';
+            $startTime = $historyResults->isEmpty() ? 0 : $historyResults->last()->time;
+            
+            $prices = DB::table('cg_funding_rate_history')
+                ->where('pair', $pair)
+                ->where('time', '>=', $startTime)
+                ->pluck('close', 'time');
+                
+            if ($prices->isEmpty()) {
+                 $prices = DB::table('cg_funding_rate_history')
+                    ->where('symbol', $symbol)
+                    ->where('time', '>=', $startTime)
+                    ->pluck('close', 'time');
+            }
+        } catch (\Exception $e) {
+            $prices = collect([]);
+        }
+
+        // 4. Map Data
+        $history = $historyResults->map(function ($row) use ($prices) {
+            // Safe Price Lookup
+            $price = $prices->get($row->time, 0); 
+            
+            return [
+                'time' => (int) $row->time,
+                'open_interest' => (float) $row->close,
+                'price' => (float) $price
+            ];
+        })
+        ->values()
+        ->toArray();
             
         // Current Snapshot (first item)
         // Ensure we pass non-empty array if history exists
