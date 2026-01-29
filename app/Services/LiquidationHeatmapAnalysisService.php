@@ -27,24 +27,54 @@ class LiquidationHeatmapAnalysisService
         }
 
         // 2. Fetch Relationships
-        $yAxis = $heatmap->yAxis()->orderBy('sequence_order')->get(); // Maps sequence_order -> price_level
-        $leverageData = $heatmap->leverageData()->get(); // Maps x,y -> value
-        $candles = $heatmap->candlesticks()->orderBy('timestamp')->get();
+        // 2. Fetch Components (Optimized for Memory)
+        // Use toBase() to skip Model hydration and save memory
+        $yAxis = $heatmap->yAxis()->toBase()->select('price_level', 'sequence_order')->get();
+        $candlesticks = $heatmap->candlesticks()->toBase()->select('timestamp', 'sequence_order', 'open_price', 'high_price', 'low_price', 'close_price')->get();
+        
+        // Fetch leverage data using a cursor or chunking if possible, but for now toBase() is a big step up
+        // We only need specific columns
+        $leverageData = $heatmap->leverageData()
+            ->toBase()
+            ->select('x_position', 'y_position', 'liquidation_amount')
+            ->get();
 
-        // 3. Transform Data for Chartjs Matrix
-        // We need: { x: timestamp, y: price, v: value }
+        // 3. Process Data
+        // Map sequence_order to price_level (Y-Axis)
+        // If toBase returns stdClass objects, pluck might need adjustments or we loop manually. 
+        // Safer to loop manually for raw DB results.
+        $yMap = [];
+        foreach ($yAxis as $row) {
+            $yMap[$row->sequence_order] = $row->price_level;
+        }
+
+        // Map x_position (sequence_order) to timestamp (X-Axis)
+        $xMap = [];
+        $candleData = [];
+        foreach ($candlesticks as $candle) {
+            $xMap[$candle->sequence_order] = $candle->timestamp;
+            
+            $candleData[] = [
+                'x' => $candle->timestamp * 1000,
+                'o' => $candle->open_price,
+                'h' => $candle->high_price,
+                'l' => $candle->low_price,
+                'c' => $candle->close_price
+            ];
+        }
+        
         $chartData = [];
-        $yMap = $yAxis->pluck('price_level', 'sequence_order'); // optimize lookup
-
         // Aggregation for Insights
         $priceLevelsParams = []; // [price => total_liquidation]
 
         foreach ($leverageData as $point) {
             $price = $yMap[$point->y_position] ?? 0;
-            if ($price == 0) continue;
+            $timestamp = $xMap[$point->x_position] ?? null;
+            
+            if ($price == 0 || !$timestamp) continue;
 
             $chartData[] = [
-                'x' => $point->x_position * 1000,
+                'x' => $timestamp * 1000,
                 'y' => $price,
                 'v' => $point->liquidation_amount
             ];
@@ -58,10 +88,10 @@ class LiquidationHeatmapAnalysisService
 
         // 4. Transform Candles for Overlay
         // We use Close price for the line overlay
-        $priceLine = $candles->map(function ($c) {
+        $priceLine = collect($candleData)->map(function ($c) {
             return [
-                'x' => $c->timestamp * 1000,
-                'y' => $c->close_price
+                'x' => $c['x'],
+                'y' => $c['c']
             ];
         });
 
