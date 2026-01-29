@@ -26,7 +26,8 @@ class SendTelegramSignalJob implements ShouldQueue
             $method = $this->signal->method;
             
             $isEntry = strtolower($this->signal->type) === 'entry';
-            $isBuy = strtolower($this->signal->jenis) === 'buy';
+            $jenis = strtolower($this->signal->jenis);
+            $isBuy = in_array($jenis, ['buy', 'long']);
             
             // Direction styling
             $directionEmoji = $isBuy ? '🟢' : '🔴';
@@ -130,7 +131,17 @@ class SendTelegramSignalJob implements ShouldQueue
         $realSl = (float) $this->signal->real_sl;
         
         // Calculate P/L
-        $priceDiff = $isBuy ? ($exitPrice - $entryPrice) : ($entryPrice - $exitPrice);
+        $jenis = strtolower($this->signal->jenis);
+        
+        // Determine Logic based on 'jenis' label AND historical data patterns:
+        // - 'short': Explicitly a Short trade -> P/L = Entry - Exit
+        // - 'buy': On an Exit signal, this usually means 'Cover Short' -> P/L = Entry - Exit
+        // - 'sell': On an Exit signal, this usually means 'Close Long' -> P/L = Exit - Entry
+        // - 'long': Explicitly a Long trade -> P/L = Exit - Entry
+        
+        $useShortLogic = ($jenis === 'short' || $jenis === 'buy');
+        
+        $priceDiff = $useShortLogic ? ($entryPrice - $exitPrice) : ($exitPrice - $entryPrice);
         $plPercent = $entryPrice > 0 ? round(($priceDiff / $entryPrice) * 100, 2) : 0;
         $isProfit = $priceDiff >= 0;
         
