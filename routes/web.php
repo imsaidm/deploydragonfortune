@@ -317,7 +317,7 @@ Route::prefix('api/coinglass/volatility')->group(function () {
 Route::prefix('api/coinglass/sentiment')->group(function () {
     // Fear & Greed Index History
     Route::get('/fear-greed', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'fearGreedIndex']);
-    
+
     // Funding Rate Dominance (Exchange List)
     Route::get('/funding-dominance', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'fundingDominance']);
     
