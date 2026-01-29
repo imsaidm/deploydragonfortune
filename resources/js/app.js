@@ -110,6 +110,7 @@ import {
     registerables 
 } from "chart.js";
 import { MatrixController, MatrixElement } from "chartjs-chart-matrix";
+import 'chartjs-adapter-date-fns';
 
 // Register Chart.js components
 Chart.register(

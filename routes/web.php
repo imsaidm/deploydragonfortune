@@ -231,7 +231,12 @@ Route::prefix('data/open-interest')->group(function () {
 // View Routes for Derivatives
 Route::prefix('derivatives')->name('derivatives.')->group(function () {
     Route::view('/open-interest-advanced', 'derivatives.open-interest-new')->name('open-interest-new');
+    // Liquidation Heatmap Advanced (Local DB)
+    Route::get('/liquidation-heatmap-advanced', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'index'])->name('liquidation-heatmap-advanced');
 });
+
+// Liquidation Heatmap Data Route
+Route::get('/data/liquidation-heatmap/heatmap', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'getData'])->name('data.liquidation-heatmap.heatmap');
 
 // Coinglass Long-Short Ratio (new proxy endpoints)
 Route::prefix('api/coinglass/long-short-ratio')->group(function () {
