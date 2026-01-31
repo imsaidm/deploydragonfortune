@@ -7,6 +7,8 @@
     // Global flag to attempt to disable the aggressive app.js "auto-refresh" scrubber
     window.__AUTO_REFRESH_DISABLED__ = true;
 </script>
+<!-- Chart.js Time Adapter for Production -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         :root {
             --df-bg-deep: #0d1117;
@@ -240,7 +242,7 @@
         <div class="d-flex gap-3">
             <div class="input-group input-group-sm">
                 <span class="input-group-text bg-card border-border text-dim">Asset</span>
-                <select x-model="symbol" @change="fetchData()" class="form-select bg-card border-border text-white fw-bold" style="width: 120px;">
+                <select x-model="symbol" @change="onSymbolChange()" class="form-select bg-card border-border text-white fw-bold" style="width: 120px;">
                     @foreach($symbols as $s) <option value="{{ $s }}">{{ $s }}</option> @endforeach
                 </select>
             </div>
@@ -248,7 +250,9 @@
             <div class="input-group input-group-sm">
                 <span class="input-group-text bg-card border-border text-dim">Range</span>
                 <select x-model="range" @change="fetchData()" class="form-select bg-card border-border text-white fw-bold" style="width: 100px;">
-                    @foreach($intervals as $i) <option value="{{ $i }}">{{ $i }}</option> @endforeach
+                    <template x-for="r in availableRanges" :key="r">
+                        <option :value="r" x-text="r"></option>
+                    </template>
                 </select>
             </div>
         </div>
@@ -346,6 +350,9 @@
 
             <div class="p-3 border-top border-border">
                 <div class="small text-white text-center opacity-50">Update Loop: 60s</div>
+                <div class="text-center mt-1" style="font-size: 0.6rem; color: #8b949e;">
+                     Last sync: <span x-text="lastUpdated || 'Never'"></span>
+                </div>
             </div>
         </div>
     </div>
@@ -361,7 +368,9 @@
             return {
                 symbol: '{{ $symbols->first() }}',
                 range: '{{ $intervals->first() }}',
+                availableRanges: @json($intervals),
                 loading: false,
+                lastUpdated: null,
                 data: {
                     current_price: 0,
                     insights: {
@@ -381,15 +390,39 @@
                 this.waitForChart();
                 
                 // Set interval for data refresh
-                setInterval(() => this.fetchData(), 60000);
+                setInterval(() => {
+                    console.log('Auto-refresh triggered...');
+                    this.fetchData();
+                }, 60000);
             },
 
             waitForChart() {
-                if (window.Chart) {
+                if (window.Chart && window.Chart.registry.plugins.get('matrix')) {
                     this.initChart();
                     this.fetchData();
                 } else {
                     setTimeout(() => this.waitForChart(), 100);
+                }
+            },
+
+            async onSymbolChange() {
+                await this.fetchAvailableRanges();
+                this.fetchData();
+            },
+
+            async fetchAvailableRanges() {
+                try {
+                    const response = await fetch(`{{ route('data.liquidation-heatmap.ranges') }}?symbol=${this.symbol}`);
+                    const json = await response.json();
+                    if (json.ranges) {
+                        this.availableRanges = json.ranges;
+                        // Validate current range
+                        if (this.availableRanges.length > 0 && !this.availableRanges.includes(this.range)) {
+                            this.range = this.availableRanges[0];
+                        }
+                    }
+                } catch (e) {
+                    console.error('Range Fetch Error:', e);
                 }
             },
 
@@ -400,19 +433,23 @@
                     const json = await response.json();
                     
                     if (json.success) {
-                        console.log('Heatmap Data Received:', {
-                            heatmap_points: json.data.heatmap.length,
-                            price_points: json.data.price_line.length,
-                            insights: json.data.insights
-                        });
-                        
                         this.data.insights = json.data.insights;
                         this.data.current_price = json.data.current_price;
+                        this.lastUpdated = new Date().toLocaleTimeString();
                         
                         // Pass raw data directly to chart
                         this.updateChart(json.data);
-                        
                         this.$nextTick(() => { if(window.feather) feather.replace(); });
+                    } else {
+                        // Handle success: false (like no data)
+                        this.data.insights.text = `<span class="text-danger">${json.message || 'No data available.'}</span>`;
+                        this.data.insights.major_walls = [];
+                        this.data.insights.bias = { long_pct: 50, short_pct: 50 };
+                        if (_chart) {
+                             _chart.data.datasets[0].data = [];
+                             _chart.data.datasets[1].data = [];
+                             _chart.update();
+                        }
                     }
                 } catch (error) {
                     console.error('Heatmap Fetch Error:', error);

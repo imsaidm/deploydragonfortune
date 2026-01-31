@@ -235,8 +235,11 @@ Route::prefix('derivatives')->name('derivatives.')->group(function () {
     Route::get('/liquidation-heatmap-advanced', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'index'])->name('liquidation-heatmap-advanced');
 });
 
-// Liquidation Heatmap Data Route
-Route::get('/data/liquidation-heatmap/heatmap', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'getData'])->name('data.liquidation-heatmap.heatmap');
+// Liquidation Heatmap Data Routes
+Route::prefix('data/liquidation-heatmap')->group(function () {
+    Route::get('/heatmap', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'getData'])->name('data.liquidation-heatmap.heatmap');
+    Route::get('/ranges', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'getAvailableRanges'])->name('data.liquidation-heatmap.ranges');
+});
 
 // Coinglass Long-Short Ratio (new proxy endpoints)
 Route::prefix('api/coinglass/long-short-ratio')->group(function () {
