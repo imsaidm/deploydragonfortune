@@ -233,6 +233,129 @@
         </div>
     </div>
 
+    <!-- Advanced Insights Row -->
+    <div class="row g-4">
+        <div class="col-12">
+            <h3 class="h6 px-2 fw-bold text-muted mb-3 d-flex align-items-center gap-2">
+                <i data-feather="zap" width="16" class="text-warning"></i> Advanced Insights
+            </h3>
+
+            <!-- Contrarian Signal Banner (Conditional) -->
+            <template x-if="data.advanced.contrarian_signal.has_signal">
+                <div class="alert mb-4 d-flex align-items-center gap-3 shadow-sm border" 
+                     :class="data.advanced.contrarian_signal.type === 'STRONG_BUY' ? 'alert-success border-success' : 'alert-danger border-danger'">
+                    <div class="p-2 rounded-circle" :class="data.advanced.contrarian_signal.type === 'STRONG_BUY' ? 'bg-success text-white' : 'bg-danger text-white'">
+                        <i data-feather="alert-circle" width="24" height="24"></i>
+                    </div>
+                    <div>
+                        <h4 class="h6 fw-bold mb-1" x-text="data.advanced.contrarian_signal.type.replace('_', ' ') + ' SIGNAL DETECTED'"></h4>
+                        <div class="small opacity-75" x-text="data.advanced.contrarian_signal.description"></div>
+                    </div>
+                </div>
+            </template>
+
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-6 g-3">
+                <!-- 1. 24h Extremes -->
+                <div class="col" x-show="data.advanced.extremes_24h.high > 0">
+                    <div class="df-card p-3 h-100">
+                        <div class="stat-label mb-2">24h Ratio Range</div>
+                        <div class="d-flex justify-content-between small fw-bold mb-1">
+                            <span class="text-danger" x-text="fmt(data.advanced.extremes_24h.low)">--</span>
+                            <span class="text-success" x-text="fmt(data.advanced.extremes_24h.high)">--</span>
+                        </div>
+                        <div class="progress bg-gray-200 position-relative" style="height: 8px;">
+                            <div class="position-absolute top-0 start-0 h-100 bg-primary rounded"
+                                 :style="'left: ' + data.advanced.extremes_24h.current_position_pct + '%; width: 4px; transform: translateX(-50%);'"></div>
+                        </div>
+                        <div class="text-center small text-muted mt-1" x-text="data.advanced.extremes_24h.current_position_pct + '% of Range'"></div>
+                    </div>
+                </div>
+
+
+                <!-- 3. Trend Streak -->
+                <div class="col" x-show="data.advanced.trend_streak.count > 0">
+                    <div class="df-card p-3 h-100 text-center">
+                        <div class="stat-label mb-2">Trend Streak</div>
+                        <div class="d-flex align-items-center justify-content-center gap-2">
+                            <i data-feather="flame" :class="data.advanced.trend_streak.direction === 'Bullish' ? 'text-success' : 'text-danger'"></i>
+                            <span class="fw-bold fs-4" x-text="data.advanced.trend_streak.count + 'h'">--</span>
+                        </div>
+                        <div class="small fw-bold" 
+                             :class="data.advanced.trend_streak.direction === 'Bullish' ? 'text-success' : 'text-danger'"
+                             x-text="data.advanced.trend_streak.direction">--</div>
+                    </div>
+                </div>
+
+                <!-- 4. Conviction Meter -->
+                <div class="col" x-show="data.advanced.conviction.score > 0">
+                    <div class="df-card p-3 h-100 position-relative overflow-hidden">
+                        <div class="stat-label mb-2">Conviction</div>
+                        <div class="d-flex align-items-baseline gap-1">
+                            <span class="fs-4 fw-bold" x-text="data.advanced.conviction.score">--</span>
+                            <span class="small text-muted">/ 100</span>
+                        </div>
+                        <div class="small mt-1">
+                            <span class="fw-bold" 
+                                  :class="data.advanced.conviction.label === 'Strong' ? 'text-success' : (data.advanced.conviction.label === 'Weak' ? 'text-muted' : 'text-warning')"
+                                  x-text="data.advanced.conviction.label + ' ' + data.advanced.conviction.direction">--</span>
+                        </div>
+                        <div class="position-absolute bottom-0 start-0 w-100 bg-light" style="height: 4px;">
+                            <div class="h-100 bg-success" :style="'width: ' + data.advanced.conviction.score + '%'"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Sentiment Impact (Gap Intensity) -->
+                <div class="col" x-show="data.advanced.impact.intensity > 0">
+                    <div class="df-card p-3 h-100">
+                        <div class="stat-label mb-2">Divergence Power</div>
+                        <div class="d-flex align-items-baseline gap-1">
+                            <span class="fs-4 fw-bold" x-text="data.advanced.impact.intensity">--</span>
+                            <span class="small text-muted">Intensity</span>
+                        </div>
+                        <div class="small mt-1 d-flex align-items-center gap-1">
+                            <span class="fw-bold" 
+                                  :class="data.advanced.impact.label === 'Extreme' ? 'text-danger' : (data.advanced.impact.label === 'High' ? 'text-warning' : 'text-info')"
+                                  x-text="data.advanced.impact.label"></span>
+                            <span class="text-muted small" x-text="'(Gap: ' + data.advanced.impact.gap + ')'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. Sentiment Volatility -->
+                <div class="col" x-show="data.advanced.volatility.score > 0">
+                    <div class="df-card p-3 h-100">
+                        <div class="stat-label mb-2">Mood Stability</div>
+                        <div class="d-flex align-items-center gap-2">
+                             <span class="fw-bold fs-4" x-text="data.advanced.volatility.label">--</span>
+                        </div>
+                        <div class="small mt-1">
+                            <div class="progress" style="height: 4px;">
+                                <div class="progress-bar" :class="data.advanced.volatility.score > 70 ? 'bg-danger' : 'bg-info'"
+                                     :style="'width: ' + data.advanced.volatility.score + '%'"></div>
+                            </div>
+                            <span class="text-muted small mt-1 d-block" x-text="data.advanced.volatility.score + '% Volatility'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. Gap Momentum -->
+                <div class="col" x-show="data.advanced.gap_momentum.value > 0">
+                    <div class="df-card p-3 h-100">
+                        <div class="stat-label mb-2">Gap Momentum</div>
+                        <div class="d-flex align-items-center gap-2">
+                             <span class="fw-bold fs-4" x-text="data.advanced.gap_momentum.trend">--</span>
+                             <i :data-feather="data.advanced.gap_momentum.change >= 0 ? 'trending-up' : 'trending-down'"
+                                :class="data.advanced.gap_momentum.change >= 0 ? 'text-danger' : 'text-success'"
+                                width="18"></i>
+                        </div>
+                        <div class="small mt-1 text-muted" x-text="'Gap: ' + data.advanced.gap_momentum.value"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bottom: Data Table -->
     <div class="row">
         <div class="col-12">
@@ -305,7 +428,18 @@
                         global_ratio: 0, global_net_position: 0
                     },
                     table: [],
-                    chart: {} // Store raw chart data
+                    chart: {}, // Store raw chart data
+                    advanced: {
+                        extremes_24h: { high: 0, low: 0, current_position_pct: 0 },
+                        contrarian_signal: { has_signal: false, type: '', description: '' },
+                        conviction: { score: 0, direction: '', label: '' },
+                        percentile: 0,
+                        trend_streak: { count: 0, direction: 'Neutral' },
+                        impact: { gap: 0, intensity: 0, label: '' },
+                        volatility: { score: 0, label: '' },
+                        gap_momentum: { value: 0, change: 0, trend: '' },
+                        dominance: { intensity: '', change: 0 }
+                    }
                 },
 
                 init() {
@@ -343,6 +477,7 @@
                     this.data.insightText = data.insight;
                     this.data.table = data.table_data;
                     this.data.chart = data.chart_data; // Save raw data for toggling
+                    this.data.advanced = data.advanced_stats || this.data.advanced;
                     
                     const colorMap = {
                         'text-green-500': 'text-success',
