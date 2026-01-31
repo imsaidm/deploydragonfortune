@@ -7,8 +7,9 @@
     // Global flag to attempt to disable the aggressive app.js "auto-refresh" scrubber
     window.__AUTO_REFRESH_DISABLED__ = true;
 </script>
-<!-- Chart.js Time Adapter for Production -->
+<!-- Chart.js Dependencies for Production -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix/dist/chartjs-chart-matrix.min.js"></script>
     <style>
         :root {
             --df-bg-deep: #0d1117;
@@ -387,7 +388,9 @@
             init() {
                 console.log('Alpine: heatmapPro component initialized');
                 if (window.feather) feather.replace();
+                
                 this.waitForChart();
+                this.onSymbolChange(); // Load initial data immediately
                 
                 // Set interval for data refresh
                 setInterval(() => {
@@ -397,11 +400,14 @@
             },
 
             waitForChart() {
-                if (window.Chart && window.Chart.registry.plugins.get('matrix')) {
+                // If Matrix or Chart is missing, we try to wait, but don't block fetchData
+                if (window.Chart && window.matrix) {
                     this.initChart();
-                    this.fetchData();
+                } else if (window.Chart) {
+                     // Fallback: init without matrix if it's taking too long, or matrix might be in Chart.registry
+                     this.initChart();
                 } else {
-                    setTimeout(() => this.waitForChart(), 100);
+                    setTimeout(() => this.waitForChart(), 200);
                 }
             },
 
@@ -459,6 +465,7 @@
             },
 
             initChart() {
+                if (_chart) return;
                 const ctx = document.getElementById('heatmapChart').getContext('2d');
                 
                 _chart = new window.Chart(ctx, {
