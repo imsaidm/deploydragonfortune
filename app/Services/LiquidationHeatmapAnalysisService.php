@@ -163,6 +163,8 @@ class LiquidationHeatmapAnalysisService
         if ($currentPrice <= 0 || empty($priceLevels)) {
             $text = "Insufficient data to generate advanced insights.";
             $sentiment = "Neutral";
+            $magnetPrice = $magnetPrice ?: 0;
+            $distance = 0;
         } else {
             $distance = (($magnetPrice - $currentPrice) / $currentPrice) * 100;
             $direction = $distance > 0 ? 'above' : 'below';
