@@ -87,16 +87,16 @@ class LiquidationHeatmapAnalysisService
         }
 
         // 4. Transform Candles for Overlay
-        // We use Close price for the line overlay
         $priceLine = collect($candleData)->map(function ($c) {
             return [
                 'x' => $c['x'],
-                'y' => $c['c']
+                'y' => $c['y'] ?? $c['c'] // Fallback if y is not mapped
             ];
         });
 
         // 5. Generate Insights (Magnets & Fuel)
-        $currentPrice = $candles->last()->close_price ?? 0;
+        $lastCandle = collect($candleData)->last();
+        $currentPrice = $lastCandle['c'] ?? 0;
         $insights = $this->generateInsights($priceLevelsParams, $currentPrice);
 
         return [
@@ -111,51 +111,78 @@ class LiquidationHeatmapAnalysisService
     }
 
     /**
-     * Logic:
-     * 1. Magnet: The price level with the HIGHEST visible cumulative leverage.
-     * 2. Fuel: Total liquidation amount in the immediate vicinity (+/- 5%) of current price.
+     * Enhanced Logic:
+     * 1. Magnet: Top price levels with highest visibility.
+     * 2. Bias: Long vs Short Liquidity distribution.
+     * 3. Walls: Top 10 strongest clusters.
      */
     private function generateInsights(array $priceLevels, float $currentPrice)
     {
-        // Sort levels by price to find nearest
         ksort($priceLevels);
         
-        // Find Global Maxima (Strongest Magnet)
         $maxLiquidation = 0;
         $magnetPrice = 0;
         
-        // Find Local Fuel (Near Price)
-        $fuel = 0;
-        $range = $currentPrice * 0.05; // 5% range
+        $longFuel = 0; // Below current price
+        $shortFuel = 0; // Above current price
+        $totalFuel = 0;
+        $activeRadius = $currentPrice * 0.05; // 5% range for "Nearby" fuel
+
+        $clusters = [];
 
         foreach ($priceLevels as $price => $volume) {
+            $totalFuel += $volume;
+            
+            // Bias Calculation
+            if ($price < $currentPrice) {
+                $longFuel += $volume;
+            } else {
+                $shortFuel += $volume;
+            }
+
+            // Global Maxim (Strongest Magnet)
             if ($volume > $maxLiquidation) {
                 $maxLiquidation = $volume;
                 $magnetPrice = $price;
             }
 
-            if ($price >= ($currentPrice - $range) && $price <= ($currentPrice + $range)) {
-                $fuel += $volume;
-            }
+            // Collect for Walls sorting
+            $clusters[] = [
+                'price' => (float)$price,
+                'volume' => $volume,
+                'distance_pct' => $currentPrice > 0 ? (($price - $currentPrice) / $currentPrice) * 100 : 0,
+                'type' => $price < $currentPrice ? 'Long' : 'Short'
+            ];
         }
 
-        // Generate Text
+        // Sort clusters by volume to find "Major Walls"
+        usort($clusters, fn($a, $b) => $b['volume'] <=> $a['volume']);
+        $majorWalls = array_slice($clusters, 0, 10);
+
+        // Generate Narratives
         if ($currentPrice <= 0 || empty($priceLevels)) {
-            $text = "Insufficient data to generate insights for this timeframe.";
+            $text = "Insufficient data to generate advanced insights.";
             $sentiment = "Neutral";
         } else {
             $distance = (($magnetPrice - $currentPrice) / $currentPrice) * 100;
             $direction = $distance > 0 ? 'above' : 'below';
-            $sentiment = abs($distance) < 2 ? 'Critical' : 'Watching';
+            $sentiment = abs($distance) < 1.5 ? 'CRITICAL' : (abs($distance) < 5 ? 'WATCHING' : 'STABLE');
 
-            $text = "The strongest liquidation magnet is at <strong>$" . number_format($magnetPrice) . "</strong> (" . number_format(abs($distance), 2) . "% {$direction}). ";
-            $text .= "There is <strong>$" . $this->formatNumber($fuel) . "</strong> of liquidation fuel within 5% of current price.";
+            $text = "Market is heavily gravitated towards <strong>$" . number_format($magnetPrice) . "</strong> (" . number_format(abs($distance), 2) . "% {$direction}). ";
+            $text .= "Total liquidation fuel detected: <strong>$" . $this->formatNumber($totalFuel) . "</strong>.";
         }
 
         return [
             'magnet_price' => $magnetPrice,
             'magnet_strength' => $maxLiquidation,
-            'local_fuel' => $fuel,
+            'long_fuel' => $longFuel,
+            'short_fuel' => $shortFuel,
+            'total_fuel' => $totalFuel,
+            'bias' => $totalFuel > 0 ? [
+                'long_pct' => round(($longFuel / $totalFuel) * 100, 1),
+                'short_pct' => round(($shortFuel / $totalFuel) * 100, 1)
+            ] : ['long_pct' => 50, 'short_pct' => 50],
+            'major_walls' => $majorWalls,
             'text' => $text,
             'sentiment' => $sentiment
         ];
