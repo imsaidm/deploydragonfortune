@@ -139,6 +139,34 @@ class LongShortAnalysisController extends Controller
                     ],
                     'sentiment' => $sentiment,
                     'insight' => $insightText,
+                    'advanced_stats' => [
+                        'extremes_24h' => $this->analysisService->calculate24hExtremes($topHistory),
+                        'contrarian_signal' => $this->analysisService->detectContrarianSignal(
+                            $latestTop->top_account_long_short_ratio,
+                            $latestGlobal->global_account_long_short_ratio
+                        ),
+                        'conviction' => $this->analysisService->calculateConvictionScore(
+                            $latestTop->top_account_long_percent,
+                            $latestTop->top_account_short_percent
+                        ),
+                        'percentile' => $this->analysisService->calculatePercentile(
+                            $latestTop->top_account_long_short_ratio,
+                            $topHistory->pluck('top_account_long_short_ratio')
+                        ),
+                        'trend_streak' => $this->analysisService->calculateTrendStreak($topHistory),
+                        'impact' => $this->analysisService->calculateSentimentImpact(
+                            $latestTop->top_account_long_short_ratio,
+                            $latestGlobal->global_account_long_short_ratio
+                        ),
+                        'volatility' => $this->analysisService->calculateSentimentVolatility($topHistory),
+                        'gap_momentum' => $this->analysisService->calculateGapMomentum(
+                            $latestTop->top_account_long_short_ratio,
+                            $latestGlobal->global_account_long_short_ratio,
+                            ($topHistory->skip(1)->first()?->top_account_long_short_ratio ?? $latestTop->top_account_long_short_ratio),
+                            ($globalHistory->skip(1)->first()?->global_account_long_short_ratio ?? $latestGlobal->global_account_long_short_ratio)
+                        ),
+                        'dominance' => $this->analysisService->calculateDominance($topHistory),
+                    ],
                 ]
             ]);
         } catch (\Exception $e) {
