@@ -427,6 +427,22 @@
     document.addEventListener('alpine:init', () => {
         Alpine.data('heatmapPro', () => {
             let _chart = null; // Private local variable to prevent Alpine reactivity proxying
+            let _currentMagnetStrength = 1; // Store magnet strength to avoid reactive access in Chart callbacks
+            
+            // Plain formatting functions for Chart.js callbacks (NOT reactive)
+            const _fmt = (n) => { 
+                if (!n && n !== 0) return '--';
+                if (n === 0) return '0.00';
+                if (Math.abs(n) < 1) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+                return new Intl.NumberFormat('en-US').format(Math.round(n)); 
+            };
+            
+            const _fmtK = (n) => {
+                if (n >= 1000000000) return (n / 1000000000).toFixed(2) + 'B';
+                if (n >= 1000000) return (n / 1000000).toFixed(2) + 'M';
+                if (n >= 1000) return (n / 1000).toFixed(2) + 'K';
+                return n.toFixed(2);
+            };
             
             return {
             loading: false,
@@ -545,12 +561,12 @@
                                 clip: false,
                                 pointRadius: (c) => {
                                     const v = c.raw?.v || 0;
-                                    const max = this.data.insights.magnet_strength || 1;
+                                    const max = _currentMagnetStrength || 1;
                                     return Math.min(12, Math.max(3, (v / max) * 15));
                                 },
                                 backgroundColor: (c) => {
                                     const v = c.raw?.v || 0;
-                                    const max = this.data.insights.magnet_strength || 1;
+                                    const max = _currentMagnetStrength || 1;
                                     const norm = v / (max * 0.7);
                                     if(norm > 0.8) return '#ffffff'; // White Hot
                                     if(norm > 0.6) return '#f97316'; // Orange
@@ -632,34 +648,146 @@
             },
 
             updateChart(data) {
-                if (!_chart) return;
+                // CRITICAL FIX: Destroy and recreate chart instead of update-in-place
+                // This completely avoids Alpine reactivity proxy issues
                 
-                // 1. Heatmap Data (v-scaled squares)
-                _chart.data.datasets[0].data = data.heatmap || [];
+                if (_chart) {
+                    _chart.destroy();
+                    _chart = null;
+                }
                 
-                // 2. Price Line (ensure single Y value)
-                _chart.data.datasets[1].data = (data.price_line || []).map(p => ({
-                    x: p.x,
-                    y: p.c 
-                }));
                 
-                // 3. Auto-scale Y Axis with smart buffer
+                // Convert to plain object
+                const plainData = JSON.parse(JSON.stringify(data));
+                
+                // CRITICAL FIX: Calculate actual max from chart data, not backend
+                // After sampling, backend magnet_strength may not match actual max
+                const heatmapData = plainData.heatmap || [];
+                const actualMax = heatmapData.length > 0 
+                    ? Math.max(...heatmapData.map(p => p.v || 0))
+                    : (plainData.insights?.magnet_strength || 1);
+                _currentMagnetStrength = actualMax;
+                
+                const canvas = document.getElementById('heatmapChart');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                
+                // Calculate Y axis range
                 const allY = [
-                    ...(data.price_line || []).map(p => p.c),
-                    ...(data.heatmap || []).map(p => p.y)
+                    ...(plainData.price_line || []).map(p => p.c),
+                    ...(plainData.heatmap || []).map(p => p.y)
                 ];
-
+                
+                let yMin, yMax;
                 if (allY.length > 0) {
                     const minP = Math.min(...allY);
                     const maxP = Math.max(...allY);
                     const range = maxP - minP;
-                    const buffer = range > 0 ? range * 0.15 : minP * 0.05; // 5% buffer for flat price
-                    
-                    _chart.options.scales.y.min = minP - buffer;
-                    _chart.options.scales.y.max = maxP + buffer;
+                    const buffer = range > 0 ? range * 0.15 : minP * 0.05;
+                    yMin = minP - buffer;
+                    yMax = maxP + buffer;
                 }
-
-                _chart.update();
+                
+                // Create fresh chart
+                _chart = new window.Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [
+                            {
+                                label: 'Liquidation Density',
+                                data: plainData.heatmap || [],
+                                pointStyle: 'rect',
+                                clip: false,
+                                pointRadius: (c) => {
+                                    const v = c.raw?.v || 0;
+                                    const max = _currentMagnetStrength || 1;
+                                    // Smaller points for cleaner visualization
+                                    return Math.min(8, Math.max(1.5, (v / max) * 10));
+                                },
+                                backgroundColor: (c) => {
+                                    const v = c.raw?.v || 0;
+                                    // CRITICAL FIX: Calculate max from actual data, not backend magnet_strength
+                                    // After sampling, magnet_strength may not match actual max in chart
+                                    const max = _currentMagnetStrength || 1;
+                                    const norm = v / max;
+                                    // More selective thresholds for better visual hierarchy
+                                    if(norm > 0.95) return '#ffffff';      // High Intensity (white) - top 5% only
+                                    if(norm > 0.80) return '#f97316';      // Level 2 (orange) - top 20%
+                                    if(norm > 0.50) return '#9333ea';      // Level 1 (purple) - top 50%
+                                    return '#2563eb';                      // Base (blue) - rest
+                                },
+                                borderWidth: 0,
+                                order: 2
+                            },
+                            {
+                                label: 'Index Price',
+                                data: (plainData.price_line || []).map(p => ({ x: p.x, y: p.c })),
+                                type: 'line',
+                                borderColor: '#ffffff',
+                                borderWidth: 2,
+                                pointRadius: 0,
+                                hitRadius: 10,
+                                clip: false,
+                                tension: 0.1,
+                                fill: false,
+                                order: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        interaction: {
+                            intersect: true,
+                            mode: 'nearest',
+                            axis: 'xy'
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(13, 17, 23, 0.95)',
+                                titleColor: '#ffffff',
+                                bodyColor: '#8b949e',
+                                borderColor: '#30363d',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: false,
+                                callbacks: {
+                                    label: (c) => {
+                                        if (c.datasetIndex === 0) {
+                                            return [
+                                                `Liquidation: $${_fmtK(c.raw.v)}`,
+                                                `Price Level: $${_fmt(c.raw.y)}`
+                                            ];
+                                        }
+                                        return `Price: $${_fmt(c.raw.y)}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                type: 'time',
+                                time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+                                grid: { color: 'rgba(48, 54, 61, 0.1)' },
+                                ticks: { color: '#8b949e', font: { size: 10 } }
+                            },
+                            y: {
+                                position: 'right',
+                                grid: { color: 'rgba(48, 54, 61, 0.1)' },
+                                ticks: { 
+                                    color: '#ffffff', 
+                                    font: { size: 10, weight: 'bold' },
+                                    callback: (v) => '$' + _fmt(v)
+                                },
+                                min: yMin,
+                                max: yMax
+                            }
+                        }
+                    }
+                });
             },
 
             sentimentClass() {

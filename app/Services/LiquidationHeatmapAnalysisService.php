@@ -123,6 +123,10 @@ class LiquidationHeatmapAnalysisService
                     'v' => (float)$point->liquidation_amount
                 ];
             }
+            
+            // CRITICAL FIX: Limit data points to prevent browser crashes
+            // Some ranges return 3+ MB of JSON, causing "Maximum call stack size exceeded"
+            $chartData = $this->sampleHeatmapData($chartData, 2000);
 
             return [
                 'heatmap' => $chartData,
@@ -286,5 +290,51 @@ class LiquidationHeatmapAnalysisService
         if ($num >= 1000000) return round($num / 1000000, 2) . 'M';
         if ($num >= 1000) return round($num / 1000, 2) . 'K';
         return round($num, 2);
+    }
+    
+    /**
+     * Smart sampling to reduce data points while preserving important liquidation zones
+     * Keeps high-value points and samples the rest evenly
+     */
+    private function sampleHeatmapData(array $data, int $maxPoints = 2000): array
+    {
+        $count = count($data);
+        
+        // If data is already small enough, return as is
+        if ($count <= $maxPoints) {
+            return $data;
+        }
+        
+        // Sort by liquidation amount (v) descending to keep the most significant points
+        usort($data, function($a, $b) {
+            return ($b['v'] ?? 0) <=> ($a['v'] ?? 0);
+        });
+        
+        // Keep top 40% of max points (the most significant liquidations)
+        $keepTopCount = (int)($maxPoints * 0.4);
+        $topPoints = array_slice($data, 0, $keepTopCount);
+        
+        // Sample the remaining data evenly
+        $remainingData = array_slice($data, $keepTopCount);
+        $remainingCount = count($remainingData);
+        $sampleCount = $maxPoints - $keepTopCount;
+        
+        $sampledRemaining = [];
+        if ($remainingCount > 0 && $sampleCount > 0) {
+            $step = $remainingCount / $sampleCount;
+            for ($i = 0; $i < $sampleCount; $i++) {
+                $index = (int)($i * $step);
+                if (isset($remainingData[$index])) {
+                    $sampledRemaining[] = $remainingData[$index];
+                }
+            }
+        }
+        
+        // Merge and return
+        $result = array_merge($topPoints, $sampledRemaining);
+        
+        \Log::info("Sampled heatmap data: {$count} → " . count($result) . " points");
+        
+        return $result;
     }
 }

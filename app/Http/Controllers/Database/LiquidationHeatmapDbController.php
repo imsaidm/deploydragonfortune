@@ -52,6 +52,8 @@ class LiquidationHeatmapDbController extends Controller
         // Get all heatmaps for this symbol
         $heatmaps = LiquidationHeatmap::where('symbol', $symbol)->get();
         
+        Log::info("Range validation for {$symbol}: Found " . count($heatmaps) . " heatmap records");
+        
         $validRanges = [];
         
         foreach ($heatmaps as $heatmap) {
@@ -59,6 +61,8 @@ class LiquidationHeatmapDbController extends Controller
             $candleCount = $heatmap->candlesticks()->count();
             $leverageCount = $heatmap->leverageData()->count();
             $yAxisCount = $heatmap->yAxis()->count();
+            
+            Log::info("Validating range {$heatmap->range}: Candles={$candleCount}, Leverage={$leverageCount}, YAxis={$yAxisCount}");
             
             // Only include ranges with complete data (at least 100 candles and some leverage points and y-axis)
             // Also verify the data doesn't cause crashes by checking if we can fetch at least one row
@@ -68,10 +72,15 @@ class LiquidationHeatmapDbController extends Controller
                     $testCandle = $heatmap->candlesticks()->first();
                     if ($testCandle && !in_array($heatmap->range, $validRanges)) {
                         $validRanges[] = $heatmap->range;
+                        Log::info("✓ Range {$heatmap->range} PASSED validation");
+                    } else {
+                        Log::warning("✗ Range {$heatmap->range} FAILED: testCandle is null or already added");
                     }
                 } catch (\Exception $e) {
-                    Log::warning("Range {$heatmap->range} for {$symbol} excluded due to data error: " . $e->getMessage());
+                    Log::warning("✗ Range {$heatmap->range} EXCLUDED due to data error: " . $e->getMessage());
                 }
+            } else {
+                Log::warning("✗ Range {$heatmap->range} FAILED validation: Not enough data");
             }
         }
 
@@ -82,6 +91,8 @@ class LiquidationHeatmapDbController extends Controller
             $posB = array_search($b, $order);
             return ($posA === false ? 99 : $posA) <=> ($posB === false ? 99 : $posB);
         });
+
+        Log::info("Final valid ranges for {$symbol}: " . implode(', ', $validRanges));
 
         return response()->json([
             'success' => true,
