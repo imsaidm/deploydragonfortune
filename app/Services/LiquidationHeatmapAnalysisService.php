@@ -40,6 +40,9 @@ class LiquidationHeatmapAnalysisService
      */
     private function analyzeHeatmap(LiquidationHeatmap $heatmap, bool $summaryOnly = false)
     {
+        // CRITICAL FIX: Increase memory limit for production (default 128M not enough)
+        @ini_set('memory_limit', '256M');
+        
         try {
             // 1. Fetch Components (Optimized & Sorted)
             $yAxis = $heatmap->yAxis()->orderBy('sequence_order')->toBase()->select('price_level', 'sequence_order')->get();
