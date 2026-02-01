@@ -49,14 +49,35 @@ class LiquidationHeatmapDbController extends Controller
              return response()->json(['ranges' => []]);
         }
 
-        $ranges = LiquidationHeatmap::where('symbol', $symbol)
-            ->distinct('range')
-            ->pluck('range')
-            ->toArray();
+        // Get all heatmaps for this symbol
+        $heatmaps = LiquidationHeatmap::where('symbol', $symbol)->get();
+        
+        $validRanges = [];
+        
+        foreach ($heatmaps as $heatmap) {
+            // Check if this range has BOTH candlesticks AND leverage data
+            $candleCount = $heatmap->candlesticks()->count();
+            $leverageCount = $heatmap->leverageData()->count();
+            $yAxisCount = $heatmap->yAxis()->count();
+            
+            // Only include ranges with complete data (at least 100 candles and some leverage points and y-axis)
+            // Also verify the data doesn't cause crashes by checking if we can fetch at least one row
+            if ($candleCount >= 100 && $leverageCount > 0 && $yAxisCount > 0) {
+                try {
+                    // Quick sanity check: can we fetch the first candle?
+                    $testCandle = $heatmap->candlesticks()->first();
+                    if ($testCandle && !in_array($heatmap->range, $validRanges)) {
+                        $validRanges[] = $heatmap->range;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("Range {$heatmap->range} for {$symbol} excluded due to data error: " . $e->getMessage());
+                }
+            }
+        }
 
         // Sort roughly by time duration for better UI
         $order = ['12h', '24h', '3d', '7d', '30d', '90d', '180d', '1y'];
-        usort($ranges, function($a, $b) use ($order) {
+        usort($validRanges, function($a, $b) use ($order) {
             $posA = array_search($a, $order);
             $posB = array_search($b, $order);
             return ($posA === false ? 99 : $posA) <=> ($posB === false ? 99 : $posB);
@@ -64,7 +85,7 @@ class LiquidationHeatmapDbController extends Controller
 
         return response()->json([
             'success' => true,
-            'ranges' => $ranges
+            'ranges' => $validRanges
         ]);
     }
 
