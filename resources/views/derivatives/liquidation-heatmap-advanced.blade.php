@@ -7,7 +7,8 @@
     // Global flag to attempt to disable the aggressive app.js "auto-refresh" scrubber
     window.__AUTO_REFRESH_DISABLED__ = true;
 </script>
-<!-- Chart.js Dependencies are bundled in app.js -->
+<!-- Chart.js Dependencies for Production (ENSURE DATE ADAPTER) -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         :root {
             --df-bg-deep: #0d1117;
@@ -344,11 +345,22 @@
                 </div>
             </div>
             
-            <div id="chartContainer" class="flex-grow-1 h-100 w-100">
+            <div id="chartContainer" class="flex-grow-1 h-100 w-100 position-relative">
+                <!-- Chart Empty Overlay -->
+                <div x-show="!data.heatmap || data.heatmap.length === 0" 
+                     x-cloak
+                     class="position-absolute top-50 start-50 translate-middle text-center w-100 p-4"
+                     style="z-index: 10;">
+                    <div class="mb-3 opacity-25">
+                        <i data-feather="bar-chart-2" style="width: 64px; height: 64px;"></i>
+                    </div>
+                    <h5 class="text-white opacity-75">No Liquidations Detected</h5>
+                    <p class="small text-dim mb-0" x-text="'No data points found for ' + symbol + ' in ' + range + ' range.'"></p>
+                    <p class="small text-dim">Verification: DB ID is present but related leverage data is empty.</p>
+                </div>
+                
                 <canvas id="heatmapChart"></canvas>
             </div>
-
-            <!-- No overlay for now to debug -->
         </div>
 
         <!-- Right: Major Liquidity Walls -->
@@ -423,10 +435,13 @@
             },
 
             waitForChart() {
-                if (window.Chart) {
+                // Ensure dependencies like Chart.js and adapter are ready
+                if (window.Chart && typeof window.Chart.registry?.getScale('time') !== 'undefined') {
+                    console.log('Chart.js + Time Adapter Ready');
                     this.initChart();
                 } else {
-                    setTimeout(() => this.waitForChart(), 100);
+                    console.log('Waiting for Chart.js/Adapter...');
+                    setTimeout(() => this.waitForChart(), 200);
                 }
             },
 
@@ -476,12 +491,23 @@
                             _chart.update();
                         }
                     }
-                } catch (e) { console.error('Data Sync Error:', e); }
+                } catch (e) { 
+                    console.error('Data Sync Error:', e); 
+                    this.data.insights.text = `<span class="text-danger">Critical Error: ${e.message}</span>`;
+                }
                 finally { this.loading = false; }
             },
 
             initChart() {
                 if (_chart) return;
+                
+                // Safety check for Chart.js being ready
+                if (typeof window.Chart === 'undefined') {
+                    console.warn('Chart.js not yet loaded, retrying...');
+                    setTimeout(() => this.initChart(), 500);
+                    return;
+                }
+
                 const canvas = document.getElementById('heatmapChart');
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
@@ -519,6 +545,7 @@
                                 borderColor: '#ffffff',
                                 borderWidth: 2,
                                 pointRadius: 0,
+                                hitRadius: 10, // Make it easier to hover
                                 clip: false,
                                 tension: 0.1,
                                 fill: false,
@@ -532,6 +559,11 @@
                         responsive: true,
                         maintainAspectRatio: false,
                         animation: false,
+                        interaction: {
+                            intersect: true,
+                            mode: 'nearest',
+                            axis: 'xy'
+                        },
                         plugins: {
                             legend: { display: false },
                             tooltip: {

@@ -45,6 +45,10 @@ class LiquidationHeatmapAnalysisService
         $candlesticks = $heatmap->candlesticks()->orderBy('sequence_order')->toBase()->select('timestamp', 'sequence_order', 'close_price')->get();
         $leverageData = $heatmap->leverageData()->toBase()->select('y_position', 'liquidation_amount')->get();
 
+        if ($yAxis->isEmpty() || $candlesticks->isEmpty()) {
+             \Illuminate\Support\Facades\Log::warning("Heatmap ID {$heatmap->id} [{$heatmap->symbol} {$heatmap->range}] has missing components. Y: ".count($yAxis).", Candles: ".count($candlesticks));
+        }
+
         // 2. Map Y-Axis for Insight summing
         $yMap = [];
         foreach ($yAxis as $row) {
@@ -57,14 +61,14 @@ class LiquidationHeatmapAnalysisService
         // 4. Sum up liquidation fuel per price level
         $priceLevelsParams = [];
         foreach ($leverageData as $point) {
-            $price = $yMap[(int)$point->y_position] ?? 0;
-            if ($price == 0) continue;
+            $price = $yMap[(int)$point->y_position] ?? null;
+            if ($price === null) continue;
 
-            $priceKey = (string)$price; // Use string key to prevent float -> int truncation
+            $priceKey = (string)$price;
             if (!isset($priceLevelsParams[$priceKey])) {
                 $priceLevelsParams[$priceKey] = 0;
             }
-            $priceLevelsParams[$priceKey] += $point->liquidation_amount;
+            $priceLevelsParams[$priceKey] += (float)$point->liquidation_amount;
         }
 
         // 5. Generate Insights (Numeric Sort)
@@ -87,10 +91,15 @@ class LiquidationHeatmapAnalysisService
         
         $xMap = [];
         $candleData = [];
+        $seenTimestamps = [];
         foreach ($candlesticksFull as $candle) {
-            $xMap[(int)$candle->sequence_order] = (int)$candle->timestamp;
+            $ts = (int)$candle->timestamp;
+            if (isset($seenTimestamps[$ts])) continue;
+            $seenTimestamps[$ts] = true;
+
+            $xMap[(int)$candle->sequence_order] = $ts;
             $candleData[] = [
-                'x' => $candle->timestamp * 1000,
+                'x' => $ts * 1000,
                 'o' => $candle->open_price,
                 'h' => $candle->high_price,
                 'l' => $candle->low_price,
@@ -147,6 +156,20 @@ class LiquidationHeatmapAnalysisService
         $shortFuel = 0;
         $totalFuel = 0;
         $clusters = [];
+
+        if (empty($priceLevels)) {
+            return [
+                'magnet_price' => 0,
+                'magnet_strength' => 0,
+                'long_fuel' => 0,
+                'short_fuel' => 0,
+                'total_fuel' => 0,
+                'bias' => ['long_pct' => 50, 'short_pct' => 50],
+                'major_walls' => [],
+                'text' => "No liquidation data found for this timeframe.",
+                'sentiment' => 'STABLE'
+            ];
+        }
 
         foreach ($priceLevels as $pKey => $volume) {
             $price = (float)$pKey;
