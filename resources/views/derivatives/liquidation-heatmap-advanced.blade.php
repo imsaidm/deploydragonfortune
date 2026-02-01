@@ -8,7 +8,8 @@
     window.__AUTO_REFRESH_DISABLED__ = true;
 </script>
 <!-- Chart.js Dependencies for Production (ENSURE DATE ADAPTER) -->
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         :root {
             --df-bg-deep: #0d1117;
