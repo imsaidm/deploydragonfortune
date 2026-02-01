@@ -68,6 +68,22 @@ class LiquidationHeatmapDbController extends Controller
         ]);
     }
 
+    public function getSummary(Request $request)
+    {
+        $symbol = $request->input('symbol');
+        if (!$symbol) {
+             return response()->json(['success' => false, 'message' => 'Missing symbol.'], 400);
+        }
+
+        try {
+            $result = $this->analysisService->getSummaryForSymbol($symbol);
+            return response()->json($result);
+        } catch (\Exception $e) {
+            Log::error("Heatmap Summary EXCEPTION: " . $e->getMessage(), ['symbol' => $symbol]);
+            return response()->json(['success' => false, 'message' => 'Error fetching summary.'], 500);
+        }
+    }
+
     public function getData(Request $request)
     {
         $symbol = $request->input('symbol');
@@ -80,8 +96,10 @@ class LiquidationHeatmapDbController extends Controller
         try {
             $result = $this->analysisService->analyze($symbol, $interval);
             
-            if (!$result['success']) {
-                return response()->json($result, 200); // Handled error (e.g. No data)
+            // If data is requested for a specific range, we also want the summary 
+            // to update the range cards if needed.
+            if ($request->has('with_summary')) {
+                $result['symbol_summary'] = $this->analysisService->getSummaryForSymbol($symbol);
             }
 
             return response()->json($result);
@@ -89,13 +107,12 @@ class LiquidationHeatmapDbController extends Controller
             Log::error("Liquidation Heatmap EXCEPTION: " . $e->getMessage(), [
                 'symbol' => $symbol,
                 'interval' => $interval,
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
+                'trace' => $e->getTraceAsString()
             ]);
             
             return response()->json([
                 'success' => false,
-                'message' => 'Server encountered an error processing your request. Please check if data exists for this pair.'
+                'message' => 'Service error. Please try again later.'
             ], 500);
         }
     }

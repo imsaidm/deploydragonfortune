@@ -7,9 +7,7 @@
     // Global flag to attempt to disable the aggressive app.js "auto-refresh" scrubber
     window.__AUTO_REFRESH_DISABLED__ = true;
 </script>
-<!-- Chart.js Dependencies for Production -->
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix/dist/chartjs-chart-matrix.min.js"></script>
+<!-- Chart.js Dependencies are bundled in app.js -->
     <style>
         :root {
             --df-bg-deep: #0d1117;
@@ -141,60 +139,67 @@
             color: var(--df-text-dim);
         }
 
-        /* Bias Meter */
-        .bias-container {
-            height: 8px;
-            background: var(--df-danger);
-            border-radius: 4px;
-            overflow: hidden;
-            display: flex;
-            margin: 10px 0;
-        }
-        .bias-fill {
-            background: var(--df-success);
-            height: 100%;
-            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        .text-glow-orange {
+            color: #f97316 !important;
+            text-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
         }
 
-        /* Major Walls List */
-        .wall-item {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid var(--df-border);
-            transition: background 0.2s;
-            cursor: default;
-        }
-        .wall-item:hover { background: var(--df-bg-hover); }
-
-        .wall-bar {
-            height: 4px;
-            background: var(--df-accent);
-            border-radius: 2px;
-            margin-top: 4px;
-            opacity: 0.6;
+        .text-glow-blue {
+            color: #58a6ff !important;
+            text-shadow: 0 0 12px rgba(88, 166, 255, 0.4);
         }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--df-bg-deep); }
-        ::-webkit-scrollbar-thumb { background: var(--df-border); border-radius: 3px; }
-
-        .loading-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(13, 17, 23, 0.8);
-            backdrop-filter: blur(4px);
-            z-index: 50;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.3s;
+        /* Range Card Styles */
+        .range-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 2rem;
         }
 
-        /* Chart adjustments */
+        .range-card {
+            background: rgba(22, 27, 34, 0.4);
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .range-card:hover {
+            border-color: #58a6ff;
+            background: rgba(88, 166, 255, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .range-card.active {
+            border-color: #58a6ff;
+            background: rgba(88, 166, 255, 0.15);
+            box-shadow: 0 0 15px rgba(88, 166, 255, 0.1);
+        }
+
+        .range-card.empty {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .range-badge {
+            font-size: 0.6rem;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-weight: 800;
+        }
+
+        .text-glow-orange {
+            color: #f97316 !important;
+            text-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
+        }
+
         #heatmapChart {
             flex-grow: 1;
             padding: 10px;
-            min-height: 500px;
+            min-height: 550px;
         }
 
         @media (max-width: 1366px) {
@@ -242,20 +247,43 @@
 
         <div class="d-flex gap-3">
             <div class="input-group input-group-sm">
-                <span class="input-group-text bg-card border-border text-dim">Asset</span>
-                <select x-model="symbol" @change="onSymbolChange()" class="form-select bg-card border-border text-white fw-bold" style="width: 120px;">
+                <span class="input-group-text bg-card border-border text-dim">Active Coin</span>
+                <select x-model="symbol" @change="onSymbolChange()" class="form-select bg-card border-border text-white fw-bold" style="width: 150px; font-size: 1rem;">
                     @foreach($symbols as $s) <option value="{{ $s }}">{{ $s }}</option> @endforeach
                 </select>
             </div>
             
-            <div class="input-group input-group-sm">
-                <span class="input-group-text bg-card border-border text-dim">Range</span>
-                <select x-model="range" @change="fetchData()" class="form-select bg-card border-border text-white fw-bold" style="width: 100px;">
-                    <template x-for="r in availableRanges" :key="r">
-                        <option :value="r" x-text="r"></option>
-                    </template>
-                </select>
+            <div class="d-flex align-items-center bg-card border border-border rounded px-3 py-1">
+                <span class="text-dim small me-2">Autosync:</span>
+                <span class="text-success small fw-bold">60s</span>
             </div>
+        </div>
+    </div>
+
+    <!-- Multi-Range Insights Grid -->
+    <div class="range-grid">
+        <template x-for="(rangeInfo, rName) in symbolSummary" :key="rName">
+            <div class="range-card" 
+                 x-show="rangeInfo.has_data"
+                 :class="{ 'active': range === rName }"
+                 @click="switchRange(rName)">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="fw-bold text-white" x-text="rName"></span>
+                    <span class="range-badge" 
+                          :class="rangeInfo.sentiment === 'CRITICAL' ? 'bg-danger' : (rangeInfo.sentiment === 'WATCHING' ? 'bg-warning' : 'bg-success')"
+                          x-text="rangeInfo.sentiment"></span>
+                </div>
+                <div class="small">
+                    <div class="text-dim" style="font-size: 0.7rem;">Magnet Price</div>
+                    <div class="fw-bold text-white" x-text="'$' + fmt(rangeInfo.magnet_price)">--</div>
+                </div>
+            </div>
+        </template>
+        <div x-show="Object.keys(symbolSummary).length > 0 && !Object.values(symbolSummary).some(r => r.has_data)" class="text-dim small p-3">
+            <i data-feather="info" class="me-1"></i> No liquidation data found in current records. Please update data from server.
+        </div>
+        <div x-show="Object.keys(symbolSummary).length === 0" class="text-dim small p-3">
+            Scanning all timeframes for <span x-text="symbol" class="text-primary fw-bold"></span>...
         </div>
     </div>
 
@@ -283,9 +311,9 @@
                 </div>
             </div>
 
-            <div class="sidebar-stat">
-                <div class="stat-label">Strongest Magnet</div>
-                <div class="stat-main text-highlight" x-text="'$' + fmt(data.insights.magnet_price)">--</div>
+            <div class="sidebar-stat" style="background: linear-gradient(90deg, rgba(249, 115, 22, 0.05) 0%, transparent 100%); border-left: 3px solid #f97316;">
+                <div class="stat-label" style="color: #f97316 !important;">Strongest Magnet</div>
+                <div class="stat-main text-glow-orange" x-text="'$' + fmt(data.insights.magnet_price)">--</div>
                 <div class="small text-white opacity-50 mt-1" x-text="magnetDistance()">--</div>
             </div>
 
@@ -367,176 +395,163 @@
             let _chart = null; // Private local variable to prevent Alpine reactivity proxying
             
             return {
-                symbol: '{{ $symbols->first() }}',
-                range: '{{ $intervals->first() }}',
-                availableRanges: @json($intervals),
-                loading: false,
-                lastUpdated: null,
-                data: {
-                    current_price: 0,
-                    insights: {
-                        magnet_price: 0,
-                        magnet_strength: 0,
-                        total_fuel: 0,
-                        bias: { long_pct: 50, short_pct: 50 },
-                        major_walls: [],
-                        text: 'Analyzing...',
-                        sentiment: 'STABLE'
-                    }
-                },
+            loading: false,
+            symbol: '{{ $symbols->first() }}',
+            range: '12h',
+            symbolSummary: {},
+            lastUpdated: null,
+            data: {
+                current_price: 0,
+                insights: {
+                    magnet_price: 0,
+                    magnet_strength: 0,
+                    total_fuel: 0,
+                    bias: { long_pct: 50, short_pct: 50 },
+                    major_walls: [],
+                    text: 'Analyzing...',
+                    sentiment: 'Neutral'
+                }
+            },
 
             init() {
-                console.log('Alpine: heatmapPro component initialized');
+                console.log('Alpine: Heatmap Pro (Coin-Centric) initialized');
                 if (window.feather) feather.replace();
-                
                 this.waitForChart();
-                this.onSymbolChange(); // Load initial data immediately
+                this.onSymbolChange(); // Auto-start
                 
-                // Set interval for data refresh
-                setInterval(() => {
-                    console.log('Auto-refresh triggered...');
-                    this.fetchData();
-                }, 60000);
+                setInterval(() => this.fetchData(), 60000);
             },
 
             waitForChart() {
-                // If Matrix or Chart is missing, we try to wait, but don't block fetchData
-                if (window.Chart && window.matrix) {
+                if (window.Chart) {
                     this.initChart();
-                } else if (window.Chart) {
-                     // Fallback: init without matrix if it's taking too long, or matrix might be in Chart.registry
-                     this.initChart();
                 } else {
-                    setTimeout(() => this.waitForChart(), 200);
+                    setTimeout(() => this.waitForChart(), 100);
                 }
             },
 
             async onSymbolChange() {
-                await this.fetchAvailableRanges();
+                this.loading = true;
+                try {
+                    const res = await fetch(`{{ route('data.liquidation-heatmap.summary') }}?symbol=${this.symbol}`);
+                    const json = await res.json();
+                    if (json.success) {
+                        this.symbolSummary = json.summary;
+                        // Pick best range
+                        const best = Object.keys(this.symbolSummary).find(r => this.symbolSummary[r].has_data);
+                        if (best && (!this.symbolSummary[this.range] || !this.symbolSummary[this.range].has_data)) {
+                            this.range = best;
+                        }
+                    }
+                } catch (e) { console.error('Summary Fetch Error:', e); }
                 this.fetchData();
             },
 
-            async fetchAvailableRanges() {
-                try {
-                    const response = await fetch(`{{ route('data.liquidation-heatmap.ranges') }}?symbol=${this.symbol}`);
-                    const json = await response.json();
-                    if (json.ranges) {
-                        this.availableRanges = json.ranges;
-                        // Validate current range
-                        if (this.availableRanges.length > 0 && !this.availableRanges.includes(this.range)) {
-                            this.range = this.availableRanges[0];
-                        }
-                    }
-                } catch (e) {
-                    console.error('Range Fetch Error:', e);
-                }
+            switchRange(r) {
+                if (this.range === r) return;
+                this.range = r;
+                this.fetchData();
             },
 
             async fetchData() {
+                if (!this.range) return;
                 this.loading = true;
                 try {
+                    console.log(`Syncing ${this.symbol} ${this.range} data...`);
                     const response = await fetch(`{{ route('data.liquidation-heatmap.heatmap') }}?symbol=${this.symbol}&interval=${this.range}`);
                     const json = await response.json();
                     
                     if (json.success) {
-                        this.data.insights = json.data.insights;
-                        this.data.current_price = json.data.current_price;
+                        this.data = json.data;
                         this.lastUpdated = new Date().toLocaleTimeString();
-                        
-                        // Pass raw data directly to chart
                         this.updateChart(json.data);
                         this.$nextTick(() => { if(window.feather) feather.replace(); });
+                        console.log('Sync completed at ' + this.lastUpdated);
                     } else {
-                        // Handle success: false (like no data)
-                        this.data.insights.text = `<span class="text-danger">${json.message || 'No data available.'}</span>`;
-                        this.data.insights.major_walls = [];
-                        this.data.insights.bias = { long_pct: 50, short_pct: 50 };
+                        console.warn('Sync warning:', json.message);
+                        this.data.insights.text = `<span class="text-danger">${json.message || 'No data found.'}</span>`;
                         if (_chart) {
-                             _chart.data.datasets[0].data = [];
-                             _chart.data.datasets[1].data = [];
-                             _chart.update();
+                            _chart.data.datasets[0].data = [];
+                            _chart.data.datasets[1].data = [];
+                            _chart.update();
                         }
                     }
-                } catch (error) {
-                    console.error('Heatmap Fetch Error:', error);
-                } finally {
-                    this.loading = false;
-                }
+                } catch (e) { console.error('Data Sync Error:', e); }
+                finally { this.loading = false; }
             },
 
             initChart() {
                 if (_chart) return;
-                const ctx = document.getElementById('heatmapChart').getContext('2d');
+                const canvas = document.getElementById('heatmapChart');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
                 
                 _chart = new window.Chart(ctx, {
-                    type: 'matrix',
+                    type: 'scatter',
                     data: {
                         datasets: [
                             {
                                 label: 'Liquidation Density',
                                 data: [],
+                                pointStyle: 'rect',
+                                clip: false,
+                                pointRadius: (c) => {
+                                    const v = c.raw?.v || 0;
+                                    const max = this.data.insights.magnet_strength || 1;
+                                    return Math.min(12, Math.max(3, (v / max) * 15));
+                                },
                                 backgroundColor: (c) => {
                                     const v = c.raw?.v || 0;
                                     const max = this.data.insights.magnet_strength || 1;
-                                    const norm = v / (max * 0.8); // Scale for better visibility
-                                    
-                                    if(v === 0) return 'rgba(0,0,0,0)';
-                                    if(norm > 0.8) return '#ffffff'; // Hot
-                                    if(norm > 0.6) return '#f97316'; // Extreme
-                                    if(norm > 0.4) return '#9333ea'; // High
-                                    if(norm > 0.1) return '#2b57e6'; // Mid
-                                    return 'rgba(43, 87, 230, 0.15)'; // Low
+                                    const norm = v / (max * 0.7);
+                                    if(norm > 0.8) return '#ffffff'; // White Hot
+                                    if(norm > 0.6) return '#f97316'; // Orange
+                                    if(norm > 0.4) return '#9333ea'; // Purple
+                                    return '#2563eb'; // Blue Base
                                 },
-                                // Dynamic size based on range/density
-                                width: ({chart}) => chart.chartArea ? chart.chartArea.width / 400 : 2,
-                                height: ({chart}) => chart.chartArea ? chart.chartArea.height / 80 : 2,
+                                borderWidth: 0,
                                 order: 2
                             },
                             {
-                                type: 'line',
-                                label: 'Price (Index)',
+                                label: 'Index Price',
                                 data: [],
-                                borderColor: '#00d2ff',
+                                type: 'line',
+                                borderColor: '#ffffff',
                                 borderWidth: 2,
                                 pointRadius: 0,
-                                clip: {left: 0, top: 0, right: 0, bottom: 0},
-                                shadowBlur: 10,
-                                shadowColor: 'rgba(0, 210, 255, 0.5)',
-                                order: 1
+                                clip: false,
+                                tension: 0.1,
+                                fill: false,
+                                order: 1,
+                                shadowBlur: 15,
+                                shadowColor: 'rgba(255, 255, 255, 0.8)'
                             }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        animation: { duration: 400 },
+                        animation: false,
                         plugins: {
                             legend: { display: false },
                             tooltip: {
                                 enabled: true,
-                                mode: 'index',
-                                intersect: false,
-                                backgroundColor: 'rgba(22, 27, 34, 0.95)',
-                                titleColor: '#8b949e',
-                                bodyColor: '#c9d1d9',
+                                backgroundColor: 'rgba(13, 17, 23, 0.95)',
+                                titleColor: '#ffffff',
+                                bodyColor: '#8b949e',
                                 borderColor: '#30363d',
                                 borderWidth: 1,
                                 padding: 12,
                                 displayColors: false,
                                 callbacks: {
-                                    title: (ctx) => {
-                                        const date = new Date(ctx[0].raw.x);
-                                        return date.toLocaleString();
-                                    },
-                                    label: (ctx) => {
-                                        const raw = ctx.raw;
-                                        if (raw.v) {
-                                            return [
-                                                ` Price: $${this.fmt(raw.y)}`,
-                                                ` Liquidity: $${this.fmtK(raw.v)}`
-                                            ];
+                                    label: (c) => {
+                                        if (c.datasetIndex === 0) {
+                                             return [
+                                                 `Liquidation: $${this.fmtK(c.raw.v)}`,
+                                                 `Price Level: $${this.fmt(c.raw.y)}`
+                                             ];
                                         }
-                                        return ` Price: $${this.fmt(raw.y)}`;
+                                        return `Price: $${this.fmt(c.raw.y)}`;
                                     }
                                 }
                             }
@@ -545,15 +560,15 @@
                             x: {
                                 type: 'time',
                                 time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
-                                grid: { color: 'rgba(48, 54, 61, 0.2)' },
+                                grid: { color: 'rgba(48, 54, 61, 0.1)' },
                                 ticks: { color: '#8b949e', font: { size: 10 } }
                             },
                             y: {
                                 position: 'right',
-                                grid: { color: 'rgba(48, 54, 61, 0.2)' },
+                                grid: { color: 'rgba(48, 54, 61, 0.1)' },
                                 ticks: { 
-                                    color: '#8b949e', 
-                                    font: { size: 10 },
+                                    color: '#ffffff', 
+                                    font: { size: 10, weight: 'bold' },
                                     callback: (v) => '$' + this.fmt(v)
                                 }
                             }
@@ -564,27 +579,33 @@
 
             updateChart(data) {
                 if (!_chart) return;
-                console.log('Updating chart with data:', data);
                 
-                // Update Matrix - Directly poke the data to avoid proxying
+                // 1. Heatmap Data (v-scaled squares)
                 _chart.data.datasets[0].data = data.heatmap || [];
                 
-                // Update Price Line
-                _chart.data.datasets[1].data = data.price_line || [];
+                // 2. Price Line (ensure single Y value)
+                _chart.data.datasets[1].data = (data.price_line || []).map(p => ({
+                    x: p.x,
+                    y: p.c 
+                }));
                 
-                // Adjust Y axis range for better visibility (padding)
-                if (data.price_line && data.price_line.length > 0) {
-                    const prices = data.price_line.map(p => p.y);
-                    const min = Math.min(...prices) * 0.98;
-                    const max = Math.max(...prices) * 1.02;
+                // 3. Auto-scale Y Axis with smart buffer
+                const allY = [
+                    ...(data.price_line || []).map(p => p.c),
+                    ...(data.heatmap || []).map(p => p.y)
+                ];
+
+                if (allY.length > 0) {
+                    const minP = Math.min(...allY);
+                    const maxP = Math.max(...allY);
+                    const range = maxP - minP;
+                    const buffer = range > 0 ? range * 0.15 : minP * 0.05; // 5% buffer for flat price
                     
-                    if (isFinite(min) && isFinite(max)) {
-                        _chart.options.scales.y.min = min;
-                        _chart.options.scales.y.max = max;
-                    }
+                    _chart.options.scales.y.min = minP - buffer;
+                    _chart.options.scales.y.max = maxP + buffer;
                 }
 
-                _chart.update('none');
+                _chart.update();
             },
 
             sentimentClass() {
@@ -602,12 +623,18 @@
                 return Math.abs(dist).toFixed(2) + '% ' + (dist > 0 ? 'above' : 'below') + ' current price';
             },
 
-            fmt(n) { return new Intl.NumberFormat('en-US').format(Math.round(n)); },
+            fmt(n) { 
+                if (!n && n !== 0) return '--';
+                if (n === 0) return '0.00';
+                if (Math.abs(n) < 1) return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+                return new Intl.NumberFormat('en-US').format(Math.round(n)); 
+            },
+            
             fmtK(n) {
                 if (n >= 1000000000) return (n / 1000000000).toFixed(2) + 'B';
                 if (n >= 1000000) return (n / 1000000).toFixed(2) + 'M';
                 if (n >= 1000) return (n / 1000).toFixed(2) + 'K';
-                return n.toFixed(0);
+                return n.toFixed(2);
             }
         };
     });
