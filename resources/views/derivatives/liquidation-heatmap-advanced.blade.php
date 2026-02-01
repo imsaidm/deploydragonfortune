@@ -285,9 +285,8 @@
 
     <!-- Multi-Range Insights Grid -->
     <div class="range-grid">
-        <template x-for="(rangeInfo, rName) in symbolSummary" :key="rName">
+        <template x-for="(rangeInfo, rName) in validRanges" :key="rName">
             <div class="range-card" 
-                 x-show="rangeInfo.has_data"
                  :class="{ 'active': range === rName }"
                  @click="switchRange(rName)">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -302,7 +301,7 @@
                 </div>
             </div>
         </template>
-        <div x-show="Object.keys(symbolSummary).length > 0 && !Object.values(symbolSummary).some(r => r.has_data)" class="text-dim small p-3">
+        <div x-show="Object.keys(symbolSummary).length > 0 && Object.keys(validRanges).length === 0" class="text-dim small p-3">
             <i data-feather="info" class="me-1"></i> No liquidation data found in current records. Please update data from server.
         </div>
         <div x-show="Object.keys(symbolSummary).length === 0" class="text-dim small p-3">
@@ -461,6 +460,17 @@
                     text: 'Analyzing...',
                     sentiment: 'Neutral'
                 }
+            },
+            
+            // Computed: Only ranges with data
+            get validRanges() {
+                const valid = {};
+                for (const [rName, rInfo] of Object.entries(this.symbolSummary)) {
+                    if (rInfo && rInfo.has_data === true) {
+                        valid[rName] = rInfo;
+                    }
+                }
+                return valid;
             },
 
             init() {
