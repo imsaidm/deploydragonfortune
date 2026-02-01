@@ -7,9 +7,30 @@
     // Global flag to attempt to disable the aggressive app.js "auto-refresh" scrubber
     window.__AUTO_REFRESH_DISABLED__ = true;
 </script>
-<!-- Chart.js Dependencies for Production (ENSURE DATE ADAPTER) -->
+<!-- Chart.js Dependencies for Production (OVERRIDE app.js version) -->
+<script>
+    // Clear any existing Chart.js from app.js to prevent conflicts
+    if (window.Chart) {
+        console.log('Removing old Chart.js from app.js');
+        delete window.Chart;
+    }
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script>
+    // Verify Chart.js and Date Adapter are loaded
+    if (window.Chart && window.Chart.registry) {
+        console.log('Chart.js loaded successfully with Date Adapter');
+        try {
+            const timeScale = window.Chart.registry.getScale('time');
+            console.log('Time scale registered:', timeScale ? 'YES' : 'NO');
+        } catch (e) {
+            console.error('Time scale check failed:', e);
+        }
+    } else {
+        console.error('Chart.js failed to load from CDN');
+    }
+</script>
     <style>
         :root {
             --df-bg-deep: #0d1117;
