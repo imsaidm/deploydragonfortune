@@ -33,24 +33,24 @@
 </script>
     <style>
         :root {
-            --df-bg-deep: #0d1117;
-            --df-bg-card: #161b22;
-            --df-bg-hover: #1c2128;
-            --df-border: #30363d;
-            --df-accent: #58a6ff;
-            --df-text-main: #e6edf3;
-            --df-text-dim: #8b949e;
-            --df-success: #3fb950;
-            --df-danger: #f85149;
-            --df-warning: #d29922;
-            --df-glow-cyan: rgba(88, 166, 255, 0.4);
+            --df-bg-deep: #f8f9fa;
+            --df-bg-card: #ffffff;
+            --df-bg-hover: #f1f3f5;
+            --df-border: #dee2e6;
+            --df-accent: #0066cc;
+            --df-text-main: #212529;
+            --df-text-dim: #6c757d;
+            --df-success: #28a745;
+            --df-danger: #dc3545;
+            --df-warning: #ffc107;
+            --df-glow-cyan: rgba(0, 102, 204, 0.15);
             
             /* Heatmap Colors */
-            --hm-low: #0c1e33;
-            --hm-mid: #2b57e6;
-            --hm-high: #9333ea;
-            --hm-extreme: #f97316;
-            --hm-hot: #ffffff;
+            --hm-low: #e3f2fd;
+            --hm-mid: #2196f3;
+            --hm-high: #9c27b0;
+            --hm-extreme: #ff5722;
+            --hm-hot: #000000;
         }
 
         /* Force Dark Background for the whole section */
@@ -61,16 +61,16 @@
             padding: 20px;
         }
 
-        .text-dim { color: #8b949e !important; }
-        .text-white { color: #ffffff !important; }
-        .text-highlight { color: #58a6ff !important; }
-        .text-success-pro { color: #3fb950 !important; }
-        .text-danger-pro { color: #f85149 !important; }
+        .text-dim { color: #6c757d !important; }
+        .text-white { color: #212529 !important; }
+        .text-highlight { color: #0066cc !important; }
+        .text-success-pro { color: #28a745 !important; }
+        .text-danger-pro { color: #dc3545 !important; }
 
         .pro-dashboard-wrapper .form-select {
             background-color: var(--df-bg-card);
             border-color: var(--df-border);
-            color: #ffffff;
+            color: #212529;
             font-weight: 600;
         }
 
@@ -94,16 +94,17 @@
         }
 
         .pane {
-            background: #161b22 !important;
-            border: 1px solid #30363d !important;
+            background: #ffffff !important;
+            border: 1px solid #dee2e6 !important;
             border-radius: 12px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .bg-hover {
-            background-color: #1c2128 !important;
+            background-color: #f1f3f5 !important;
         }
 
         /* Sidebar Stats */
@@ -145,7 +146,7 @@
         .stat-label {
             font-size: 0.7rem;
             font-weight: 700;
-            color: #8b949e !important;
+            color: #6c757d !important;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             margin-bottom: 0.5rem;
@@ -154,7 +155,7 @@
         .stat-main {
             font-size: 1.5rem;
             font-weight: 800;
-            color: #ffffff !important;
+            color: #212529 !important;
         }
 
         .stat-sub {
@@ -163,13 +164,13 @@
         }
 
         .text-glow-orange {
-            color: #f97316 !important;
-            text-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
+            color: #ff5722 !important;
+            font-weight: 700;
         }
 
         .text-glow-blue {
-            color: #58a6ff !important;
-            text-shadow: 0 0 12px rgba(88, 166, 255, 0.4);
+            color: #0066cc !important;
+            font-weight: 700;
         }
 
         /* Range Card Styles */
@@ -181,8 +182,8 @@
         }
 
         .range-card {
-            background: rgba(22, 27, 34, 0.4);
-            border: 1px solid #30363d;
+            background: #ffffff;
+            border: 2px solid #dee2e6;
             border-radius: 8px;
             padding: 10px;
             cursor: pointer;
@@ -190,15 +191,16 @@
         }
 
         .range-card:hover {
-            border-color: #58a6ff;
-            background: rgba(88, 166, 255, 0.05);
+            border-color: #0066cc;
+            background: rgba(0, 102, 204, 0.05);
             transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
 
         .range-card.active {
-            border-color: #58a6ff;
-            background: rgba(88, 166, 255, 0.15);
-            box-shadow: 0 0 15px rgba(88, 166, 255, 0.1);
+            border-color: #0066cc;
+            background: rgba(0, 102, 204, 0.1);
+            box-shadow: 0 0 15px rgba(0, 102, 204, 0.2);
         }
 
         .range-card.empty {
@@ -578,10 +580,10 @@
                                     const v = c.raw?.v || 0;
                                     const max = _currentMagnetStrength || 1;
                                     const norm = v / (max * 0.7);
-                                    if(norm > 0.8) return '#ffffff'; // White Hot
-                                    if(norm > 0.6) return '#f97316'; // Orange
-                                    if(norm > 0.4) return '#9333ea'; // Purple
-                                    return '#2563eb'; // Blue Base
+                                    if(norm > 0.8) return '#d32f2f'; // Dark Red (Hot)
+                                    if(norm > 0.6) return '#f57c00'; // Orange
+                                    if(norm > 0.4) return '#7b1fa2'; // Purple
+                                    return '#1976d2'; // Blue Base
                                 },
                                 borderWidth: 0,
                                 order: 2
@@ -590,16 +592,16 @@
                                 label: 'Index Price',
                                 data: [],
                                 type: 'line',
-                                borderColor: '#ffffff',
-                                borderWidth: 2,
+                                borderColor: '#1a73e8',
+                                borderWidth: 3,
                                 pointRadius: 0,
-                                hitRadius: 10, // Make it easier to hover
+                                hitRadius: 10,
                                 clip: false,
                                 tension: 0.1,
                                 fill: false,
                                 order: 1,
-                                shadowBlur: 15,
-                                shadowColor: 'rgba(255, 255, 255, 0.8)'
+                                shadowBlur: 0,
+                                shadowColor: 'transparent'
                             }
                         ]
                     },
@@ -616,10 +618,10 @@
                             legend: { display: false },
                             tooltip: {
                                 enabled: true,
-                                backgroundColor: 'rgba(13, 17, 23, 0.95)',
-                                titleColor: '#ffffff',
-                                bodyColor: '#8b949e',
-                                borderColor: '#30363d',
+                                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                titleColor: '#212529',
+                                bodyColor: '#6c757d',
+                                borderColor: '#dee2e6',
                                 borderWidth: 1,
                                 padding: 12,
                                 displayColors: false,
@@ -645,9 +647,9 @@
                             },
                             y: {
                                 position: 'right',
-                                grid: { color: 'rgba(48, 54, 61, 0.1)' },
+                                grid: { color: 'rgba(0, 0, 0, 0.05)' },
                                 ticks: { 
-                                    color: '#ffffff', 
+                                    color: '#212529', 
                                     font: { size: 10, weight: 'bold' },
                                     callback: (v) => '$' + this.fmt(v)
                                 }
@@ -716,15 +718,13 @@
                                 },
                                 backgroundColor: (c) => {
                                     const v = c.raw?.v || 0;
-                                    // CRITICAL FIX: Calculate max from actual data, not backend magnet_strength
-                                    // After sampling, magnet_strength may not match actual max in chart
                                     const max = _currentMagnetStrength || 1;
                                     const norm = v / max;
-                                    // More selective thresholds for better visual hierarchy
-                                    if(norm > 0.95) return '#ffffff';      // High Intensity (white) - top 5% only
-                                    if(norm > 0.80) return '#f97316';      // Level 2 (orange) - top 20%
-                                    if(norm > 0.50) return '#9333ea';      // Level 1 (purple) - top 50%
-                                    return '#2563eb';                      // Base (blue) - rest
+                                    // Vibrant colors for light mode
+                                    if(norm > 0.95) return '#d32f2f';      // Dark Red (Hot) - top 5%
+                                    if(norm > 0.80) return '#f57c00';      // Orange - top 20%
+                                    if(norm > 0.50) return '#7b1fa2';      // Purple - top 50%
+                                    return '#1976d2';                      // Blue - rest
                                 },
                                 borderWidth: 0,
                                 order: 2
@@ -733,8 +733,8 @@
                                 label: 'Index Price',
                                 data: (plainData.price_line || []).map(p => ({ x: p.x, y: p.c })),
                                 type: 'line',
-                                borderColor: '#ffffff',
-                                borderWidth: 2,
+                                borderColor: '#1a73e8',
+                                borderWidth: 3,
                                 pointRadius: 0,
                                 hitRadius: 10,
                                 clip: false,
@@ -757,10 +757,10 @@
                             legend: { display: false },
                             tooltip: {
                                 enabled: true,
-                                backgroundColor: 'rgba(13, 17, 23, 0.95)',
-                                titleColor: '#ffffff',
-                                bodyColor: '#8b949e',
-                                borderColor: '#30363d',
+                                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                                titleColor: '#212529',
+                                bodyColor: '#6c757d',
+                                borderColor: '#dee2e6',
                                 borderWidth: 1,
                                 padding: 12,
                                 displayColors: false,
@@ -786,9 +786,9 @@
                             },
                             y: {
                                 position: 'right',
-                                grid: { color: 'rgba(48, 54, 61, 0.1)' },
+                                grid: { color: 'rgba(0, 0, 0, 0.05)' },
                                 ticks: { 
-                                    color: '#ffffff', 
+                                    color: '#212529', 
                                     font: { size: 10, weight: 'bold' },
                                     callback: (v) => '$' + _fmt(v)
                                 },
