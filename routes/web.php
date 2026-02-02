@@ -25,6 +25,7 @@ Route::get('/api/long-short-analysis/data', [App\Http\Controllers\LongShortAnaly
 
 Route::view('/derivatives/liquidations', 'derivatives.liquidations-new')->name('derivatives.liquidations');
 Route::view('/derivatives/liquidations-stream', 'derivatives.liquidations-stream')->name('derivatives.liquidations-stream');
+Route::view('/derivatives/liquidations-stream-advanced', 'derivatives.liquidations-stream-advanced')->name('derivatives.liquidations-stream-advanced');
 Route::view('/derivatives/liquidations-aggregated', 'derivatives.liquidations-aggregated')->name('derivatives.liquidations-aggregated');
 Route::view('/derivatives/basis-term-structure', 'derivatives.basis-term-structure-new')->name('derivatives.basis-term-structure');
 Route::view('/derivatives/exchange-inflow-cdd', 'derivatives.exchange-inflow-cdd')->name('derivatives.exchange-inflow-cdd');
