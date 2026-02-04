@@ -2401,5 +2401,4 @@
       loadBinanceSpot();
       startAutoRefresh();
     });
-  });
 })();
