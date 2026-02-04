@@ -532,7 +532,7 @@
         createDetailRow('Price', formatNumber(price, 6)),
         createDetailRow('Orig Qty', formatNumber(qty, 6)),
         createDetailRow('Executed', formatNumber(exeQty, 6)),
-        createDetailRow('Time', row.time ? formatEpochMs(data.time) : '-'),
+        createDetailRow('Time', data.time ? formatEpochMs(data.time) : '-'),
       ];
       grid.appendChild(createDetailCard('💸', 'Trade Details', tradeRows));
       
@@ -653,26 +653,31 @@
         modalFormattedEl.innerHTML = '';
         
         let formatted = null;
-        if (type === 'signal') {
-          formatted = formatSignalDetail(content);
-        } else if (type === 'order') {
-          formatted = formatOrderDetail(content);
-        } else if (type === 'reminder') {
-          formatted = formatReminderDetail(content);
-        } else if (type === 'log') {
-          formatted = formatLogDetail(content);
-        } else if (type === 'binance-asset') {
-          formatted = formatBinanceAssetDetail(content);
-        } else if (type === 'binance-order') {
-          formatted = formatBinanceOrderDetail(content);
-        } else if (type === 'binance-trade') {
-          formatted = formatBinanceTradeDetail(content);
+        try {
+          if (type === 'signal') {
+            formatted = formatSignalDetail(content);
+          } else if (type === 'order') {
+            formatted = formatOrderDetail(content);
+          } else if (type === 'reminder') {
+            formatted = formatReminderDetail(content);
+          } else if (type === 'log') {
+            formatted = formatLogDetail(content);
+          } else if (type === 'binance-asset') {
+            formatted = formatBinanceAssetDetail(content);
+          } else if (type === 'binance-order') {
+            formatted = formatBinanceOrderDetail(content);
+          } else if (type === 'binance-trade') {
+            formatted = formatBinanceTradeDetail(content);
+          }
+        } catch (e) {
+          console.error('Modal formatting failed:', e);
+          formatted = null;
         }
         
         if (formatted) {
           modalFormattedEl.appendChild(formatted);
         } else {
-          // Fallback to raw
+          // Fallback to raw if formatting failed or was not found
           if (modalPreEl) {
             modalPreEl.style.display = 'block';
             modalPreEl.textContent = JSON.stringify(content, null, 2);
