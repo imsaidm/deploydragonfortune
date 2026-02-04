@@ -116,7 +116,7 @@ class SendTelegramSignalJob implements ShouldQueue
         $message .= "⚖️ *Risk/Reward Ratio*: `1:{$rrRatio}`\n\n";
         
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
-        $message .= "⏰ " . now()->format('d M Y, H:i:s') . " WIB\n";
+        $message .= "⏰ " . now()->setTimezone('Asia/Jakarta')->format('d M Y, H:i:s') . " WIB\n";
         $message .= "🤖 _Powered by DragonFortune AI_\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━";
         
@@ -188,14 +188,14 @@ class SendTelegramSignalJob implements ShouldQueue
             $message .= "🛑 *Realisasi SL*: `\$ " . number_format($realSl, 2) . "`\n";
         }
         
-        if ($method) {
-            $message .= "\n📈 *Updated KPI*\n";
-            $message .= "├ Winrate: `" . number_format($method->winrate, 1) . "%`\n";
-            $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n";
-        }
+        // if ($method) {
+        //     $message .= "\n📈 *Updated KPI*\n";
+        //     $message .= "├ Winrate: `" . number_format($method->winrate, 1) . "%`\n";
+        //     $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n";
+        // }
         
         $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
-        $message .= "⏰ " . now()->format('d M Y, H:i:s') . " WIB\n";
+        $message .= "⏰ " . now()->setTimezone('Asia/Jakarta')->format('d M Y, H:i:s') . " WIB\n";
         $message .= "🤖 _Powered by DragonFortune AI_\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━";
         

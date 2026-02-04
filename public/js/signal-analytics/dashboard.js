@@ -163,63 +163,25 @@
       }
     };
 
-    // Number formatting with Indonesian locale (dot for thousands, comma for decimals)
-    const formatNumber = (value, decimals = 2, showZero = true) => {
+    const formatNumber = (value, decimals = 2) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      if (n === 0 && !showZero) return '-';
-      
-      const fixed = Math.abs(n).toFixed(decimals);
-      const [integerPart, decimalPart] = fixed.split('.');
-      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-      const result = decimals > 0 ? `${formattedInteger},${decimalPart}` : formattedInteger;
-      return n < 0 ? `-${result}` : result;
+      return n.toFixed(decimals);
     };
 
-    const formatPercent = (value, decimals = 2) => {
+    const formatPercent = (value) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      const percentage = n > 1 ? n : n * 100;
-      return formatNumber(percentage, decimals) + '%';
+      return (n > 1 ? n : n * 100).toFixed(2) + '%';
     };
 
-    const formatRatioPercent = (value, decimals = 2) => {
+    const formatRatioPercent = (value) => {
       if (value === null || value === undefined || value === '') return '-';
       const n = Number(value);
       if (!Number.isFinite(n)) return '-';
-      return formatNumber(n * 100, decimals) + '%';
-    };
-
-    const formatCurrency = (value, decimals = 2, currency = '$') => {
-      if (value === null || value === undefined || value === '') return '-';
-      const n = Number(value);
-      if (!Number.isFinite(n)) return '-';
-      const formatted = formatNumber(n, decimals);
-      return formatted === '-' ? '-' : `${currency} ${formatted}`;
-    };
-
-    /**
-     * Parse and format numbers inside a text message
-     * Matches floating points and integers after =, :, or space
-     */
-    const formatMessageText = (text) => {
-      if (!text) return '-';
-      // Regex matches numbers that look like prices or values: 
-      // 1. After =, :, or space
-      // 2. May have decimals
-      // 3. At least 2 digits total or has decimal to avoid small indices
-      return String(text).replace(/([=:\s])(\d+\.\d+|\d{2,})(\b)/g, (match, p1, p2, p3) => {
-        const n = Number(p2);
-        // Only format if it's a valid finite number and not a year-like integer
-        if (Number.isFinite(n) && (p2.includes('.') || n > 2100 || n < 1900)) {
-          // If it has decimals, keep original decimal count or 2
-          const decs = p2.includes('.') ? p2.split('.')[1].length : 0;
-          return p1 + formatNumber(n, decs) + p3;
-        }
-        return match;
-      });
+      return (n * 100).toFixed(2) + '%';
     };
 
     const toApiDatetime = (dtLocalValue) => {
@@ -686,6 +648,11 @@
         }
       }
       
+    const openModal = (title, content) => {
+      if (!modalEl || !modalTitleEl || !modalPreEl) return;
+      modalTitleEl.textContent = title || 'Detail';
+      modalPreEl.textContent =
+        typeof content === 'string' ? content : JSON.stringify(content, null, 2);
       modalEl.classList.add('is-open');
       modalEl.setAttribute('aria-hidden', 'false');
     };
@@ -730,7 +697,7 @@
       tbody.appendChild(tr);
     };
 
-    const PAGE_SIZE = 10;
+    const PAGE_SIZE = 5;
 
     const getPageSize = (name) => {
       const ps = state.pageSizes?.[name];
@@ -798,19 +765,6 @@
 
       parent.insertBefore(searchWrap, logsStatus);
       parent.insertBefore(pageWrap, logsStatus);
-
-      // Add listeners
-      searchInput.addEventListener('input', (e) => {
-        state.search = state.search || {};
-        state.search.logs = e.target.value;
-        loadLogs(1);
-      });
-
-      pageSelect.addEventListener('change', (e) => {
-        state.pageSizes = state.pageSizes || {};
-        state.pageSizes.logs = Number(e.target.value);
-        loadLogs(1);
-      });
     };
 
     const renderPager = (el, totalItems, currentPage, onChange, pageSize = PAGE_SIZE) => {
@@ -1471,7 +1425,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal(`Asset ${row.asset || ''}`, row, 'binance-asset'));
+        tr.addEventListener('click', () => openModal(`Asset ${row.asset || ''}`, row));
 
         const cols = [
           escapeText(row.asset ?? '-'),
@@ -1509,7 +1463,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal('Binance Order', row, 'binance-order'));
+        tr.addEventListener('click', () => openModal('Order', row));
 
         const cols = [
           formatEpochMs(row.time),
@@ -1548,7 +1502,7 @@
       sorted.forEach((row) => {
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => openModal('Binance Trade', row, 'binance-trade'));
+        tr.addEventListener('click', () => openModal('Trade', row));
 
         const side =
           row.isBuyer === true ? 'BUY' : row.isBuyer === false ? 'SELL' : row.side ?? '-';
@@ -1767,8 +1721,7 @@
 
     const createMessageCell = (value) => {
       const td = document.createElement('td');
-      const raw = escapeText(value ?? '');
-      const full = formatMessageText(raw);
+      const full = escapeText(value ?? '');
 
       const div = document.createElement('div');
       div.className = 'sa-message-snippet';
@@ -1810,7 +1763,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/orders/${row.id}`);
-            openModal(`Order #${row.id}`, detail, 'order');
+            openModal(`Order #${row.id}`, detail);
           } catch (err) {
             openModal(`Order #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1874,7 +1827,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/signals/${row.id}`);
-            openModal(`Signal #${row.id}`, detail, 'signal');
+            openModal(`Signal #${row.id}`, detail);
           } catch (err) {
             openModal(`Signal #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1938,7 +1891,7 @@
         tr.addEventListener('click', async () => {
           try {
             const detail = await fetchJson(`/reminders/${row.id}`);
-            openModal(`Reminder #${row.id}`, detail, 'reminder');
+            openModal(`Reminder #${row.id}`, detail);
           } catch (err) {
             openModal(`Reminder #${row.id}`, { error: err?.message || String(err) });
           }
@@ -1993,7 +1946,8 @@
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.addEventListener('click', () => {
-          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', row, 'log');
+          const human = toHumanMessage(row.message || '');
+          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', human || '(no message)');
         });
 
         const tdDt = document.createElement('td');
@@ -2194,10 +2148,9 @@
       }
     };
 
-    const loadLogs = async (page = null) => {
+    const loadLogs = async () => {
       if (!state.selectedMethodId) {
         state.latestLogs = [];
-        state.logsHasMore = false;
         updateTabCounts();
         clearTbody(logsBody, 2, 'Select a method to load logs.');
         clearPager(logsPagination);
@@ -2205,126 +2158,23 @@
         return;
       }
 
-      const currentPage = page !== null ? page : (state.pages.logs || 1);
-      const pageSize = getPageSize('logs');
-      const offset = (currentPage - 1) * pageSize;
-      
       const q = getGlobalQuery();
 
       setTableStatus(logsStatus, 'Loading...');
       try {
-        // Server-side pagination using API's limit/offset
-        const items = await fetchJson('/logs', { 
-          ...q, 
-          q: state.search?.logs || '', // Pass search query to server
-          limit: pageSize + 1, // Fetch one extra to know if there's more
-          offset: offset 
-        });
-        
-        const allLogs = Array.isArray(items) ? items : [];
-        
-        // Check if there are more pages
-        const hasMore = allLogs.length > pageSize;
-        state.logsHasMore = hasMore;
-        
-        // Only keep pageSize items for display
-        const logs = hasMore ? allLogs.slice(0, pageSize) : allLogs;
-        
+        const items = await fetchJson('/logs', q);
+        const logs = Array.isArray(items) ? items : [];
         state.latestLogs = logs;
-        state.pages.logs = currentPage;
-        
-        renderLogsServerSide(logs, currentPage, hasMore, pageSize);
+        renderLogs(logs);
         updateTabCounts();
-        setTableStatus(logsStatus, `Page ${currentPage}`);
+        setTableStatus(logsStatus, `Loaded ${logs.length} logs.`);
       } catch (err) {
         state.latestLogs = [];
-        state.logsHasMore = false;
         updateTabCounts();
         clearTbody(logsBody, 2, 'Failed to load logs.');
         clearPager(logsPagination);
         setTableStatus(logsStatus, 'Error: ' + (err?.message || String(err)));
       }
-    };
-    
-    // Server-side pagination renderer for logs
-    const renderLogsServerSide = (items, currentPage, hasMore, pageSize) => {
-      if (!logsBody) return;
-      logsBody.innerHTML = '';
-      
-      if (!Array.isArray(items) || items.length === 0) {
-        clearTbody(logsBody, 2, currentPage > 1 ? 'No more logs.' : 'No logs.');
-        // Still show pagination for going back
-        if (currentPage > 1) {
-          renderServerPager(logsPagination, currentPage, hasMore);
-        } else {
-          clearPager(logsPagination);
-        }
-        return;
-      }
-
-      // Render table rows
-      items.forEach((row) => {
-        const tr = document.createElement('tr');
-        tr.style.cursor = 'pointer';
-        tr.addEventListener('click', () => {
-          openModal(row.datetime ? `Log ${row.datetime}` : 'Log', row, 'log');
-        });
-
-        const tdDt = document.createElement('td');
-        tdDt.textContent = escapeText(row.datetime ?? row.date_time ?? row.created_at ?? '-');
-        tr.appendChild(tdDt);
-        tr.appendChild(createMessageCell(row.message));
-
-        logsBody.appendChild(tr);
-      });
-      
-      // Render server-side pagination
-      renderServerPager(logsPagination, currentPage, hasMore);
-    };
-    
-    // Simple prev/next pagination for server-side
-    const renderServerPager = (el, currentPage, hasMore) => {
-      if (!el) return;
-      el.innerHTML = '';
-      
-      const wrapper = document.createElement('div');
-      wrapper.className = 'd-flex align-items-center justify-content-center gap-2';
-      
-      // Previous button
-      const prevBtn = document.createElement('button');
-      prevBtn.type = 'button';
-      prevBtn.className = 'btn btn-sm btn-outline-secondary';
-      prevBtn.innerHTML = '← Prev';
-      prevBtn.disabled = currentPage <= 1;
-      prevBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (currentPage > 1) {
-          loadLogs(currentPage - 1);
-        }
-      });
-      wrapper.appendChild(prevBtn);
-      
-      // Page indicator
-      const pageInfo = document.createElement('span');
-      pageInfo.className = 'badge bg-primary px-3 py-2';
-      pageInfo.textContent = `Page ${currentPage}`;
-      wrapper.appendChild(pageInfo);
-      
-      // Next button
-      const nextBtn = document.createElement('button');
-      nextBtn.type = 'button';
-      nextBtn.className = 'btn btn-sm btn-outline-secondary';
-      nextBtn.innerHTML = 'Next →';
-      nextBtn.disabled = !hasMore;
-      nextBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (hasMore) {
-          loadLogs(currentPage + 1);
-        }
-      });
-      wrapper.appendChild(nextBtn);
-      
-      el.appendChild(wrapper);
     };
 
     const refreshAll = async () => {

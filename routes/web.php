@@ -16,12 +16,16 @@ Route::post('/logout', LogoutController::class)->name('logout');
 
 // Derivatives Core Routes
 Route::view('/derivatives/funding-rate', 'derivatives.funding-rate')->name('derivatives.funding-rate');
+Route::view('/derivatives/funding-rate-advanced', 'derivatives.funding-rate-advanced')->name('derivatives.funding-rate-advanced');
 Route::view('/derivatives/open-interest', 'derivatives.open-interest')->name('derivatives.open-interest');
 Route::view('/derivatives/open-interest-old', 'derivatives.open-interest-old')->name('derivatives.open-interest-old');
 Route::view('/derivatives/long-short-ratio', 'derivatives.long-short-ratio-new')->name('derivatives.long-short-ratio');
+Route::get('/derivatives/long-short-advanced', [App\Http\Controllers\LongShortAnalysisController::class, 'index'])->name('derivatives.long-short-analysis');
+Route::get('/api/long-short-analysis/data', [App\Http\Controllers\LongShortAnalysisController::class, 'getData'])->name('api.long-short-analysis.data');
 
 Route::view('/derivatives/liquidations', 'derivatives.liquidations-new')->name('derivatives.liquidations');
 Route::view('/derivatives/liquidations-stream', 'derivatives.liquidations-stream')->name('derivatives.liquidations-stream');
+Route::view('/derivatives/liquidations-stream-advanced', 'derivatives.liquidations-stream-advanced')->name('derivatives.liquidations-stream-advanced');
 Route::view('/derivatives/liquidations-aggregated', 'derivatives.liquidations-aggregated')->name('derivatives.liquidations-aggregated');
 Route::view('/derivatives/basis-term-structure', 'derivatives.basis-term-structure-new')->name('derivatives.basis-term-structure');
 Route::view('/derivatives/exchange-inflow-cdd', 'derivatives.exchange-inflow-cdd')->name('derivatives.exchange-inflow-cdd');
@@ -199,8 +203,44 @@ Route::prefix('api/coinglass/open-interest')->group(function () {
 // Coinglass Funding Rate (new proxy endpoints)
 Route::prefix('api/coinglass/funding-rate')->group(function () {
     Route::get('/exchanges', [App\Http\Controllers\Coinglass\FundingRateController::class, 'exchanges']);
+    Route::get('/exchange-list', [App\Http\Controllers\Coinglass\FundingRateController::class, 'exchangeList']);
     Route::get('/history', [App\Http\Controllers\Coinglass\FundingRateController::class, 'history']);
     Route::get('/current', [App\Http\Controllers\Coinglass\FundingRateController::class, 'current']);
+});
+
+// Database Funding Rate (reads from local cg_funding_rate tables)
+Route::prefix('data/funding-rate')->group(function () {
+    Route::get('/exchange-list', [App\Http\Controllers\Database\FundingRateDbController::class, 'exchangeList']);
+    Route::get('/history', [App\Http\Controllers\Database\FundingRateDbController::class, 'history']);
+    Route::get('/exchanges', [App\Http\Controllers\Database\FundingRateDbController::class, 'exchanges']);
+    Route::get('/ai-analysis', [App\Http\Controllers\Database\FundingRateDbController::class, 'aiAnalysis']);
+    // New enhanced endpoints
+    Route::get('/ohlc', [App\Http\Controllers\Database\FundingRateDbController::class, 'ohlc']);
+    Route::get('/comparison', [App\Http\Controllers\Database\FundingRateDbController::class, 'comparison']);
+    Route::get('/volatility', [App\Http\Controllers\Database\FundingRateDbController::class, 'volatility']);
+    Route::get('/statistics', [App\Http\Controllers\Database\FundingRateDbController::class, 'statistics']);
+});
+
+// Database Open Interest (reads from local cg_open_interest tables)
+Route::prefix('data/open-interest')->group(function () {
+    Route::get('/aggregated', [App\Http\Controllers\Database\OpenInterestDbController::class, 'aggregatedHistory']);
+    Route::get('/stablecoin', [App\Http\Controllers\Database\OpenInterestDbController::class, 'stablecoinHistory']);
+    Route::get('/symbols', [App\Http\Controllers\Database\OpenInterestDbController::class, 'getSymbols']);
+    Route::get('/analysis', [App\Http\Controllers\Database\OpenInterestDbController::class, 'aiAnalysis']);
+});
+
+// View Routes for Derivatives
+Route::prefix('derivatives')->name('derivatives.')->group(function () {
+    Route::view('/open-interest-advanced', 'derivatives.open-interest-new')->name('open-interest-new');
+    // Liquidation Heatmap Advanced (Local DB)
+    Route::get('/liquidation-heatmap-advanced', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'index'])->name('liquidation-heatmap-advanced');
+});
+
+// Liquidation Heatmap Data Routes
+Route::prefix('data/liquidation-heatmap')->group(function () {
+    Route::get('/heatmap', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'getData'])->name('data.liquidation-heatmap.heatmap');
+    Route::get('/ranges', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'getAvailableRanges'])->name('data.liquidation-heatmap.ranges');
+    Route::get('/summary', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'getSummary'])->name('data.liquidation-heatmap.summary');
 });
 
 // Coinglass Long-Short Ratio (new proxy endpoints)
@@ -282,7 +322,7 @@ Route::prefix('api/coinglass/volatility')->group(function () {
 Route::prefix('api/coinglass/sentiment')->group(function () {
     // Fear & Greed Index History
     Route::get('/fear-greed', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'fearGreedIndex']);
-    
+
     // Funding Rate Dominance (Exchange List)
     Route::get('/funding-dominance', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'fundingDominance']);
     
