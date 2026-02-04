@@ -295,6 +295,359 @@
       return json ?? text;
     };
 
+    const modalFormattedEl = byId('sa-modal-formatted');
+
+    const createDetailRow = (label, value, valueClass = '') => {
+      const row = document.createElement('div');
+      row.className = 'sa-detail-row';
+      
+      const labelEl = document.createElement('span');
+      labelEl.className = 'sa-detail-label';
+      labelEl.textContent = label;
+      
+      const valueEl = document.createElement('span');
+      valueEl.className = 'sa-detail-value' + (valueClass ? ' ' + valueClass : '');
+      valueEl.textContent = value;
+      
+      row.appendChild(labelEl);
+      row.appendChild(valueEl);
+      return row;
+    };
+
+    const createDetailCard = (icon, title, rows) => {
+      const card = document.createElement('div');
+      card.className = 'sa-detail-card';
+      
+      const header = document.createElement('div');
+      header.className = 'sa-detail-card-header';
+      header.innerHTML = `${icon} ${escapeText(title)}`;
+      card.appendChild(header);
+      
+      rows.forEach(r => card.appendChild(r));
+      return card;
+    };
+
+    const createBadge = (type) => {
+      const badge = document.createElement('span');
+      badge.className = 'sa-badge ' + normalize(type);
+      badge.textContent = type;
+      return badge;
+    };
+
+    const formatSignalDetail = (data) => {
+      const container = document.createElement('div');
+      
+      // Header badges
+      const badgeRow = document.createElement('div');
+      badgeRow.className = 'd-flex gap-2 mb-3';
+      if (data.type) badgeRow.appendChild(createBadge(data.type));
+      if (data.jenis) badgeRow.appendChild(createBadge(data.jenis));
+      container.appendChild(badgeRow);
+      
+      // Grid
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      // Basic Info Card
+      const infoRows = [
+        createDetailRow('ID', data.id ?? '-'),
+        createDetailRow('Method ID', data.id_method ?? '-'),
+        createDetailRow('Date Time', data.datetime ?? data.created_at ?? '-'),
+        createDetailRow('Symbol', data.pair ?? data.symbol ?? state.methodMeta?.symbol ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📊', 'Signal Info', infoRows));
+      
+      // Price Card
+      const entryPrice = Number(data.price_entry || data.price || 0);
+      const exitPrice = Number(data.price_exit || 0);
+      const targetTp = Number(data.target_tp || 0);
+      const targetSl = Number(data.target_sl || 0);
+      
+      const priceRows = [
+        createDetailRow('Entry Price', entryPrice ? formatCurrency(entryPrice, 2) : '-'),
+        createDetailRow('Exit Price', exitPrice ? formatCurrency(exitPrice, 2) : '-'),
+        createDetailRow('Quantity', data.quantity ?? data.qty ?? '-'),
+        createDetailRow('Balance', data.balance ? formatCurrency(data.balance, 2) : '-'),
+      ];
+      grid.appendChild(createDetailCard('💰', 'Price Details', priceRows));
+      
+      // Target Card
+      const tpRows = [
+        createDetailRow('Target TP', targetTp ? formatCurrency(targetTp, 2) : '-', 'positive'),
+        createDetailRow('Target SL', targetSl ? formatCurrency(targetSl, 2) : '-', 'negative'),
+        createDetailRow('Real TP', data.real_tp ? formatCurrency(data.real_tp, 2) : '-', 'positive'),
+        createDetailRow('Real SL', data.real_sl ? formatCurrency(data.real_sl, 2) : '-', 'negative'),
+      ];
+      grid.appendChild(createDetailCard('🎯', 'TP / SL Targets', tpRows));
+      
+      // Status Card
+      const statusRows = [
+        createDetailRow('Telegram Sent', data.telegram_sent ? '✅ Yes' : '❌ No'),
+        createDetailRow('Sent At', data.telegram_sent_at ?? '-'),
+        createDetailRow('Created', data.created_at ?? '-'),
+        createDetailRow('Updated', data.updated_at ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📤', 'Status', statusRows));
+      
+      container.appendChild(grid);
+      
+      // Message
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'sa-detail-message';
+        msgDiv.textContent = data.message.replace(/\\n/g, '\n');
+        container.appendChild(msgDiv);
+      }
+      
+      return container;
+    };
+
+    const formatOrderDetail = (data) => {
+      const container = document.createElement('div');
+      
+      const badgeRow = document.createElement('div');
+      badgeRow.className = 'd-flex gap-2 mb-3';
+      if (data.type) badgeRow.appendChild(createBadge(data.type));
+      if (data.jenis) badgeRow.appendChild(createBadge(data.jenis));
+      container.appendChild(badgeRow);
+      
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const infoRows = [
+        createDetailRow('ID', data.id ?? '-'),
+        createDetailRow('Method ID', data.id_method ?? '-'),
+        createDetailRow('Date Time', data.datetime ?? data.created_at ?? '-'),
+        createDetailRow('Symbol', data.symbol ?? data.pair ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📊', 'Order Info', infoRows));
+      
+      const price = Number(data.price ?? data.price_entry ?? data.price_exit ?? 0);
+      const qty = Number(data.quantity ?? data.qty ?? 0);
+      const total = price * qty;
+      
+      const priceRows = [
+        createDetailRow('Price', price ? formatCurrency(price, 2) : '-'),
+        createDetailRow('Quantity', qty ? formatNumber(qty, 6) : '-'),
+        createDetailRow('Total', total ? formatCurrency(total, 2) : '-'),
+        createDetailRow('Balance', data.balance ? formatCurrency(data.balance, 2) : '-'),
+      ];
+      grid.appendChild(createDetailCard('💰', 'Trade Details', priceRows));
+      
+      container.appendChild(grid);
+      
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'sa-detail-message';
+        msgDiv.textContent = formatMessageText(data.message.replace(/\\n/g, '\n'));
+        container.appendChild(msgDiv);
+      }
+      
+      return container;
+    };
+
+    const formatBinanceAssetDetail = (data) => {
+      const container = document.createElement('div');
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const infoRows = [
+        createDetailRow('Asset', data.asset ?? '-'),
+        createDetailRow('Free', formatNumber(data.free ?? 0, 8)),
+        createDetailRow('Locked', formatNumber(data.locked ?? 0, 8)),
+      ];
+      grid.appendChild(createDetailCard('💰', 'Asset Info', infoRows));
+      
+      const price = data.price_usdt ?? 0;
+      const amount = (Number(data.free) || 0) + (Number(data.locked) || 0);
+      const value = data.value_usdt ?? (price * amount);
+      
+      const valueRows = [
+        createDetailRow('Price (USDT)', formatNumber(price, 6)),
+        createDetailRow('Total Amount', formatNumber(amount, 8)),
+        createDetailRow('Total Value', formatCurrency(value, 2)),
+      ];
+      grid.appendChild(createDetailCard('📊', 'Market Value', valueRows));
+      
+      container.appendChild(grid);
+      return container;
+    };
+
+    const formatBinanceOrderDetail = (data) => {
+      const container = document.createElement('div');
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const infoRows = [
+        createDetailRow('Symbol', data.symbol ?? '-'),
+        createDetailRow('Side', data.side ?? '-'),
+        createDetailRow('Type', data.type ?? '-'),
+        createDetailRow('Status', data.status ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📋', 'Order Info', infoRows));
+      
+      const price = Number(data.price || 0);
+      const qty = Number(data.origQty || 0);
+      const exeQty = Number(data.executedQty || 0);
+      
+      const tradeRows = [
+        createDetailRow('Price', formatNumber(price, 6)),
+        createDetailRow('Orig Qty', formatNumber(qty, 6)),
+        createDetailRow('Executed', formatNumber(exeQty, 6)),
+        createDetailRow('Time', data.time ? formatEpochMs(data.time) : '-'),
+      ];
+      grid.appendChild(createDetailCard('💸', 'Trade Details', tradeRows));
+      
+      container.appendChild(grid);
+      return container;
+    };
+
+    const formatBinanceTradeDetail = (data) => {
+      const container = document.createElement('div');
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const side = data.isBuyer === true ? 'BUY' : data.isBuyer === false ? 'SELL' : data.side ?? '-';
+      
+      const infoRows = [
+        createDetailRow('Symbol', data.symbol ?? '-'),
+        createDetailRow('Side', side),
+        createDetailRow('ID', data.id ?? '-'),
+        createDetailRow('Order ID', data.orderId ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('🤝', 'Trade Info', infoRows));
+      
+      const price = Number(data.price || 0);
+      const qty = Number(data.qty || 0);
+      const quote = data.quoteQty ?? (price * qty);
+      
+      const mathRows = [
+        createDetailRow('Price', formatNumber(price, 6)),
+        createDetailRow('Quantity', formatNumber(qty, 6)),
+        createDetailRow('Quote Qty', formatNumber(quote, 6)),
+        createDetailRow('Time', data.time ? formatEpochMs(data.time) : '-'),
+      ];
+      grid.appendChild(createDetailCard('📊', 'Value Details', mathRows));
+      
+      container.appendChild(grid);
+      return container;
+    };
+
+    const formatReminderDetail = (data) => {
+      const container = document.createElement('div');
+      
+      const grid = document.createElement('div');
+      grid.className = 'sa-detail-grid';
+      
+      const infoRows = [
+        createDetailRow('ID', data.id ?? '-'),
+        createDetailRow('Method ID', data.id_method ?? '-'),
+        createDetailRow('Date Time', data.datetime ?? '-'),
+        createDetailRow('Telegram Sent', data.telegram_sent ? '✅ Yes' : '❌ No'),
+      ];
+      grid.appendChild(createDetailCard('🔔', 'Reminder Info', infoRows));
+      
+      const statusRows = [
+        createDetailRow('Sent At', data.telegram_sent_at ?? '-'),
+        createDetailRow('Created', data.created_at ?? '-'),
+        createDetailRow('Updated', data.updated_at ?? '-'),
+      ];
+      grid.appendChild(createDetailCard('📤', 'Status', statusRows));
+      
+      container.appendChild(grid);
+      
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'sa-detail-message';
+        msgDiv.textContent = formatMessageText(data.message.replace(/\\n/g, '\n'));
+        container.appendChild(msgDiv);
+      }
+      
+      return container;
+    };
+
+    const formatLogDetail = (data) => {
+      const container = document.createElement('div');
+      
+      const infoCard = document.createElement('div');
+      infoCard.className = 'sa-detail-card mb-3';
+      
+      const header = document.createElement('div');
+      header.className = 'sa-detail-card-header';
+      header.innerHTML = '📋 Log Entry';
+      infoCard.appendChild(header);
+      
+      infoCard.appendChild(createDetailRow('Date Time', data.datetime ?? data.date_time ?? data.created_at ?? '-'));
+      if (data.id) infoCard.appendChild(createDetailRow('ID', data.id));
+      if (data.id_method) infoCard.appendChild(createDetailRow('Method ID', data.id_method));
+      
+      container.appendChild(infoCard);
+      
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'sa-detail-message';
+        // Parse message sections
+        const msg = String(data.message).replace(/\\n/g, '\n').replace(/ \| /g, '\n');
+        msgDiv.textContent = formatMessageText(msg);
+        container.appendChild(msgDiv);
+      }
+      
+      return container;
+    };
+
+    const openModal = (title, content, type = 'raw') => {
+      if (!modalEl || !modalTitleEl) return;
+      modalTitleEl.textContent = title || 'Detail';
+      
+      // Hide both containers first
+      if (modalFormattedEl) modalFormattedEl.style.display = 'none';
+      if (modalPreEl) modalPreEl.style.display = 'none';
+      
+      if (type === 'raw' || typeof content === 'string') {
+        // Raw/text mode - use pre
+        if (modalPreEl) {
+          modalPreEl.style.display = 'block';
+          modalPreEl.textContent = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+        }
+      } else if (modalFormattedEl) {
+        // Formatted mode
+        modalFormattedEl.style.display = 'block';
+        modalFormattedEl.innerHTML = '';
+        
+        let formatted = null;
+        try {
+          if (type === 'signal') {
+            formatted = formatSignalDetail(content);
+          } else if (type === 'order') {
+            formatted = formatOrderDetail(content);
+          } else if (type === 'reminder') {
+            formatted = formatReminderDetail(content);
+          } else if (type === 'log') {
+            formatted = formatLogDetail(content);
+          } else if (type === 'binance-asset') {
+            formatted = formatBinanceAssetDetail(content);
+          } else if (type === 'binance-order') {
+            formatted = formatBinanceOrderDetail(content);
+          } else if (type === 'binance-trade') {
+            formatted = formatBinanceTradeDetail(content);
+          }
+        } catch (e) {
+          console.error('Modal formatting failed:', e);
+          formatted = null;
+        }
+        
+        if (formatted) {
+          modalFormattedEl.appendChild(formatted);
+        } else {
+          // Fallback to raw if formatting failed or was not found
+          if (modalPreEl) {
+            modalPreEl.style.display = 'block';
+            modalPreEl.textContent = JSON.stringify(content, null, 2);
+          }
+          modalFormattedEl.style.display = 'none';
+        }
+      }
+      
     const openModal = (title, content) => {
       if (!modalEl || !modalTitleEl || !modalPreEl) return;
       modalTitleEl.textContent = title || 'Detail';
