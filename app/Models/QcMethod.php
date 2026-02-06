@@ -57,10 +57,12 @@ class QcMethod extends Model
     }
 
     /**
-     * Get the reminders for this method.
+     * Get the trading accounts for this strategy.
      */
-    public function reminders(): HasMany
+    public function tradingAccounts()
     {
-        return $this->hasMany(QcReminder::class, 'id_method');
+        return $this->belongsToMany(TradingAccount::class, 'newera.strategy_accounts', 'strategy_id', 'account_id')
+            ->withPivot('is_active')
+            ->withTimestamps();
     }
 }

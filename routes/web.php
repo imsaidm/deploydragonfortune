@@ -4,6 +4,7 @@ use App\Http\Controllers\BacktestResultController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\BinanceFuturesController;
+use App\Http\Controllers\TradingAccountController;
 use App\Http\Controllers\QuantConnectController;
 use Illuminate\Support\Facades\Route;
 
@@ -180,6 +181,12 @@ Route::get('/api/bybit/orders', [App\Http\Controllers\BybitController::class, 'o
 Route::get('/api/bybit/trades', [App\Http\Controllers\BybitController::class, 'trades'])
     ->middleware('throttle:20,1')
     ->name('api.bybit.trades');
+
+// Trading Accounts Management
+Route::resource('trading-accounts', TradingAccountController::class);
+Route::get('trading-accounts/{trading_account}/balance', [TradingAccountController::class, 'getBalance'])->name('trading-accounts.balance');
+Route::get('trading-accounts/{trading_account}/strategies', [TradingAccountController::class, 'getStrategies'])->name('trading-accounts.strategies');
+Route::post('trading-accounts/{trading_account}/strategies', [TradingAccountController::class, 'syncStrategies'])->name('trading-accounts.sync-strategies');
 
 
 // Coinglass API Proxy Routes

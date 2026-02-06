@@ -11,7 +11,10 @@ class QcSignalObserver
      */
     public function created(QcSignal $qcSignal): void
     {
-        // Dispatch job to send Telegram notification
+        // Dispatch job to process signal for multi-account copy-trading
+        \App\Jobs\ProcessSignalJob::dispatch($qcSignal->id);
+        
+        // Dispatch job to send Telegram notification (if enabled)
         // \App\Jobs\SendTelegramSignalJob::dispatch($qcSignal);
     }
 

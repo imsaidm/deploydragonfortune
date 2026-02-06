@@ -1,5 +1,6 @@
 import "./bootstrap";
-import "bootstrap/dist/js/bootstrap.bundle.min.js";
+import * as bootstrap from "bootstrap/dist/js/bootstrap.bundle.min.js";
+window.bootstrap = bootstrap;
 
 import jQuery from "jquery";
 window.$ = window.jQuery = jQuery;
