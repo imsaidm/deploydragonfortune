@@ -55,12 +55,12 @@ class AccountExecutionJob implements ShouldQueue
     \Log::info("Trade Detection: Signal ID {$this->signalId} | MarketType: " . ($marketType ?: 'NULL') . " | Jenis: $jenis | Determined: " . ($isFutures ? 'FUTURES' : 'SPOT'));
 
     $side = 'long'; // Default
-    $type = str_contains($jenis, 'entry') ? 'entry' : 'exit';
+    $type = (str_contains($jenis, 'entry') || str_contains($jenis, 'buy')) ? 'entry' : 'exit';
 
     if ($isFutures) {
         $side = str_contains($jenis, 'long') ? 'long' : 'short';
     } else {
-        $side = str_contains($jenis, 'buy') ? 'long' : 'long'; // Spot is usually 'BUY' as entry
+        $side = (str_contains($jenis, 'buy') || str_contains($jenis, 'long')) ? 'long' : 'long'; 
     }
     
     $binanceSide = 'BUY';
@@ -94,11 +94,10 @@ class AccountExecutionJob implements ShouldQueue
         ]);
 
         try {
+            \Log::info("AccountExecutionJob Logic Check: Signal ID {$this->signalId} | Type: $type | Jenis: $jenis | IsFutures: " . ($isFutures ? 'YES' : 'NO'));
             if ($type === 'exit') {
-                // 1. Cleanup ALL pending orders first (SL/TP protection cleanup) - ONLY FOR FUTURES
-                if ($isFutures) {
-                    $binance->cancelAllSymbolOrders($symbol, $this->account, $this->signalId);
-                }
+                // 1. Cleanup ALL pending orders first (SL/TP protection cleanup)
+                $binance->cancelAllSymbolOrders($symbol, $this->account, $this->signalId, $isFutures);
                 
                 // 2. Execute Market Exit Order
                 $pos = Position::where('account_id', $this->account->id)
@@ -116,8 +115,8 @@ class AccountExecutionJob implements ShouldQueue
                     
                     \Log::info("Spot Exit Debug: Signal ID {$this->signalId} | DB Quantity: $closeQty | Actual Balance ($baseAsset): $actualBalance");
 
-                    // If we have less than we thought (due to fees), use the actual balance
-                    if ($actualBalance < $closeQty) {
+                    // For Spot, always flush 100% of the actual balance if it exists
+                    if ($actualBalance > 0) {
                         $closeQty = $actualBalance;
                     }
 
@@ -156,33 +155,68 @@ class AccountExecutionJob implements ShouldQueue
                 // targetPositionValue is the total value in USD after leverage.
                 $targetPositionValue = ($usdtBalance * $ratio) * $leverage;
                 
-                if ($targetPositionValue < 6 && ($usdtBalance * $leverage) >= 6) {
-                    $targetPositionValue = 6;
+                // Binance Min Order is generally $5-10. $6 is our safety base.
+                $minOrderUsdt = 6;
+                
+                if ($targetPositionValue < $minOrderUsdt && ($usdtBalance * $leverage) >= $minOrderUsdt) {
+                    $targetPositionValue = $minOrderUsdt;
+                }
+
+                // If even after that it's too small, try to use EVERYTHING if total balance is > $minOrderUsdt
+                if ($targetPositionValue < $minOrderUsdt && $usdtBalance >= 5.5) {
+                    $targetPositionValue = $usdtBalance - 0.1; // Room for fees
                 }
 
                 $quantity = $targetPositionValue / $price;
-                $quantity = floor($quantity * 1000) / 1000;
 
-                if ($quantity <= 0 || ($quantity * $price) < 5) {
-                    throw new \Exception("Quantity too small or insufficient balance. Target Value: $" . ($quantity * $price));
+                // Precision: Spot major pairs usually 4 decimals. Futures use 3 for ETH.
+                $precision = $isFutures ? 1000 : 10000;
+                $quantity = floor($quantity * $precision) / $precision;
+
+                $finalValue = $quantity * $price;
+                if ($quantity <= 0 || $finalValue < 5) {
+                    throw new \Exception("Quantity too small or insufficient balance. Target: $" . number_format($finalValue, 2) . " (Min $5)");
                 }
 
                 $response = $binance->placeMarketOrder($symbol, $binanceSide, $quantity, $this->account, $this->signalId, $isFutures);
                 
-                // 3. Attach Protection (SL/TP) if market order was successful - ONLY FOR FUTURES
-                if ($isFutures && $response->successful()) {
-                    $orderData = $response->json();
-                    
-                    // Place Stop Loss if target_sl is present
-                    if ($signal->target_sl) {
-                        $slSide = ($binanceSide === 'BUY') ? 'SELL' : 'BUY';
-                        $binance->placeStopMarketOrder($symbol, $slSide, (float)$signal->target_sl, $quantity, $this->account, $this->signalId);
+                // 3. Attach Protection (SL & TP) - ONLY FOR FUTURES
+                if ($response->successful() && $isFutures) {
+                    usleep(1500000); // Wait 1.5s for position to settle
+                    $markPrice = $binance->getMarkPrice($symbol, $isFutures);
+
+                    if (!$markPrice) {
+                        \Log::error("Failed to fetch mark price for Signal ID {$this->signalId}. Skipping protection.");
+                        return;
                     }
-                    
-                    // Place Take Profit if target_tp is present
+
+                    $protQty = $quantity;
+
+                    // 1. Place SL (Stop Loss)
+                    if ($signal->target_sl) {
+                        $slPrice = (float)$signal->target_sl;
+                        $slSide = ($binanceSide === 'BUY' || $binanceSide === 'LONG') ? 'SELL' : 'BUY';
+
+                        if (($binanceSide === 'BUY' && $slPrice < $markPrice) || 
+                            ($binanceSide === 'SELL' && $slPrice > $markPrice)) {
+                            $binance->placeStopMarketOrder($symbol, $slSide, $slPrice, $protQty, $this->account, $this->signalId, $isFutures);
+                            usleep(500000); // 0.5s between SL and TP
+                        } else {
+                            \Log::warning("Skipped SL for Signal ID {$this->signalId}: Price {$slPrice} invalid relative to Mark Price {$markPrice}.");
+                        }
+                    }
+
+                    // 2. Place TP (Take Profit)
                     if ($signal->target_tp) {
-                        $tpSide = ($binanceSide === 'BUY') ? 'SELL' : 'BUY';
-                        $binance->placeTakeProfitMarketOrder($symbol, $tpSide, (float)$signal->target_tp, $quantity, $this->account, $this->signalId);
+                        $tpPrice = (float)$signal->target_tp;
+                        $tpSide = ($binanceSide === 'BUY' || $binanceSide === 'LONG') ? 'SELL' : 'BUY';
+
+                        if (($binanceSide === 'BUY' && $tpPrice > $markPrice) || 
+                            ($binanceSide === 'SELL' && $tpPrice < $markPrice)) {
+                            $binance->placeTakeProfitMarketOrder($symbol, $tpSide, $tpPrice, $protQty, $this->account, $this->signalId, $isFutures);
+                        } else {
+                            \Log::warning("Skipped TP for Signal ID {$this->signalId}: Price {$tpPrice} invalid relative to Mark Price {$markPrice}.");
+                        }
                     }
                 }
             }

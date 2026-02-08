@@ -159,53 +159,110 @@ class BinanceService
 
         $this->logTransaction($account, $path, $params, $response, $signalId);
 
+        // If it's an exit order for futures, also clear conditional orders
+        if ($isFutures && str_contains(strtoupper($side), 'SELL') && $response->successful()) {
+             $this->cancelAllAlgoOpenOrders($symbol, $account, $signalId);
+        }
+
         return $response;
     }
 
     /**
      * Place a STOP_MARKET order (safety SL)
      */
-    public function placeStopMarketOrder(string $symbol, string $side, float $stopPrice, float $quantity, TradingAccount $account, $signalId = null)
+    public function placeStopMarketOrder(string $symbol, string $side, float $stopPrice, float $quantity, TradingAccount $account, $signalId = null, $isFutures = true)
     {
-        $clientOrderId = 'df_sl_' . (int) (microtime(true) * 1000);
-        $params = [
-            'symbol' => $symbol,
-            'side' => $side,
-            'type' => 'STOP_MARKET',
-            'stopPrice' => $stopPrice,
-            'quantity' => $quantity,
-            'newClientOrderId' => $clientOrderId,
-            'workingType' => 'MARK_PRICE',
-            'reduceOnly' => 'true',
-        ];
-
-        $response = $this->signedRequest('POST', '/fapi/v1/order', $params, $account, true);
-
-        $this->logTransaction($account, '/fapi/v1/order/sl', $params, $response, $signalId);
-
-        return $response;
+        if ($isFutures) {
+            return $this->placeAlgoOrder('STOP_MARKET', $symbol, $side, $stopPrice, $quantity, $account, $signalId);
+        }
+        
+        // Spot STOP_LOSS (Market)
+        return $this->placeSpotConditionalOrder('STOP_LOSS', $symbol, $side, $stopPrice, $quantity, $account, $signalId);
     }
 
     /**
      * Place a TAKE_PROFIT_MARKET order
      */
-    public function placeTakeProfitMarketOrder(string $symbol, string $side, float $stopPrice, float $quantity, TradingAccount $account, $signalId = null)
+    public function placeTakeProfitMarketOrder(string $symbol, string $side, float $stopPrice, float $quantity, TradingAccount $account, $signalId = null, $isFutures = true)
     {
-        $clientOrderId = 'df_tp_' . (int) (microtime(true) * 1000);
+        if ($isFutures) {
+            return $this->placeAlgoOrder('TAKE_PROFIT_MARKET', $symbol, $side, $stopPrice, $quantity, $account, $signalId);
+        }
+
+        // Spot TAKE_PROFIT (Market)
+        return $this->placeSpotConditionalOrder('TAKE_PROFIT', $symbol, $side, $stopPrice, $quantity, $account, $signalId);
+    }
+
+    /**
+     * Helper for Spot Conditional Orders (STOP_LOSS / TAKE_PROFIT)
+     */
+    public function placeSpotConditionalOrder(string $type, string $symbol, string $side, float $stopPrice, float $quantity, TradingAccount $account, $signalId = null)
+    {
+        $clientOrderId = 'df_spot_' . strtolower($type) . '_' . (int) (microtime(true) * 1000);
+        
         $params = [
             'symbol' => $symbol,
             'side' => $side,
-            'type' => 'TAKE_PROFIT_MARKET',
-            'stopPrice' => $stopPrice,
-            'quantity' => $quantity,
+            'type' => $type,
+            'stopPrice' => number_format($stopPrice, 2, '.', ''),
+            'quantity' => number_format($quantity, 4, '.', ''), // Spot uses 4 decimals usually
             'newClientOrderId' => $clientOrderId,
-            'workingType' => 'MARK_PRICE',
-            'reduceOnly' => 'true',
         ];
 
-        $response = $this->signedRequest('POST', '/fapi/v1/order', $params, $account, true);
+        $response = $this->signedRequest('POST', '/api/v3/order', $params, $account, false);
 
-        $this->logTransaction($account, '/fapi/v1/order/tp', $params, $response, $signalId);
+        $this->logTransaction($account, "/api/v3/order/{$type}", $params, $response, $signalId);
+
+        return $response;
+    }
+
+    /**
+     * Get the current Mark Price or Ticker Price for validation
+     */
+    public function getMarkPrice(string $symbol, $isFutures = true)
+    {
+        if ($isFutures) {
+            $response = Http::withoutVerifying()->get($this->futuresBaseUrl . '/fapi/v1/premiumIndex', [
+                'symbol' => $symbol
+            ]);
+            if ($response->successful()) {
+                return (float) ($response->json()['markPrice'] ?? null);
+            }
+        } else {
+            // Spot use ticker price for validation reference
+            $response = Http::withoutVerifying()->get($this->spotBaseUrl . '/api/v3/ticker/price', [
+                'symbol' => $symbol
+            ]);
+            if ($response->successful()) {
+                return (float) ($response->json()['price'] ?? null);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Place an Algo Order (Mandatory for SL/TP Market in late 2025)
+     */
+    protected function placeAlgoOrder(string $type, string $symbol, string $side, float $stopPrice, float $quantity, TradingAccount $account, $signalId = null)
+    {
+        $clientOrderId = 'df_algo_' . (int) (microtime(true) * 1000);
+        
+        $params = [
+            'algoType' => 'CONDITIONAL',
+            'symbol' => $symbol,
+            'side' => $side,
+            'type' => $type,
+            'triggerPrice' => number_format($stopPrice, 2, '.', ''),
+            'quantity' => number_format($quantity, 3, '.', ''),
+            'workingType' => 'MARK_PRICE',
+            'reduceOnly' => 'true',
+            'newClientOrderId' => $clientOrderId,
+        ];
+
+        $response = $this->signedRequest('POST', '/fapi/v1/algoOrder', $params, $account, true);
+
+        $this->logTransaction($account, "/fapi/v1/algoOrder/{$type}", $params, $response, $signalId);
 
         return $response;
     }
@@ -215,13 +272,34 @@ class BinanceService
      */
     public function cancelAllSymbolOrders(string $symbol, TradingAccount $account, $signalId = null, $isFutures = true)
     {
-        if (!$isFutures) return null; // Spot cancellation logic might differ or not be needed in this flow
-
         $params = ['symbol' => $symbol];
-        $response = $this->signedRequest('DELETE', '/fapi/v1/allOpenOrders', $params, $account, true);
         
-        $this->logTransaction($account, '/fapi/v1/allOpenOrders', $params, $response, $signalId);
-        
+        if ($isFutures) {
+            $response = $this->signedRequest('DELETE', '/fapi/v1/allOpenOrders', $params, $account, true);
+            $this->logTransaction($account, '/fapi/v1/allOpenOrders', $params, $response, $signalId);
+            // Also cancel Algo/Conditional orders for futures
+            $this->cancelAllAlgoOpenOrders($symbol, $account, $signalId);
+        } else {
+            // Spot: DELETE /api/v3/openOrders (cancels all on symbol)
+            $response = $this->signedRequest('DELETE', '/api/v3/openOrders', $params, $account, false);
+            $this->logTransaction($account, '/api/v3/openOrders', $params, $response, $signalId);
+        }
+
+        return $response;
+    }
+
+    /**
+     * Cancel all Algo/Conditional open orders for a symbol (Mandatory for late 2025)
+     */
+    public function cancelAllAlgoOpenOrders(string $symbol, TradingAccount $account, $signalId = null)
+    {
+        $path = '/fapi/v1/algoOpenOrders';
+        $params = ['symbol' => $symbol];
+
+        $response = $this->signedRequest('DELETE', $path, $params, $account, true);
+
+        $this->logTransaction($account, $path, $params, $response, $signalId);
+
         return $response;
     }
 
@@ -270,6 +348,11 @@ class BinanceService
         $response = $this->signedRequest('POST', $path, $params, $account, $isFutures);
 
         $this->logTransaction($account, $path . '/exit', $params, $response, $signalId);
+
+        // If it's futures, clear conditional orders too
+        if ($isFutures && $response->successful()) {
+            $this->cancelAllAlgoOpenOrders($symbol, $account, $signalId);
+        }
 
         return $response;
     }
