@@ -504,7 +504,7 @@
         const running = resolveRunningStatus(m, extraMap).label;
         const tag = running === 'Running' ? 'RUN' : running === 'Not Running' ? 'OFF' : 'UNK';
 
-        opt.textContent = `[${tag}] ${escapeText(m.nama_metode || 'Method')} (#${m.id})`;
+        opt.textContent = `[${tag}] ${escapeText(m.nama_metode || 'Method')} (Creator: ${escapeText(m.creator || '-')}) (#${m.id})`;
         methodSelect.appendChild(opt);
       });
 
@@ -823,7 +823,8 @@
         const pair = meta.symbol || '-';
         const tf = meta.timeframe || '-';
         const ex = meta.exchange || '-';
-        methodMetaEl.textContent = `Pair: ${pair} | TF: ${tf} | Exchange: ${ex}`;
+        const cr = method?.creator || '-';
+        methodMetaEl.textContent = `Pair: ${pair} | TF: ${tf} | Exchange: ${ex} | Creator: ${cr}`;
       }
 
       if (methodBacktestEl) {
