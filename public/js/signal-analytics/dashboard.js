@@ -1543,8 +1543,10 @@
     const loadMethods = async () => {
       setMethodStatus('Loading methods...');
       try {
-        const items = await fetchJson('/methods', { limit: 200, offset: 0 });
-        state.methods = Array.isArray(items) ? items : [];
+        const rawItems = await fetchJson('/methods', { limit: 200, offset: 0 });
+        const allItems = Array.isArray(rawItems) ? rawItems : [];
+        // Filter: only show if onactive is NOT 0
+        state.methods = allItems.filter(m => m.onactive != 0);
         renderMethods();
 
         if (state.methods.length > 0) {
