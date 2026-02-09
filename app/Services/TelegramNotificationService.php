@@ -10,28 +10,37 @@ class TelegramNotificationService
 {
     private ?string $botToken;
     private ?string $chatId;
+    private ?string $devBotToken;
+    private ?string $devChatId;
     private bool $enabled;
 
     public function __construct()
     {
         $this->botToken = config('services.telegram.bot_token');
         $this->chatId = config('services.telegram.chat_id');
+        $this->devBotToken = config('services.telegram.dev_bot_token');
+        $this->devChatId = config('services.telegram.dev_chat_id');
         $this->enabled = config('services.telegram.enabled', false);
     }
+
+
 
     /**
      * Send a generic message to Telegram
      */
-    public function sendMessage(string $message): array
+    public function sendMessage(string $message, bool $isProduction = true): array
     {
         if (!$this->enabled) {
             Log::info('Telegram notifications disabled');
             return ['success' => false, 'message' => 'Telegram disabled'];
         }
 
+        $botToken = $isProduction ? $this->botToken : ($this->devBotToken ?: $this->botToken);
+        $chatId = $isProduction ? $this->chatId : ($this->devChatId ?: $this->chatId);
+
         try {
-            $response = Http::post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
-                'chat_id' => $this->chatId,
+            $response = Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                'chat_id' => $chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown',
             ]);

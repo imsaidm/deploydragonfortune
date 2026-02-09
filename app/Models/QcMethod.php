@@ -31,6 +31,7 @@ class QcMethod extends Model
         'api_key',
         'secret_key',
         'onactive',
+        'is_production',
     ];
     
     protected $casts = [
@@ -46,6 +47,7 @@ class QcMethod extends Model
         'total_orders' => 'decimal:6',
         'kpi_extra' => 'array',
         'onactive' => 'boolean',
+        'is_production' => 'boolean',
     ];
 
     /**
