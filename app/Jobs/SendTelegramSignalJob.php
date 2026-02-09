@@ -39,7 +39,8 @@ class SendTelegramSignalJob implements ShouldQueue
                 $message = $this->buildExitMessage($method, $directionEmoji, $directionText, $isBuy);
             }
             
-            $response = $telegram->sendMessage($message);
+            $isProduction = $method ? (bool) $method->is_production : false;
+            $response = $telegram->sendMessage($message, $isProduction);
             
             $this->signal->update([
                 'telegram_sent' => true,
@@ -84,6 +85,7 @@ class SendTelegramSignalJob implements ShouldQueue
         if ($method) {
             $message .= "📊 *Strategy Info*\n";
             $message .= "├ Name: `{$method->nama_metode}`\n";
+            $message .= "├ Creator: `{$method->creator}`\n";
             $message .= "├ Exchange: `{$method->exchange}`\n";
             $message .= "├ Pair: `{$method->pair}`\n";
             $message .= "└ Timeframe: `{$method->tf}`\n\n";
@@ -146,6 +148,7 @@ class SendTelegramSignalJob implements ShouldQueue
         if ($method) {
             $message .= "📊 *Strategy Info*\n";
             $message .= "├ Name: `{$method->nama_metode}`\n";
+            $message .= "├ Creator: `{$method->creator}`\n";
             $message .= "├ Exchange: `{$method->exchange}`\n";
             $message .= "├ Pair: `{$method->pair}`\n";
             $message .= "└ Timeframe: `{$method->tf}`\n\n";

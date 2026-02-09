@@ -41,6 +41,7 @@ class SendTelegramReminderJob implements ShouldQueue
             if ($method) {
                 $message .= "📊 *Strategy Info*\n";
                 $message .= "├ Name: `{$method->nama_metode}`\n";
+                $message .= "├ Creator: `{$method->creator}`\n";
                 $message .= "├ Exchange: `{$method->exchange}`\n";
                 $message .= "├ Pair: `{$method->pair}`\n";
                 $message .= "└ Timeframe: `{$method->tf}`\n\n";
@@ -75,8 +76,10 @@ class SendTelegramReminderJob implements ShouldQueue
             $message .= "🤖 _Powered by DragonFortune AI_\n";
             $message .= "━━━━━━━━━━━━━━━━━━━━━━";
             
+            $isProduction = $method ? (bool) $method->is_production : false;
+
             // Send to Telegram
-            $response = $telegram->sendMessage($message);
+            $response = $telegram->sendMessage($message, $isProduction);
             
             // Update status
             $this->reminder->update([
