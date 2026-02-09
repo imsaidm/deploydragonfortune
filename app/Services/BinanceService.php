@@ -6,7 +6,7 @@ use App\Models\TradingAccount;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 
-class BinanceService
+class BinanceService implements ExchangeInterface
 {
     protected $futuresBaseUrl;
     protected $spotBaseUrl;

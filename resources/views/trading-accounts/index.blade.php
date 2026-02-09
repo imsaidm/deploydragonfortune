@@ -183,7 +183,11 @@
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
-                                    <img src="/images/binancelogo.png" width="18" height="18">
+                                    @if($account->exchange === 'binance')
+                                        <img src="/images/binancelogo.png" width="18" height="18">
+                                    @elseif($account->exchange === 'bybit')
+                                        <img src="/images/bybitlogo.png" width="18" height="18">
+                                    @endif
                                     <span class="fw-bold">{{ $account->account_name }}</span>
                                     @if(!$account->is_active) 
                                         <span class="badge bg-danger-subtle text-danger" style="font-size: 0.6rem;">DISABLED</span>
@@ -253,6 +257,13 @@
                         <div class="mb-3">
                             <label class="form-label">Nickname</label>
                             <input type="text" name="account_name" class="form-control" x-model="form.account_name" required placeholder="e.g. Trading Bot 01">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Exchange</label>
+                            <select name="exchange" class="form-select" x-model="form.exchange"  required>
+                                <option value="binance">Binance</option>
+                                <option value="bybit">Bybit</option>
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">API Key</label>
@@ -339,7 +350,7 @@
 function tradingAccountsData() {
     return {
         modalMode: 'create',
-        form: { id: null, account_name: '', api_key: '', secret_key: '', is_active: true },
+        form: { id: null, account_name: '', exchange: 'binance', api_key: '', secret_key: '', is_active: true },
         balances: {},
         loading: {},
         modal: null,
@@ -395,12 +406,13 @@ function tradingAccountsData() {
                 this.form = { 
                     id: account.id, 
                     account_name: account.account_name, 
+                    exchange: account.exchange || 'binance',
                     api_key: account.api_key, 
                     secret_key: '', 
                     is_active: !!account.is_active 
                 };
             } else {
-                this.form = { id: null, account_name: '', api_key: '', secret_key: '', is_active: true };
+                this.form = { id: null, account_name: '', exchange: 'binance', api_key: '', secret_key: '', is_active: true };
             }
             if (this.modal) this.modal.show();
         },

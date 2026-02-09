@@ -12,6 +12,7 @@ class TradingAccount extends Model
     protected $fillable = [
         'account_name',
         'api_key',
+        'exchange',
         'secret_key',
         'is_active',
     ];

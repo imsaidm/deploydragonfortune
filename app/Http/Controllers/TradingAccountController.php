@@ -10,10 +10,12 @@ use Illuminate\Http\Request;
 class TradingAccountController extends Controller
 {
     protected $binanceService;
+    protected $bybitService;
 
-    public function __construct(BinanceService $binanceService)
+    public function __construct(BinanceService $binanceService, \App\Services\BybitService $bybitService)
     {
         $this->binanceService = $binanceService;
+        $this->bybitService = $bybitService;
     }
 
     public function index()
@@ -30,6 +32,7 @@ class TradingAccountController extends Controller
     public function store(TradingAccountRequest $request)
     {
         $data = $request->validated();
+        $data['exchange'] = $request->exchange;
         $data['is_active'] = $request->has('is_active');
         TradingAccount::create($data);
         return redirect()->route('trading-accounts.index')->with('success', 'Trading account created successfully.');
@@ -43,7 +46,7 @@ class TradingAccountController extends Controller
     public function update(TradingAccountRequest $request, TradingAccount $tradingAccount)
     {
         $data = $request->validated();
-        
+        $data['exchange'] = $request->exchange;
         // Ensure is_active is captured (handles unchecked checkbox)
         $data['is_active'] = $request->has('is_active');
 
@@ -63,7 +66,12 @@ class TradingAccountController extends Controller
     public function getBalance(TradingAccount $tradingAccount)
     {
         try {
-            $balance = $this->binanceService->getBalance($tradingAccount);
+            if ($tradingAccount->exchange === 'bybit') {
+                $balance = $this->bybitService->getBalance($tradingAccount);
+            } else {
+                $balance = $this->binanceService->getBalance($tradingAccount);
+            }
+            
             return response()->json([
                 'success' => true,
                 'balance' => $balance,

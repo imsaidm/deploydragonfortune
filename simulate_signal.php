@@ -8,12 +8,12 @@ use App\Models\QcSignal;
 use App\Models\QcMethod;
 
 // Configuration for Test
-$methodId = 11; // Change this to your linked strategy ID
+$methodId = 3; // Spot v3 - DragonFortune
 $symbol = 'ETH/USDT';
-$side = 'exit_sell'; // Spot Sell
-$price = 2055; // Estimated market price for ETH
-$quantity = 0.5; // Master quantity
-$ratio = 1.0; // Copy-trade ratio
+$side = 'entry_buy'; // Spot Buy
+$price = 2300; // Reference price
+$quantity = 0.005; // Small quantity for test
+$ratio = 1.0; 
 
 echo "Simulating Signal for Method ID: $methodId...\n";
 
