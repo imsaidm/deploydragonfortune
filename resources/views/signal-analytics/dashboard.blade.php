@@ -618,7 +618,7 @@
                     </select>
                 </div>
                 <div id="sa-method-meta" class="sa-method-meta small text-secondary">
-                    Pair: - | TF: - | Exchange: -
+                    Pair: - | TF: - | Exchange: - | Creator: -
                 </div>
                 <div class="sa-method-right">
                     <div class="small text-secondary">Status</div>
