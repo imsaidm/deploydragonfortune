@@ -906,7 +906,7 @@
         const running = resolveRunningStatus(m, extraMap).label;
         const tag = running === 'Running' ? 'RUN' : running === 'Not Running' ? 'OFF' : 'UNK';
 
-        opt.textContent = `[${tag}] ${escapeText(m.nama_metode || 'Method')} (Creator: ${escapeText(m.creator || '-')}) (#${m.id})`;
+        opt.textContent = `[${tag}] ${escapeText(m.nama_metode || 'Method')} (Creator: ${escapeText(m.creator || '-')})`;
         methodSelect.appendChild(opt);
       });
 
