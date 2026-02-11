@@ -6,7 +6,7 @@ use App\Models\TradingAccount;
 use App\Models\Execution;
 use App\Models\Position;
 use App\Models\QcSignal;
-use App\Services\BinanceService;
+
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -256,9 +256,9 @@ class AccountExecutionJob implements ShouldQueue
                             ]);
                 }
             } elseif ($response) {
-                throw new \Exception("Binance Order Failed: " . $response->body());
+                throw new \Exception(ucfirst($this->account->exchange) . " Order Failed: " . $response->body());
             } else {
-                throw new \Exception("Binance order response is null.");
+                throw new \Exception(ucfirst($this->account->exchange) . " order response is null.");
             }
 
         } catch (\Exception $e) {

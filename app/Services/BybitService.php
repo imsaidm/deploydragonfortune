@@ -21,52 +21,196 @@ class BybitService implements ExchangeInterface
     }
 
     /**
-     * Get Bybit balance (Unified Trading Account)
+     * Get Bybit balance (Unified Trading Account & Funding)
      */
     public function getBalance(TradingAccount $account)
     {
         $apiKey = $account->api_key;
         $apiSecret = $account->secret_key;
 
-        $timestamp = $this->getTimestampMs();
-        $params = [
-            'accountType' => 'UNIFIED', 
+        // 1. Fetch Unified / Trading Balance
+        $tradingParams = ['accountType' => 'UNIFIED'];
+        $tradingData = $this->fetchBybitBalance($tradingParams, $account);
+        
+        $unifiedTotal = 0;
+        $unifiedAvailable = 0;
+        $availableBalance = 0;
+
+        if (isset($tradingData['result']['list'][0]) && ((float)($tradingData['result']['list'][0]['totalEquity'] ?? 0) > 0 || !empty($tradingData['result']['list'][0]['coin']))) {
+            \Log::debug('Bybit Balance (UNIFIED): ' . json_encode($tradingData['result']['list'][0]));
+            $wallet = $tradingData['result']['list'][0];
+            $unifiedTotal = (float) ($wallet['totalEquity'] ?? 0);
+            $unifiedAvailable = (float) ($wallet['totalAvailableBalance'] ?? 0);
+            // SYSTEM OVERRIDE: Use totalEquity if availableBalance is reported as 0 (e.g., non-collateral IDR)
+            $availableBalance = ($unifiedAvailable > 0) ? $unifiedAvailable : $unifiedTotal;
+        } else {
+            \Log::debug('Bybit: No UNIFIED balance found or ghost UTA. Trying fallback...');
+            // Fallback for non-unified accounts
+            $spotParams = ['accountType' => 'SPOT'];
+            $spotData = $this->fetchBybitBalance($spotParams, $account);
+            $spotTotal = 0;
+            if (isset($spotData['result']['list'][0])) {
+                foreach ($spotData['result']['list'][0]['coin'] ?? [] as $c) {
+                    $spotTotal += (float) ($c['usdValue'] ?? 0);
+                }
+            }
+
+            $contractParams = ['accountType' => 'CONTRACT'];
+            $contractData = $this->fetchBybitBalance($contractParams, $account);
+            $contractTotal = 0;
+            $contractAvailable = 0;
+            if (isset($contractData['result']['list'][0])) {
+                $contractTotal = (float) ($contractData['result']['list'][0]['totalEquity'] ?? 0);
+                // In Bybit V5 for non-unified, available margin is often in the coin list
+                foreach ($contractData['result']['list'][0]['coin'] ?? [] as $c) {
+                    if ($c['coin'] === 'USDT') {
+                        $contractAvailable = (float) ($c['availableToWithdraw'] ?? 0);
+                        break;
+                    }
+                }
+                // If not found in USDT, use totalEquity as fallback for available
+                if ($contractAvailable <= 0) $contractAvailable = $contractTotal;
+            }
+            
+            $unifiedTotal = $contractTotal;
+            $unifiedAvailable = $spotTotal;
+            $availableBalance = $contractAvailable; // For Futures execution, use contract availability
+            \Log::debug('Bybit Balance (Standard): ', [
+                'spot_raw' => json_encode($spotData),
+                'contract_raw' => json_encode($contractData),
+                'available' => $availableBalance
+            ]);
+        }
+
+        // 2. Fetch Funding Balance
+        $fundingParams = ['accountType' => 'FUND'];
+        $fundingData = $this->fetchBybitBalance($fundingParams, $account);
+        
+        $fundingTotal = 0;
+        
+        // Handle result.list (Standard wallet-balance endpoint)
+        if (isset($fundingData['result']['list'][0])) {
+            foreach ($fundingData['result']['list'][0]['coin'] ?? [] as $c) {
+                $fundingTotal += $this->convertToUsd($c['coin'], $c['walletBalance'] ?? 0, $c['usdValue'] ?? null);
+            }
+        } 
+        // Handle result.balance (Asset endpoint fallback)
+        elseif (isset($fundingData['result']['balance'])) {
+            foreach ($fundingData['result']['balance'] as $c) {
+                $fundingTotal += $this->convertToUsd($c['coin'], $c['walletBalance'] ?? 0, $c['usdValue'] ?? null);
+            }
+        }
+
+        return [
+            'spot' => $unifiedAvailable, 
+            'futures' => $unifiedTotal, 
+            'funding' => $fundingTotal,
+            'total' => $unifiedTotal + $fundingTotal,
+            'available_balance' => $availableBalance,
         ];
+    }
+
+    /**
+     * Helper to convert asset balance to USD
+     */
+    protected function convertToUsd($coin, $amount, $usdValue = null)
+    {
+        // If Bybit already provides the USD valuation, use it (most accurate)
+        if ($usdValue !== null && (float)$usdValue > 0) {
+            return (float) $usdValue;
+        }
+
+        $coin = strtoupper($coin);
+        
+        // Stablecoins are 1:1
+        if (in_array($coin, ['USDT', 'USDC', 'DAI', 'BUSD', 'USD'])) {
+            return (float) $amount;
+        }
+
+        // Fiat conversion fallback (if Bybit API doesn't value it)
+        // Rate 16,800 is chosen based on user's current account valuation (~99.9k IDR = $5.95)
+        if ($coin === 'IDR') {
+            return (float) $amount / 16800;
+        }
+
+        // For other assets (BTC/ETH/etc), if Bybit doesn't provide usdValue, 
+        // we skip to avoid summing non-USD amounts into the USD total.
+        return 0;
+    }
+
+    /**
+     * Helper to fetch wallet-balance from Bybit
+     */
+    protected function fetchBybitBalance(array $params, TradingAccount $account, $signalId = null)
+    {
+        $timestamp = $this->getTimestampMs();
+        $apiKey = $account->api_key;
+        $apiSecret = $account->secret_key;
         
         $queryString = http_build_query($params);
         $signature = $this->generateSignature($timestamp, $apiKey, $this->recvWindow, $queryString, $apiSecret);
         
-        $response = Http::timeout($this->timeout)
-            ->withHeaders([
-                'X-BAPI-API-KEY' => $apiKey,
-                'X-BAPI-TIMESTAMP' => $timestamp,
-                'X-BAPI-RECV-WINDOW' => $this->recvWindow,
-                'X-BAPI-SIGN' => $signature,
-            ])
-            ->get($this->baseUrl . '/v5/account/wallet-balance?' . $queryString);
+        // Default endpoint for balance
+        $url = $this->baseUrl . '/v5/account/wallet-balance?' . $queryString;
+        
+        // For FUND account type, if the standard wallet-balance endpoint fails or is not preferred,
+        // some UTA accounts require the Asset endpoint.
+        if ($params['accountType'] === 'FUND') {
+            // We'll try the Asset endpoint if the standard one fails
+            $response = Http::timeout($this->timeout)
+                ->withHeaders([
+                    'X-BAPI-API-KEY' => $apiKey,
+                    'X-BAPI-TIMESTAMP' => $timestamp,
+                    'X-BAPI-RECV-WINDOW' => $this->recvWindow,
+                    'X-BAPI-SIGN' => $signature,
+                ])
+                ->get($url);
+
+            $this->logTransaction($account, '/v5/account/wallet-balance (FUND)', $params, $response, $signalId);
+
+            if (!$response->successful() || empty($response->json()['result']['list'])) {
+                // Fallback to Asset endpoint for Funding
+                $assetUrl = $this->baseUrl . '/v5/asset/transfer/query-account-coins-balance?' . $queryString;
+                $response = Http::timeout($this->timeout)
+                    ->withHeaders([
+                        'X-BAPI-API-KEY' => $apiKey,
+                        'X-BAPI-TIMESTAMP' => $timestamp,
+                        'X-BAPI-RECV-WINDOW' => $this->recvWindow,
+                        'X-BAPI-SIGN' => $signature,
+                    ])
+                    ->get($assetUrl);
+
+                $this->logTransaction($account, '/v5/asset/transfer/query-account-coins-balance', $params, $response, $signalId);
+            }
+        } else {
+            $response = Http::timeout($this->timeout)
+                ->withHeaders([
+                    'X-BAPI-API-KEY' => $apiKey,
+                    'X-BAPI-TIMESTAMP' => $timestamp,
+                    'X-BAPI-RECV-WINDOW' => $this->recvWindow,
+                    'X-BAPI-SIGN' => $signature,
+                ])
+                ->get($url);
+
+            $this->logTransaction($account, '/v5/account/wallet-balance', $params, $response, $signalId);
+        }
 
         if (!$response->successful()) {
-            throw new \Exception("Bybit API Error: " . ($response->json()['retMsg'] ?? 'Unknown Error'));
+            $err = $response->json();
+            $retCode = $err['retCode'] ?? 'unknown';
+            $retMsg = $err['retMsg'] ?? 'Unknown Error';
+            
+            Log::warning("Bybit Balance Fetch Warning ({$params['accountType']}): [{$retCode}] {$retMsg}");
+            
+            // Helpful hint for the specific permission error
+            if ($retCode == 10005) {
+                Log::info("Hint: Bybit Funding balance requires 'Account Transfer' or 'Sub-account Transfer' API permissions.");
+            }
+            
+            return [];
         }
 
-        $data = $response->json();
-        $walletList = $data['result']['list'] ?? [];
-        
-        $totalUsdt = 0;
-        $availableUsdt = 0;
-
-        if (!empty($walletList)) {
-            $wallet = $walletList[0];
-            $totalUsdt = (float) ($wallet['totalEquity'] ?? 0);
-            $availableUsdt = (float) ($wallet['totalAvailableBalance'] ?? 0);
-        }
-
-        return [
-            'spot' => $availableUsdt, // In Unified, it's unified
-            'futures' => $totalUsdt, 
-            'total' => $totalUsdt,
-            'available_balance' => $availableUsdt,
-        ];
+        return $response->json();
     }
 
     /**
@@ -123,6 +267,7 @@ class BybitService implements ExchangeInterface
             'orderType' => 'Market',
             'qty' => (string) $quantity,
             'triggerPrice' => (string) $stopPrice,
+            'triggerBy' => 'MarkPrice', // Use Mark Price for more stable SL/TP execution
             'orderLinkId' => 'df_sl_' . (int) (microtime(true) * 1000),
         ];
 

@@ -195,9 +195,32 @@
                                 </div>
                             </td>
                             <td><code class="text-muted small">{{ Str::mask($account->api_key, '*', 4, 12) }}</code></td>
-                            <td><span class="text-dark fw-medium" x-text="balances['{{ $account->id }}'] ? '$' + formatPrice(balances['{{ $account->id }}'].spot) : '—'">—</span></td>
-                            <td><span class="text-dark fw-medium" x-text="balances['{{ $account->id }}'] ? '$' + formatPrice(balances['{{ $account->id }}'].futures) : '—'">—</span></td>
-                            <td><span class="text-dark fw-medium" x-text="balances['{{ $account->id }}'] ? '$' + formatPrice(balances['{{ $account->id }}'].funding) : '—'">—</span></td>
+                            @if($account->exchange === 'bybit')
+                                <td colspan="2" class="text-center py-2" style="background: rgba(37, 99, 235, 0.03); border-left: 1px solid var(--fin-border); border-right: 1px solid var(--fin-border);">
+                                    <div class="d-flex flex-column align-items-center">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="text-dark fw-bold" x-text="balances['{{ $account->id }}'] ? '$' + formatPrice(balances['{{ $account->id }}'].futures) : '—'">—</span>
+                                            <span class="badge bg-primary text-white" style="font-size: 0.6rem; padding: 2px 4px; border-radius: 3px;">UNIFIED</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td style="display: none;"></td>
+                            @else
+                                <td>
+                                    <span class="text-dark fw-medium" x-text="balances['{{ $account->id }}'] ? '$' + formatPrice(balances['{{ $account->id }}'].spot) : '—'">—</span>
+                                </td>
+                                <td>
+                                    <span class="text-dark fw-medium" x-text="balances['{{ $account->id }}'] ? '$' + formatPrice(balances['{{ $account->id }}'].futures) : '—'">—</span>
+                                </td>
+                            @endif
+                            <td>
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="text-dark fw-medium" x-text="balances['{{ $account->id }}'] ? '$' + formatPrice(balances['{{ $account->id }}'].funding) : '—'">—</span>
+                                    @if($account->exchange === 'bybit')
+                                        <span class="badge bg-info-subtle text-info border border-info-subtle" style="font-size: 0.55rem; padding: 1px 3px;">FUND</span>
+                                    @endif
+                                </div>
+                            </td>
                             <td><span class="text-primary fw-bold" x-text="balances['{{ $account->id }}'] ? '$' + formatPrice(balances['{{ $account->id }}'].total) : '—'">—</span></td>
                             <td class="text-end px-3">
                                 <div class="d-flex gap-2 justify-content-end">
@@ -387,7 +410,7 @@ function tradingAccountsData() {
                         emptyTable: "No wallets connected yet"
                     },
                     columnDefs: [
-                        { orderable: false, targets: [2, 7] }
+                        { orderable: false, targets: [2, 3, 6] }
                     ],
                 });
             }
