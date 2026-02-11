@@ -27,33 +27,69 @@ class TelegramNotificationService
 
     /**
      * Send a generic message to Telegram
+     * 
+     * @param string $message
+     * @param bool|array|null $ids If bool, use production/dev from config. If array/collection, use those chat IDs.
+     * @return array
      */
-    public function sendMessage(string $message, bool $isProduction = true): array
+    public function sendMessage(string $message, mixed $ids = true): array
     {
         if (!$this->enabled) {
             Log::info('Telegram notifications disabled');
             return ['success' => false, 'message' => 'Telegram disabled'];
         }
 
-        $botToken = $isProduction ? $this->botToken : ($this->devBotToken ?: $this->botToken);
-        $chatId = $isProduction ? $this->chatId : ($this->devChatId ?: $this->chatId);
+        $chatIds = [];
+        $botToken = $this->botToken; // Default to production bot
 
-        try {
-            $response = Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
-                'chat_id' => $chatId,
-                'text' => $message,
-                'parse_mode' => 'Markdown',
-            ]);
-
-            if ($response->successful()) {
-                return $response->json();
-            } else {
-                throw new \Exception('Telegram API error: ' . $response->body());
-            }
-        } catch (\Exception $e) {
-            Log::error('Telegram send failed: ' . $e->getMessage());
-            throw $e;
+        if (is_bool($ids)) {
+            // Legacy behavior: use config based on isProduction
+            $isProduction = $ids;
+            $botToken = $isProduction ? $this->botToken : ($this->devBotToken ?: $this->botToken);
+            $chatIds[] = $isProduction ? $this->chatId : ($this->devChatId ?: $this->chatId);
+        } elseif (is_array($ids)) {
+            $chatIds = array_unique(array_filter($ids));
+        } elseif ($ids instanceof \Illuminate\Support\Collection) {
+            $chatIds = $ids->unique()->filter()->toArray();
         }
+
+        $results = [];
+        foreach ($chatIds as $cid) {
+            try {
+                $response = Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                    'chat_id' => $cid,
+                    'text' => $message,
+                    'parse_mode' => 'Markdown',
+                ]);
+
+                if ($response->successful()) {
+                    $results[] = [
+                        'chat_id' => $cid,
+                        'success' => true,
+                        'response' => $response->json()
+                    ];
+                } else {
+                    $results[] = [
+                        'chat_id' => $cid,
+                        'success' => false,
+                        'error' => 'Telegram API error: ' . $response->body()
+                    ];
+                    Log::error("Telegram API error for {$cid}: " . $response->body());
+                }
+            } catch (\Exception $e) {
+                $results[] = [
+                    'chat_id' => $cid,
+                    'success' => false,
+                    'error' => $e->getMessage()
+                ];
+                Log::error("Telegram send failed for {$cid}: " . $e->getMessage());
+            }
+        }
+
+        return [
+            'success' => collect($results)->every('success', true),
+            'results' => $results
+        ];
     }
 
     /**

@@ -76,10 +76,21 @@ class SendTelegramReminderJob implements ShouldQueue
             $message .= "🤖 _Powered by DragonFortune AI_\n";
             $message .= "━━━━━━━━━━━━━━━━━━━━━━";
             
-            $isProduction = $method ? (bool) $method->is_production : false;
+            $this->reminder->load('method.telegramChannels');
+            $method = $this->reminder->method;
 
-            // Send to Telegram
-            $response = $telegram->sendMessage($message, $isProduction);
+            $chatIds = [];
+            if ($method && $method->telegramChannels->count() > 0) {
+                $chatIds = $method->telegramChannels->where('is_active', true)->pluck('chat_id')->toArray();
+            }
+            
+            // Send to Telegram (selective or fallback)
+            if (empty($chatIds)) {
+                $isProduction = $method ? (bool) $method->is_production : false;
+                $response = $telegram->sendMessage($message, $isProduction);
+            } else {
+                $response = $telegram->sendMessage($message, $chatIds);
+            }
             
             // Update status
             $this->reminder->update([

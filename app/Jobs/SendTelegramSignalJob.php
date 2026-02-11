@@ -22,7 +22,7 @@ class SendTelegramSignalJob implements ShouldQueue
     public function handle(TelegramNotificationService $telegram): void
     {
         try {
-            $this->signal->load('method');
+            $this->signal->load('method.telegramChannels');
             $method = $this->signal->method;
             
             $isEntry = strtolower($this->signal->type) === 'entry';
@@ -40,8 +40,18 @@ class SendTelegramSignalJob implements ShouldQueue
                 $message = $this->buildExitMessage($method, $directionEmoji, $directionText, $isBuy);
             }
             
-            $isProduction = $method ? (bool) $method->is_production : false;
-            $response = $telegram->sendMessage($message, $isProduction);
+            $chatIds = [];
+            if ($method && $method->telegramChannels->count() > 0) {
+                $chatIds = $method->telegramChannels->where('is_active', true)->pluck('chat_id')->toArray();
+            }
+            
+            // Fallback to is_production logic if no specific channels are linked
+            if (empty($chatIds)) {
+                $isProduction = $method ? (bool) $method->is_production : false;
+                $response = $telegram->sendMessage($message, $isProduction);
+            } else {
+                $response = $telegram->sendMessage($message, $chatIds);
+            }
             
             $this->signal->update([
                 'telegram_sent' => true,
