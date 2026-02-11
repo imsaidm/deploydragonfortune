@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class QcMethod extends Model
 {
@@ -64,5 +65,18 @@ class QcMethod extends Model
     public function reminders(): HasMany
     {
         return $this->hasMany(QcReminder::class, 'id_method');
+    }
+
+    /**
+     * Get the telegram channels for this method.
+     */
+    public function telegramChannels(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            QcTelegramChannel::class,
+            'qc_method_telegram_channel',
+            'id_method',
+            'id_channel'
+        );
     }
 }
