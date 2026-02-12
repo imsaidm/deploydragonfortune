@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\BinanceFuturesController;
 use App\Http\Controllers\QuantConnectController;
+use App\Http\Controllers\SummaryController;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'workspace')->name('workspace');
@@ -64,6 +65,11 @@ Route::get('/backtest-result', [BacktestResultController::class, 'index'])->name
 Route::get('/backtest-result/{file}', [BacktestResultController::class, 'show'])
     ->where('file', '[A-Za-z0-9._-]+')
     ->name('backtest-result.show');
+
+//Summary
+Route::get('/summary', [SummaryController::class, 'index'])->name('summary.index');
+Route::get('/summary/dtable', [SummaryController::class, 'DTable'])->name('summary.dtable');
+Route::get('/summary/account', [SummaryController::class, 'getAccount'])->name('summary.get-account');
 
 // CryptoQuant API Proxy Routes
 Route::get('/api/cryptoquant/exchange-inflow-cdd', [App\Http\Controllers\CryptoQuantController::class, 'getExchangeInflowCDD'])->name('api.cryptoquant.exchange-inflow-cdd');
