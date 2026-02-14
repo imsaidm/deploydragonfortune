@@ -303,9 +303,9 @@
     const afterTableLoaded = async data => {
 
         cancelBalanceRequests();
-        // for (const row of data) {
-        //     await getBalanceByMethodId(row);
-        // }
+        for (const row of data) {
+            await getBalanceByMethodId(row);
+        }
     };
 
     const getBalanceByMethodId = async (data) => {
