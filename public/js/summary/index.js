@@ -1,4 +1,21 @@
-const TraderTable = (() => {
+(() => {
+  const onReady = (fn) => {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fn, { once: true });
+      return;
+    }
+    fn();
+  };
+
+  const onWindowLoaded = (fn) => {
+    if (document.readyState === 'complete') {
+      setTimeout(fn, 0);
+      return;
+    }
+    window.addEventListener('load', () => setTimeout(fn, 0), { once: true });
+  };
+
+  const TraderTable = (() => {
 
     let balanceRequests = [];
     let state = {
@@ -6,7 +23,7 @@ const TraderTable = (() => {
         search: "",
         order_by: "id",
         order_dir: "asc",
-        per_page: 10
+        per_page: "all"
     };
 
     let lastLoadedData = [];
@@ -93,7 +110,7 @@ const TraderTable = (() => {
         const binanceLogo = "https://dragonfortune.ai/images/binancelogo.png";
         const bybitLogo   = "https://dragonfortune.ai/images/bybitlogo.png";
 
-        data.forEach(row => {
+        data.forEach( (row, index) => {
 
             let imgCoin = "#";
             let imgExchange = "#";
@@ -104,6 +121,7 @@ const TraderTable = (() => {
             imgExchange = ( exchange == "bybit" ? bybitLogo : binanceLogo);
             $("#tableBody").append(`
                 <tr>
+                    <td data-label="TF">${index+1}</td>
 
                     <td data-label="Strategy">
                         <div class="d-flex align-items-center">
@@ -129,7 +147,6 @@ const TraderTable = (() => {
                     <td data-label="Loss">${Number(row.lossrate).toFixed(2)}%</td>
                     <td data-label="Sharpe">${Number(row.sharpen_ratio).toFixed(2)}%</td>
                     <td data-label="Sortino">${Number(row.sortino_ratio).toFixed(2)}%</td>
-                    <td data-label="Information">${Number(row.information_ratio).toFixed(2)}%</td>
                     <td data-label="Signal">${Number(row.total_signal).toFixed(0)}x</td>
                     <td data-label="TP">${Number(row.total_tp).toFixed(0)}x</td>
                     <td data-label="SL">${Number(row.total_sl).toFixed(0)}x</td>
@@ -137,17 +154,18 @@ const TraderTable = (() => {
                     <td data-label="Opening" class="balance-cell">${Number(row.opening_balance).toFixed(1)}</td>
                     <td data-label="Closing" class="balance-cell" id="balance-${row.id}">${Number(row.closing_balance).toFixed(1)}</td>
 
-                    <td>
-                        <span class="action-btn detail-btn" data-id="${row.id}">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
-                                <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5s3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5s-3.879-1.168-5.168-2.457A13 13 0 0 1 1.172 8z"/>
-                                <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
-                            </svg>
-                        </span>
-                    </td>
 
                 </tr>
             `);
+
+            // <td>
+            //     <span class="action-btn detail-btn" data-id="${row.id}">
+            //         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-eye" viewBox="0 0 16 16">
+            //             <path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8M1.173 8a13 13 0 0 1 1.66-2.043C4.12 4.668 5.88 3.5 8 3.5s3.879 1.168 5.168 2.457A13 13 0 0 1 14.828 8q-.086.13-.195.288c-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12.5 8 12.5s-3.879-1.168-5.168-2.457A13 13 0 0 1 1.172 8z"/>
+            //             <path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5M4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0"/>
+            //         </svg>
+            //     </span>
+            // </td>
         });
     };
 
@@ -217,11 +235,67 @@ const TraderTable = (() => {
     $(document).on("click", ".detail-btn", function(){
         const id = $(this).data("id");
         const data = lastLoadedData.find(x => x.id == id);
-        $("#detailContent").html(`
-            <h5>${data.nama_metode}</h5>
-            <p>CAGR: ${data.cagr}%</p>
-            <p>Sharpe: ${data.sharpen_ratio}</p>
-            <p>Sortino: ${data.sortino_ratio}</p>
+        $("#detailContent").html(`    
+            <div class="trader-modal">
+                <div class="trader-header">
+                    <div>
+                        <h5 class="mb-1">${data.nama_metode}</h5>
+                        <small class="text-muted">${data.exchange} • ${data.pair} • ${data.tf}</small>
+                    </div>
+                    <div class="mt-4 text-end">
+                        <a href="${data.url}" target="_blank" class="btn btn-sm btn-light border">
+                            Open Backtest →
+                        </a>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-md-4">
+                        <div class="metric-card profit">
+                            <small>CAGR</small>
+                            <h4>${Number(data.cagr).toFixed(2)}%</h4>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="metric-card neutral">
+                            <small>Winrate</small>
+                            <h4>${Number(data.winrate).toFixed(1)}%</h4>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="metric-card risk">
+                            <small>Drawdown</small>
+                            <h4>${Number(data.lossrate).toFixed(1)}%</h4>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-2">
+                    <div class="col-md-4">
+                        <div class="stat-box">
+                            <small>Total Signal</small>
+                            <strong>${Number(data.total_signal).toLocaleString()}</strong>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="stat-box tp">
+                            <small>Total TP</small>
+                            <strong>${data.total_tp}</strong>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="stat-box sl">
+                            <small>Total SL</small>
+                            <strong>${data.total_sl}</strong>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         `);
         $("#detailModal").modal("show");
     });
@@ -229,9 +303,9 @@ const TraderTable = (() => {
     const afterTableLoaded = async data => {
 
         cancelBalanceRequests();
-        for (const row of data) {
-            await getBalanceByMethodId(row);
-        }
+        // for (const row of data) {
+        //     await getBalanceByMethodId(row);
+        // }
     };
 
     const getBalanceByMethodId = async (data) => {
@@ -322,6 +396,12 @@ const TraderTable = (() => {
 
     return { init };
 
-})();
+  })();
 
-$(document).ready(()=> TraderTable.init());
+  onReady(() => {
+    
+    onWindowLoaded(() => {
+        TraderTable.init();
+    });
+  });
+})();

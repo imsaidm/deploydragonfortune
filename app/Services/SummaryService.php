@@ -47,6 +47,9 @@ class SummaryService
                         'closing_balance', 'opening_balance', 'cagr', 'winrate', 
                         'lossrate', 'drawdown', 'prob_sr', 'sharpen_ratio', 'sortino_ratio', 
                         'information_ratio', 'turnover', 'total_signal'];
+
+        $query->orderBy("total_tp", "desc");
+        $query->orderBy("total_signal", "desc");
         if (in_array($orderBy, $validColumns)) {
             $query->orderBy($orderBy, $orderDir);
         }

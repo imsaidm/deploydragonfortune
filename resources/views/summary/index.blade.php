@@ -3,11 +3,11 @@
 @section('title', 'Summary | DragonFortune')
 
 @push('head')
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
 <style>
     .derivatives-header {
         margin-bottom: 0 !important;
         padding: 0.75rem 1rem !important;
-        margin-bottom: 2rem !important;
     }
 
     @media(max-width: 992px){
@@ -307,11 +307,90 @@ body{
     width:48px;
 }
 
+
+/* start modal */
+.trader-modal{
+    font-size:14px;
+}
+
+.trader-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+.coin-icon{
+    width:36px;
+    opacity:.9;
+}
+
+/* metric cards */
+.metric-card{
+    background:#f9fafb;
+    border-radius:14px;
+    padding:16px;
+    text-align:center;
+}
+
+.metric-card h4{
+    margin:4px 0 0;
+    font-weight:700;
+}
+
+.metric-card.profit{
+    background:linear-gradient(135deg,#ecfdf5,#ffffff);
+    color:#16a34a;
+}
+
+.metric-card.risk{
+    background:linear-gradient(135deg,#fef2f2,#ffffff);
+    color:#dc2626;
+}
+
+.metric-card.neutral{
+    background:linear-gradient(135deg,#eff6ff,#ffffff);
+    color:#2563eb;
+}
+
+/* ratio box */
+.ratio-box{
+    display:flex;
+    justify-content:space-between;
+    background:#f8fafc;
+    border-radius:14px;
+    padding:14px;
+}
+
+.ratio-box small{
+    display:block;
+    color:#6b7280;
+}
+
+.ratio-box strong{
+    font-size:16px;
+}
+
+/* stat */
+.stat-box{
+    background:#f9fafb;
+    border-radius:12px;
+    padding:14px;
+    text-align:center;
+}
+
+.stat-box.tp{
+    color:#16a34a;
+}
+
+.stat-box.sl{
+    color:#dc2626;
+}
+/* end modal */
 </style>
 @endpush
 
 @section('content')
-<div class="container-fluid py-4">
+<div class="container-fluid">
 
     <div class="derivatives-header">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -329,7 +408,7 @@ body{
                 <option value="25">25 rows</option>
                 <option value="50">50 rows</option>
                 <option value="100">100 rows</option>
-                <option value="all">Show All</option>
+                <option selected value="all">Show All</option>
             </select>
         </div>
         <input type="text" id="searchInput" class="form-control w-25" placeholder="Search strategy...">
@@ -340,6 +419,7 @@ body{
             <table class="table table-hover align-middle mb-0">
                 <thead class="bg-white">
                     <tr>
+                        <th rowspan="2" class="align-middle">No.</th>
                         <th rowspan="2" class="align-middle">Strategy</th>
                         <th rowspan="2" class="align-middle">Exchange</th>
                         <th rowspan="2" class="align-middle">TF</th>
@@ -348,17 +428,16 @@ body{
                         <th rowspan="2" class="sortable align-middle" data-column="prob_sr">PSR</th>
                         <th rowspan="2" class="sortable align-middle" data-column="turnover">Turnover</th>
                         <th colspan="2" class="text-center">Rate</th>
-                        <th colspan="3" class="text-center">Ratio</th>
+                        <th colspan="2" class="text-center">Ratio</th>
                         <th colspan="3" class="text-center">Total</th>
                         <th colspan="2" class="text-center">Balance</th>
-                        <th rowspan="2"></th>
+                        {{-- <th rowspan="2" class="text-center"></th> --}}
                     </tr>
                     <tr>
                         <th class="sortable align-middle" data-column="winrate">Win</th>
                         <th class="sortable align-middle" data-column="lossrate">Loss</th>
                         <th class="sortable" data-column="sharpen_ratio">Sharpe</th>
                         <th class="sortable" data-column="sortino_ratio">Sortino</th>
-                        <th class="sortable" data-column="information_ratio">Information</th>
                         <th class="sortable" data-column="total_signal">Signal</th>
                         <th class="sortable" data-column="total_tp">TP</th>
                         <th class="sortable" data-column="total_sl">SL</th>
@@ -386,11 +465,12 @@ body{
         </div>
     </div>
 </div>
-<div class="modal fade" id="detailModal">
+<div class="modal fade" id="detailModal" tabindex="-1" role="dialog">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h6>Strategy Detail</h6>
+        <h6 class="modal-title">Strategy Detail</h6>
+         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body" id="detailContent"></div>
     </div>
@@ -399,6 +479,7 @@ body{
 @endsection
 
 @section('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
     @php
         $saDashboardJsPath = public_path('js/summary/index.js');
         $saDashboardJsVersion = file_exists($saDashboardJsPath) ? filemtime($saDashboardJsPath) : null;
