@@ -172,6 +172,20 @@
 	                                <span>Signal and Analytics</span>
 	                            </a>
 	                        </li>
+                        <ul class="df-sidebar-menu">
+	                        {{-- <li class="df-sidebar-menu-item">
+	                            <a href="/summary" class="df-sidebar-menu-button {{ request()->routeIs('summary.*') ? 'active' : '' }}" @click="closeSidebar()">
+	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+	                                    <path d="M3 3v18h18"/>
+	                                    <path d="M7 14l3-3 4 4 6-6"/>
+	                                    <circle cx="7" cy="14" r="1.5"/>
+	                                    <circle cx="14" cy="15" r="1.5"/>
+	                                    <circle cx="20" cy="9" r="1.5"/>
+	                                </svg>
+	                                <span>Summary</span>
+	                            </a>
+	                        </li> --}}
+                            
 	                        <!-- <li class="df-sidebar-menu-item">
 	                            <a href="/backtest-result" class="df-sidebar-menu-button {{ request()->routeIs('backtest-result.*') ? 'active' : '' }}" @click="closeSidebar()">
 	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
