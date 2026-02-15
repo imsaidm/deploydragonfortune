@@ -1,48 +1,85 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="df-panel p-4">
-                <h2 class="h4 mb-4">Profile Settings</h2>
-
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Name</label>
-                            <input type="text" class="form-control" value="Abdul Aziz" readonly>
+<div class="container-fluid pt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="df-panel border-0 shadow-sm">
+                <!-- Header Background -->
+                <div class="p-4 bg-primary rounded-top" style="height: 160px; background: linear-gradient(135deg, var(--primary), #6366f1) !important;">
+                    <div class="d-flex align-items-end gap-3 h-100 pb-3">
+                        <div class="avatar-wrapper shadow-lg rounded-circle bg-white p-1" style="margin-bottom: -50px;">
+                            <img src="/images/avatar.svg" alt="Avatar" class="rounded-circle" style="width: 100px; height: 100px; object-fit: cover; background: white;">
                         </div>
-
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Email</label>
-                            <input type="email" class="form-control" value="abdulaziz@dragonfortune.ai" readonly>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Role</label>
-                            <input type="text" class="form-control" value="Admin" readonly>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Avatar</label>
-                            <div class="d-flex align-items-center gap-3">
-                                <img src="/images/avatar.svg" alt="Avatar" class="rounded-circle" style="width: 80px; height: 80px; border: 2px solid var(--border);">
-                                <button class="btn btn-sm btn-outline-secondary" disabled>Change Avatar</button>
-                            </div>
+                        <div class="pb-1">
+                            <h2 class="h3 fw-bold text-white mb-0">{{ auth()->user()->name }}</h2>
+                            <span class="badge {{ auth()->user()->isSuperAdmin() ? 'bg-warning text-dark' : 'bg-white text-primary' }} shadow-sm">
+                                {{ ucfirst(auth()->user()->role) }}
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <div class="alert alert-info mt-4">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="me-2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M12 16v-4"/>
-                        <path d="M12 8h.01"/>
-                    </svg>
-                    Halaman profile sedang dalam pengembangan. Fitur lengkap akan segera tersedia.
+                <!-- Profile Content -->
+                <div class="p-4 pt-5 mt-3">
+                    <div class="row g-4">
+                        <div class="col-md-7">
+                            <h4 class="h6 text-uppercase fw-bold text-secondary mb-4">Account Information</h4>
+                            
+                            <div class="mb-4">
+                                <label class="small text-muted mb-1 d-block">Full Name</label>
+                                <div class="p-3 rounded-3 bg-light border d-flex align-items-center gap-3">
+                                    <i class="bi bi-person text-primary"></i>
+                                    <span class="fw-semibold text-dark">{{ auth()->user()->name }}</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="small text-muted mb-1 d-block">Email Address</label>
+                                <div class="p-3 rounded-3 bg-light border d-flex align-items-center gap-3">
+                                    <i class="bi bi-envelope text-primary"></i>
+                                    <span class="fw-semibold text-dark">{{ auth()->user()->email }}</span>
+                                </div>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="small text-muted mb-1 d-block">Current Role</label>
+                                <div class="p-3 rounded-3 bg-light border d-flex align-items-center gap-3">
+                                    <i class="bi bi-shield-check text-primary"></i>
+                                    <span class="fw-semibold text-dark">
+                                        @if(auth()->user()->isSuperAdmin())
+                                            Shadow SuperAdmin
+                                        @elseif(auth()->user()->isAdmin())
+                                            System Administrator
+                                        @elseif(auth()->user()->isCreator())
+                                            Strategy Creator
+                                        @else
+                                            Investor
+                                        @endif
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-5">
+                            <h4 class="h6 text-uppercase fw-bold text-secondary mb-4">Security & Settings</h4>
+                            <div class="df-panel p-3 border-danger-subtle bg-danger-subtle bg-opacity-10 mb-3">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-lock-fill text-danger"></i>
+                                    <h6 class="mb-0 text-danger">Security Verification</h6>
+                                </div>
+                                <p class="small text-muted mb-3">Ensure your account uses a strong password and multi-factor authentication (coming soon).</p>
+                                <button class="btn btn-sm btn-outline-danger w-100" disabled>Change Password</button>
+                            </div>
+
+                            <div class="alert alert-info border-0 shadow-sm" style="background: rgba(var(--primary-rgb), 0.1);">
+                                <div class="d-flex gap-2">
+                                    <i class="bi bi-info-circle-fill text-primary"></i>
+                                    <div class="small">Profil kamu diatur oleh sistem berdasarkan lisensi akses yang terdaftar.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

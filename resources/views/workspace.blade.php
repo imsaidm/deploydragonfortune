@@ -2,6 +2,13 @@
 
 @section('content')
     <div class="d-flex flex-column h-100 gap-3" x-data="dashboardData()" x-init="init()">
+        <!-- Role Info Banner (Hidden for SuperAdmin/Admin to maintain 'shadow' feel, shown for others) -->
+        @if(auth()->user()->isInvestor())
+            <div class="alert alert-info border-0 shadow-sm d-flex align-items-center gap-2 mb-0" style="background: rgba(var(--primary-rgb), 0.1);">
+                <i class="bi bi-info-circle"></i>
+                <div class="small">Welcome, <strong>{{ auth()->user()->name }}</strong>. You are currently in <strong>Investor Mode</strong> (View-Only).</div>
+            </div>
+        @endif
         <!-- Macro Snapshot (API-powered) -->
         <!-- <div class="row g-3">
             <div class="col-lg-3 col-md-6">
@@ -283,6 +290,41 @@
                     </div>
                 </a>
                 </div>
+            </div>
+
+            @if(auth()->user()->isCreator())
+                <div class="col-lg-3 col-md-6">
+                    <div class="df-panel p-3 h-100 border-primary-subtle" style="border: 1px dashed var(--primary);">
+                        <div class="small mb-1" style="color: var(--primary);">Creator Tools</div>
+                        <div class="h5 mb-2">Strategy Lab</div>
+                        <a href="/backtest-result" class="btn btn-sm btn-primary w-100">Manage Methods</a>
+                    </div>
+                </div>
+            @endif
+
+            @if(auth()->user()->isAdmin())
+                <div class="col-lg-3 col-md-6">
+                    <div class="df-panel p-3 h-100" style="background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.05), transparent);">
+                        <div class="small mb-1" style="color: var(--muted-foreground);">Administration</div>
+                        <div class="h5 mb-2">System Control</div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary flex-fill">Users</button>
+                            <button class="btn btn-sm btn-outline-secondary flex-fill">API Status</button>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
+            @if(auth()->user()->isSuperAdmin())
+                <div class="col-lg-3 col-md-6">
+                    <div class="df-panel p-3 h-100 bg-dark text-white shadow-lg border-0" style="background: #000 !important;">
+                        <div class="small mb-1 text-warning">SuperAdmin Terminal</div>
+                        <div class="h5 mb-2">Shadow Control</div>
+                        <div class="small text-white-50 mb-2">Direct DB Access & Logs</div>
+                        <button class="btn btn-sm btn-warning w-100 text-dark fw-bold">Enter Ghost Mode</button>
+                    </div>
+                </div>
+            @endif
         </section>
 
         <!-- Risk + Positioning -->

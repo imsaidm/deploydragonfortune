@@ -13,3 +13,9 @@ Schedule::command('telegram:process-pending --limit=10')
     ->everyTenSeconds()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Schedule the bot command poller to run every minute
+Schedule::command('telegram:bot-commands')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();

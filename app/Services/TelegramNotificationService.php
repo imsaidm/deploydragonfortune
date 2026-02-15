@@ -9,9 +9,10 @@ use App\Models\QuantConnectSignal;
 class TelegramNotificationService
 {
     private ?string $botToken;
-    private ?string $chatId;
-    private ?string $devBotToken;
-    private ?string $devChatId;
+    protected string $chatId;
+    protected string $devBotToken;
+    protected string $devChatId;
+    protected string $apiUrl = 'https://api.telegram.org/bot';
     private bool $enabled;
 
     public function __construct()
@@ -90,6 +91,41 @@ class TelegramNotificationService
             'success' => collect($results)->every('success', true),
             'results' => $results
         ];
+    }
+
+    /**
+     * Get recent updates from the bot.
+     */
+    public function getUpdates(): array
+    {
+        try {
+            $response = Http::get("{$this->apiUrl}{$this->botToken}/getUpdates", [
+                'limit' => 10,
+                'offset' => -10
+            ]);
+
+            return $response->json();
+        } catch (\Exception $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Send specific message to a chat id.
+     */
+    public function sendMessageToId(string $chatId, string $message): array
+    {
+        try {
+            $response = Http::post("{$this->apiUrl}{$this->botToken}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $message,
+                'parse_mode' => 'Markdown'
+            ]);
+
+            return $response->json();
+        } catch (\Exception $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
     }
 
     /**

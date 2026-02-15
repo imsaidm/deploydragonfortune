@@ -187,6 +187,22 @@
 	                    </ul>
 	                </div>
 
+                    @if(auth()->user()->isSuperAdmin())
+                    <div class="df-sidebar-group">
+                        <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Administration</div>
+                        <ul class="df-sidebar-menu">
+                            <li class="df-sidebar-menu-item">
+                                <a href="{{ route('admin.telegram.index') }}" class="df-sidebar-menu-button {{ request()->routeIs('admin.telegram.*') ? 'active' : '' }}" @click="closeSidebar()">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                                    </svg>
+                                    <span>Telegram Routing</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    @endif
+
                     <div class="df-sidebar-group">
                         <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Markets</div>
                         <ul class="df-sidebar-menu">

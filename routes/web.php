@@ -2,17 +2,32 @@
 
 use App\Http\Controllers\BacktestResultController;
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\TelegramManagementController;
 use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\BinanceFuturesController;
 use App\Http\Controllers\QuantConnectController;
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'workspace')->name('workspace');
-Route::view('/login', 'auth.login')->name('login');
+Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
+Route::post('/login', [LoginController::class, 'login']);
+
+// Protected Routes
+Route::middleware(['auth'])->group(function () {
+    Route::view('/', 'workspace')->name('workspace');
 
 // Profile & Auth Routes
 Route::view('/profile', 'profile.show')->name('profile.show');
 Route::post('/logout', LogoutController::class)->name('logout');
+
+    // Telegram Management (Admin only)
+    Route::middleware('role:superAdmin')->prefix('admin/telegram')->name('admin.telegram.')->group(function () {
+        Route::get('/', [TelegramManagementController::class, 'index'])->name('index');
+        Route::post('/channels', [TelegramManagementController::class, 'storeChannel'])->name('channels.store');
+        Route::put('/channels/{channel}', [TelegramManagementController::class, 'updateChannel'])->name('channels.update');
+        Route::delete('/channels/{channel}', [TelegramManagementController::class, 'deleteChannel'])->name('channels.delete');
+        Route::post('/channels/{channel}/sync', [TelegramManagementController::class, 'syncMethods'])->name('channels.sync');
+    });
 
 // Derivatives Core Routes
 Route::view('/derivatives/funding-rate', 'derivatives.funding-rate')->name('derivatives.funding-rate');
@@ -60,7 +75,7 @@ Route::view('/sentiment-flow/dashboard', 'sentiment-flow.dashboard')->name('sent
 
 // Backtest & Signal Placeholder Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');
-Route::get('/backtest-result', [BacktestResultController::class, 'index'])->name('backtest-result.index');
+Route::get('/backtest-result', [BacktestResultController::class, 'index'])->name('backtest-result.index')->middleware('role:creator');
 Route::get('/backtest-result/{file}', [BacktestResultController::class, 'show'])
     ->where('file', '[A-Za-z0-9._-]+')
     ->name('backtest-result.show');
@@ -215,7 +230,7 @@ Route::prefix('data/open-interest')->group(function () {
 Route::prefix('derivatives')->name('derivatives.')->group(function () {
     Route::view('/open-interest-advanced', 'derivatives.open-interest-new')->name('open-interest-new');
     // Liquidation Heatmap Advanced (Local DB)
-    Route::get('/liquidation-heatmap-advanced', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'index'])->name('liquidation-heatmap-advanced');
+    Route::get('/liquidation-heatmap-advanced', [App\Http\Controllers\Database\LiquidationHeatmapDbController::class, 'index'])->name('liquidation-heatmap-advanced')->middleware('role:admin');
 });
 
 // Liquidation Heatmap Data Routes
@@ -497,5 +512,7 @@ if (app()->isLocal()) {
         }
     })->name('test.cdd-all-exchanges');
 }
+
+});
 
 // API consumption happens directly from frontend using meta api-base-url
