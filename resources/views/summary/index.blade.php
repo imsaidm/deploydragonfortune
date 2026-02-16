@@ -157,7 +157,7 @@ body{
 
 .action-btn:hover{
     color:#111827;
-    transform:scale(1.1);
+    transform:scale(1.01);
 }
 
 /* sortable indicator */
@@ -424,13 +424,14 @@ body{
                         <th rowspan="2" class="align-middle">Exchange</th>
                         <th rowspan="2" class="align-middle">TF</th>
                         <th rowspan="2" class="sortable align-middle" data-column="cagr">CAGR</th>
-                        <th rowspan="2" class="sortable align-middle" data-column="drawdown">Drawdown</th>
+                        <th rowspan="2" class="sortable align-middle" data-column="drawdown">Draw</br>down</th>
                         <th rowspan="2" class="sortable align-middle" data-column="prob_sr">PSR</th>
-                        <th rowspan="2" class="sortable align-middle" data-column="turnover">Turnover</th>
+                        <th rowspan="2" class="sortable align-middle" data-column="turnover">Turn</br>over</th>
                         <th colspan="2" class="text-center">Rate</th>
                         <th colspan="2" class="text-center">Ratio</th>
                         <th colspan="3" class="text-center">Total</th>
-                        <th colspan="2" class="text-center">Balance</th>
+                        <th colspan="3" class="text-center">Balance</th>
+                        <th rowspan="2" class="text-center align-middle" data-column="last_state">Last</br>State</th>
                         {{-- <th rowspan="2" class="text-center"></th> --}}
                     </tr>
                     <tr>
@@ -443,6 +444,7 @@ body{
                         <th class="sortable" data-column="total_sl">SL</th>
                         <th class="sortable" data-column="opening_balance">Opening</th>
                         <th class="sortable" data-column="closing_balance">Closing</th>
+                        <th class="sortable" data-column="percentage_change">(%)</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody"></tbody>

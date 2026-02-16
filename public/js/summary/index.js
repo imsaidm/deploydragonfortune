@@ -120,8 +120,8 @@
             imgCoin = ( symbol == "eth" ? imgCoin= "https://cryptologos.cc/logos/ethereum-eth-logo.png?v=040" : imgCoin="https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=040");
             imgExchange = ( exchange == "bybit" ? bybitLogo : binanceLogo);
             $("#tableBody").append(`
-                <tr>
-                    <td data-label="TF">${index+1}</td>
+                <tr class="action-btn detail-btn" data-id="${row.id}">
+                    <td data-label="No.">${index+1}</td>
 
                     <td data-label="Strategy">
                         <div class="d-flex align-items-center">
@@ -153,6 +153,8 @@
 
                     <td data-label="Opening" class="balance-cell">${Number(row.opening_balance).toFixed(1)}</td>
                     <td data-label="Closing" class="balance-cell" id="balance-${row.id}">${Number(row.closing_balance).toFixed(1)}</td>
+                    <td data-label="(%)" class="balance-cell" style="${(row.percentage_change >= 0 ? "color: green" : "color: red" )};">${Number(row.percentage_change).toFixed(2)}%</td>
+                    <td data-label="Last State">${row.last_state}</td>
 
 
                 </tr>
@@ -239,7 +241,7 @@
             <div class="trader-modal">
                 <div class="trader-header">
                     <div>
-                        <h5 class="mb-1">${data.nama_metode}</h5>
+                        <h4 class="mb-1">${data.nama_metode}</h4>
                         <small class="text-muted">${data.exchange} • ${data.pair} • ${data.tf}</small>
                     </div>
                     <div class="mt-4 text-end">
@@ -266,7 +268,7 @@
 
                     <div class="col-md-4">
                         <div class="metric-card risk">
-                            <small>Drawdown</small>
+                            <small>Lossrate</small>
                             <h4>${Number(data.lossrate).toFixed(1)}%</h4>
                         </div>
                     </div>
@@ -293,6 +295,16 @@
                             <strong>${data.total_sl}</strong>
                         </div>
                     </div>
+                </div>
+
+                <div class="trader-header mt-2">
+                    <div>
+                        <h4 class="mb-1">Description</h4>
+                    </div>
+                </div>
+
+                <div class="row g-3 mt-1">
+                   <p>${data.description}</p>
                 </div>
 
             </div>

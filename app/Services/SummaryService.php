@@ -21,10 +21,17 @@ class SummaryService
                     ->selectRaw('COUNT(1) AS total_signal')
                     ->groupBy('id_method');
             }, 'stat', 'qm.id', '=', 'stat.id_method')
-            ->select('qm.*')
+            ->leftJoinSub(function ($query) {
+                $query->from('qc_signal as qs')
+                    ->select('qs.id_method', 'qs.type as last_state')
+                    ->whereRaw('qs.id = (SELECT MAX(id) FROM qc_signal WHERE id_method = qs.id_method)');
+            }, 'last_signal', 'qm.id', '=', 'last_signal.id_method')
             
+            ->select('qm.*')
+            ->selectRaw('COALESCE(last_signal.last_state, "-") as last_state')            
             ->selectRaw("COALESCE(qm.opening_balance, 0) as opening_balance")
             ->selectRaw("COALESCE(qm.closing_balance, 0) as closing_balance")
+            ->selectRaw("((qm.closing_balance - qm.opening_balance) / NULLIF(qm.opening_balance, 0)) * 100 as percentage_change")
             ->selectRaw("'********' as api_key") 
             ->selectRaw("'********' as secret_key") 
             ->selectRaw('COALESCE(stat.total_signal, 0) AS total_signal')
