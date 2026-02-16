@@ -241,7 +241,7 @@
             <div class="trader-modal">
                 <div class="trader-header">
                     <div>
-                        <h4 class="mb-1">${data.nama_metode}</h4>
+                        <h6 class="mb-1">${data.nama_metode}</h6>
                         <small class="text-muted">${data.exchange} • ${data.pair} • ${data.tf}</small>
                     </div>
                     <div class="mt-4 text-end">
@@ -299,12 +299,12 @@
 
                 <div class="trader-header mt-2">
                     <div>
-                        <h4 class="mb-1">Description</h4>
+                        <h6 class="mb-1">Description</h6>
                     </div>
                 </div>
 
-                <div class="row g-3 mt-1">
-                   <p>${data.description}</p>
+                <div class="row g-3 p-1">
+                   <p>${data.description ?? "-"}</p>
                 </div>
 
             </div>
