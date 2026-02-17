@@ -51,14 +51,19 @@ class AccountExecutionJob implements ShouldQueue
     $method = $signal->method;
     $symbol = $method ? strtoupper(str_replace(['/', '-'], '', $method->pair)) : 'BTCUSDT';
     
-    // Detection Logic: Strictly use market_type (futures/spot)
-    $marketType = strtolower($signal->market_type ?: 'futures'); 
+    // Detection Logic: Default to Spot if field is missing for safety
+    $marketType = strtolower($signal->market_type ?: 'spot'); 
     $isFutures = ($marketType === 'futures');
 
-    \Log::info("Trade Detection: Signal ID {$this->signalId} | MarketType: " . ($marketType ?: 'NULL') . " | Jenis: $jenis | Determined: " . ($isFutures ? 'FUTURES' : 'SPOT'));
+    \Log::info("Trade Detection: Signal ID {$this->signalId} | MarketType: " . ($signal->market_type ?: 'FIELD_MISSING') . " | Determined: " . ($isFutures ? 'FUTURES' : 'SPOT'));
 
     $side = 'long'; // Default
-    $type = (str_contains($jenis, 'entry') || str_contains($jenis, 'buy')) ? 'entry' : 'exit';
+    
+    // Use signal type if available, otherwise derive from jenis
+    $type = strtolower($signal->type ?: '');
+    if (!in_array($type, ['entry', 'exit'])) {
+        $type = (str_contains($jenis, 'entry') || str_contains($jenis, 'buy')) ? 'entry' : 'exit';
+    }
 
     if ($isFutures) {
         $side = str_contains($jenis, 'long') ? 'long' : 'short';
@@ -97,8 +102,15 @@ class AccountExecutionJob implements ShouldQueue
         ]);
 
         try {
-            \Log::info("AccountExecutionJob Logic Check: Signal ID {$this->signalId} | Type: $type | Jenis: $jenis | IsFutures: " . ($isFutures ? 'YES' : 'NO'));
-            if ($type === 'exit') {
+            $accName = $this->account->account_name;
+            $accExchange = strtoupper($this->account->exchange);
+            \Log::info(">>> PROCESSING ACCOUNT: [ID: {$this->account->id}] {$accName} ({$accExchange}) for Signal ID {$this->signalId}");
+
+                // Define price early for executions record
+                $price = (float) ($signal->price_entry ?: $signal->price_exit ?: 1);
+
+                if ($type === 'exit') {
+
                 // 1. Cleanup ALL pending orders first (SL/TP protection cleanup)
                 $exchange->cancelAllSymbolOrders($symbol, $this->account, $this->signalId, $isFutures);
                 
@@ -114,18 +126,16 @@ class AccountExecutionJob implements ShouldQueue
                 // because fees are deducted from the coin itself during buy.
                 if (!$isFutures) {
                     $baseAsset = str_replace(['USDT', '/'], '', $symbol);
-                    $actualBalance = $exchange->getSpecificAssetBalance($this->account, $baseAsset);
+                    $actualBalance = $exchange->getSpecificAssetBalance($this->account, $baseAsset, $this->signalId);
                     
-                    \Log::info("Spot Exit Debug: Signal ID {$this->signalId} | DB Quantity: $closeQty | Actual Balance ($baseAsset): $actualBalance");
-
                     // For Spot, always flush 100% of the actual balance if it exists
                     if ($actualBalance > 0) {
                         $closeQty = $actualBalance;
                     }
 
-                    // Floor to 4 decimal places to satisfy LOT_SIZE (stepSize 0.0001 for ETH/BTC)
-                    $closeQty = floor($closeQty * 10000) / 10000;
-                    \Log::info("Spot Exit Adjusted: Final Quantity after precision: $closeQty");
+                    // Precision: 5 decimals for BTC, 4 for ETH (safe for Spot)
+                    $prec = str_contains($symbol, 'BTC') ? 100000 : 10000;
+                    $closeQty = floor($closeQty * $prec) / $prec;
                 }
 
                 if ($closeQty <= 0) {
@@ -144,45 +154,55 @@ class AccountExecutionJob implements ShouldQueue
                 }
 
                 // 2. Execute Market Entry Order
-                $balance = $exchange->getBalance($this->account);
+                // Fetch proportional sizing based on $105 base capital
+                $sizing = $exchange->calculateProportionalQuantity(
+                    $masterQuantity, $this->account, $symbol, $isFutures, $this->signalId
+                );
                 
-                // Select balance based on market type
-                $usdtBalance = $isFutures ? ($balance['available_balance'] ?? 0) : ($balance['spot'] ?? 0);
+                $quantity = $sizing['quantity'];
+                $usdtBalance = $sizing['balance'];
                 
-                // Use Signal Ratio (Allocation %) from QuantConnect
-                // If signal->ratio is 0.1, it means use 10% of available balance
-                $ratio = (float) ($signal->ratio ?: 0.1); 
-                $price = (float) ($signal->price_entry ?: $signal->price_exit ?: 1);
+                // Fetch real mark price for accurate notion validation
+                $realMarkPrice = $exchange->getMarkPrice($symbol, $isFutures);
+                $effectivePrice = $realMarkPrice ?: $price;
 
-                // Leverage is 1 for Spot, and N for Futures. 
-                // targetPositionValue is the total value in USD after leverage.
-                $targetPositionValue = ($usdtBalance * $ratio) * $leverage;
-                
-                // Binance Min Order is generally $5-10. $6 is our safety base.
-                $minOrderUsdt = 6;
-                
-                if ($targetPositionValue < $minOrderUsdt && ($usdtBalance * $leverage) >= $minOrderUsdt) {
-                    $targetPositionValue = $minOrderUsdt;
+                if ($effectivePrice <= 0) {
+                     throw new \Exception("Order aborted: Effective price is 0 for Signal ID {$this->signalId}.");
                 }
 
-                // If even after that it's too small, try to use EVERYTHING if total balance is > $minOrderUsdt
-                if ($targetPositionValue < $minOrderUsdt && $usdtBalance >= 5.5) {
-                    $targetPositionValue = $usdtBalance - 0.1; // Room for fees
-                }
-
-                $quantity = $targetPositionValue / $price;
-
-                // Precision: Spot major pairs usually 4 decimals. Futures use 3 for ETH.
-                $precision = $isFutures ? 1000 : 10000;
-                $quantity = floor($quantity * $precision) / $precision;
-
-                $finalValue = $quantity * $price;
-                if ($quantity <= 0 || $finalValue < 5) {
-                    throw new \Exception("Quantity too small or insufficient balance. Target: $" . number_format($finalValue, 2) . " (Min $5)");
-                }
-
-                $response = $exchange->placeMarketOrder($symbol, $orderSide, $quantity, $this->account, $this->signalId, $isFutures);
+                // Safety: Binance/Bybit Min Order is generally $5, but some pairs (ETHUSDT) require $20.
+                // We bump to $22.00 (buffer over $20) if balance allows but calculated qty is too small.
+                $minOrderUsdt = 21.00; 
+                $calculatedValue = $quantity * $effectivePrice;
                 
+                if ($calculatedValue < $minOrderUsdt && ($usdtBalance * $leverage) >= $minOrderUsdt) {
+                    // Bump to $22.00 to ensure we stay above $20 even after truncation
+                    $targetValue = 22.00;
+                    $rawQty = $targetValue / $effectivePrice;
+                    
+                    // Simple "Ceil to 3 decimals" to avoid truncation dropping us below 20
+                    // Most perp pairs have 3 decimals (0.001) or 2 (0.01)
+                    $quantity = ceil($rawQty * 1000) / 1000; 
+                    
+                    \Log::info("Min-Order Safety Bump: Signal ID {$this->signalId} | Qty boosted to {$quantity} (~\$22.00) for " . strtoupper($this->account->exchange));
+                }
+
+                if ($quantity <= 0) {
+                    throw new \Exception("Quantity calculation yielded 0. Balance: $" . number_format($usdtBalance, 2) . " | Price: $effectivePrice");
+                }
+
+                $actualQty = $quantity;
+                if (in_array($this->account->exchange, ['bybit', 'binance']) && !$isFutures && $orderSide === 'BUY') {
+                    // For Spot Market BUY, qty passed to wrapper can be treated as USDT if >= 5
+                    $actualQty = $quantity * $price;
+                    // Note: Floor for USDT common safety
+                    $actualQty = floor($actualQty * 100) / 100;
+                    \Log::info("Spot Market Buy Adjustment: Signal ID {$this->signalId} | Using USDT Amount: $actualQty");
+                }
+
+                $response = $exchange->placeMarketOrder($symbol, $orderSide, $actualQty, $this->account, $this->signalId, $isFutures);
+                
+                /*
                 // 3. Attach Protection (SL & TP) - ONLY FOR FUTURES
                 if ($response->successful() && $isFutures) {
                     usleep(1500000); // Wait 1.5s for position to settle
@@ -222,18 +242,26 @@ class AccountExecutionJob implements ShouldQueue
                         }
                     }
                 }
+                */
             }
 
-            if ($response && $response->successful()) {
-                $orderData = $response->json();
-                
+            $orderData = $response ? $response->json() : null;
+            $isExchangeSuccess = $response && $response->successful();
+            
+            // Bybit specific check: Even if 200 OK, check retCode
+            if ($isExchangeSuccess && $this->account->exchange === 'bybit') {
+                if (isset($orderData['retCode']) && $orderData['retCode'] !== 0) {
+                    $isExchangeSuccess = false;
+                }
+            }
+
+            if ($isExchangeSuccess) {
                 $execution->update([
                     'status' => 'success',
                     'follower_quantity' => ($type === 'exit' ? ($closeQty ?? 0) : $quantity),
                     'executed_price' => $orderData['avgPrice'] ?? ($orderData['price'] ?? $price),
                     'executed_at' => now()
                 ]);
-
                 if ($type === 'entry') {
                     Position::updateOrCreate(
                         ['account_id' => $this->account->id, 'symbol' => $symbol],
@@ -256,7 +284,11 @@ class AccountExecutionJob implements ShouldQueue
                             ]);
                 }
             } elseif ($response) {
-                throw new \Exception(ucfirst($this->account->exchange) . " Order Failed: " . $response->body());
+                $errorMsg = $response->body();
+                if ($this->account->exchange === 'bybit' && isset($orderData['retMsg'])) {
+                    $errorMsg = $orderData['retMsg'] . " (Code: " . $orderData['retCode'] . ")";
+                }
+                throw new \Exception(ucfirst($this->account->exchange) . " Order Failed: " . $errorMsg);
             } else {
                 throw new \Exception(ucfirst($this->account->exchange) . " order response is null.");
             }

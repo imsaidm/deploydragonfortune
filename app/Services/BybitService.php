@@ -23,14 +23,14 @@ class BybitService implements ExchangeInterface
     /**
      * Get Bybit balance (Unified Trading Account & Funding)
      */
-    public function getBalance(TradingAccount $account)
+    public function getBalance(TradingAccount $account, $signalId = null)
     {
         $apiKey = $account->api_key;
         $apiSecret = $account->secret_key;
 
         // 1. Fetch Unified / Trading Balance
         $tradingParams = ['accountType' => 'UNIFIED'];
-        $tradingData = $this->fetchBybitBalance($tradingParams, $account);
+        $tradingData = $this->fetchBybitBalance($tradingParams, $account, $signalId);
         
         $unifiedTotal = 0;
         $unifiedAvailable = 0;
@@ -47,7 +47,7 @@ class BybitService implements ExchangeInterface
             \Log::debug('Bybit: No UNIFIED balance found or ghost UTA. Trying fallback...');
             // Fallback for non-unified accounts
             $spotParams = ['accountType' => 'SPOT'];
-            $spotData = $this->fetchBybitBalance($spotParams, $account);
+            $spotData = $this->fetchBybitBalance($spotParams, $account, $signalId);
             $spotTotal = 0;
             if (isset($spotData['result']['list'][0])) {
                 foreach ($spotData['result']['list'][0]['coin'] ?? [] as $c) {
@@ -56,7 +56,7 @@ class BybitService implements ExchangeInterface
             }
 
             $contractParams = ['accountType' => 'CONTRACT'];
-            $contractData = $this->fetchBybitBalance($contractParams, $account);
+            $contractData = $this->fetchBybitBalance($contractParams, $account, $signalId);
             $contractTotal = 0;
             $contractAvailable = 0;
             if (isset($contractData['result']['list'][0])) {
@@ -84,7 +84,7 @@ class BybitService implements ExchangeInterface
 
         // 2. Fetch Funding Balance
         $fundingParams = ['accountType' => 'FUND'];
-        $fundingData = $this->fetchBybitBalance($fundingParams, $account);
+        $fundingData = $this->fetchBybitBalance($fundingParams, $account, $signalId);
         
         $fundingTotal = 0;
         
@@ -260,6 +260,23 @@ class BybitService implements ExchangeInterface
     public function placeStopMarketOrder(string $symbol, string $side, float $stopPrice, float $quantity, TradingAccount $account, $signalId = null, $isFutures = true)
     {
         $category = $isFutures ? 'linear' : 'spot';
+        
+        if ($isFutures) {
+            // For Bybit Futures, use /v5/position/trading-stop to attach to the position row
+            $params = [
+                'category' => 'linear',
+                'symbol' => $symbol,
+                'stopLoss' => (string) $stopPrice,
+                'slTriggerBy' => 'MarkPrice',
+                'tpslMode' => 'Full', // Default to full position protection
+            ];
+            
+            $response = $this->signedRequest('POST', '/v5/position/trading-stop', $params, $account);
+            $this->logTransaction($account, '/v5/position/trading-stop/sl', $params, $response, $signalId);
+            return $response;
+        }
+
+        // Spot fallback (Conditional Order)
         $params = [
             'category' => $category,
             'symbol' => $symbol,
@@ -267,13 +284,9 @@ class BybitService implements ExchangeInterface
             'orderType' => 'Market',
             'qty' => (string) $quantity,
             'triggerPrice' => (string) $stopPrice,
-            'triggerBy' => 'MarkPrice', // Use Mark Price for more stable SL/TP execution
+            'triggerBy' => 'MarkPrice',
             'orderLinkId' => 'df_sl_' . (int) (microtime(true) * 1000),
         ];
-
-        if ($isFutures) {
-            $params['reduceOnly'] = true;
-        }
 
         $response = $this->signedRequest('POST', '/v5/order/create', $params, $account);
         $this->logTransaction($account, '/v5/order/create/sl', $params, $response, $signalId);
@@ -286,8 +299,21 @@ class BybitService implements ExchangeInterface
      */
     public function placeTakeProfitMarketOrder(string $symbol, string $side, float $stopPrice, float $quantity, TradingAccount $account, $signalId = null, $isFutures = true)
     {
-        // For Bybit Futures, we can also use /v5/position/trading-stop for TP/SL 
-        // but for consistency with the Job flow, we use conditional orders.
+        if ($isFutures) {
+            // For Bybit Futures, use /v5/position/trading-stop to attach to the position row
+            $params = [
+                'category' => 'linear',
+                'symbol' => $symbol,
+                'takeProfit' => (string) $stopPrice,
+                'tpTriggerBy' => 'MarkPrice',
+                'tpslMode' => 'Full',
+            ];
+            
+            $response = $this->signedRequest('POST', '/v5/position/trading-stop', $params, $account);
+            $this->logTransaction($account, '/v5/position/trading-stop/tp', $params, $response, $signalId);
+            return $response;
+        }
+
         return $this->placeStopMarketOrder($symbol, $side, $stopPrice, $quantity, $account, $signalId, $isFutures);
     }
 
@@ -340,7 +366,7 @@ class BybitService implements ExchangeInterface
     /**
      * Get specific asset balance
      */
-    public function getSpecificAssetBalance(TradingAccount $account, string $asset)
+    public function getSpecificAssetBalance(TradingAccount $account, string $asset, $signalId = null)
     {
         $timestamp = $this->getTimestampMs();
         $params = [
@@ -351,6 +377,7 @@ class BybitService implements ExchangeInterface
         $queryString = http_build_query($params);
         $signature = $this->generateSignature($timestamp, $account->api_key, $this->recvWindow, $queryString, $account->secret_key);
         
+        $endpoint = '/v5/account/wallet-balance';
         $response = Http::timeout($this->timeout)
             ->withHeaders([
                 'X-BAPI-API-KEY' => $account->api_key,
@@ -358,7 +385,9 @@ class BybitService implements ExchangeInterface
                 'X-BAPI-RECV-WINDOW' => $this->recvWindow,
                 'X-BAPI-SIGN' => $signature,
             ])
-            ->get($this->baseUrl . '/v5/account/wallet-balance?' . $queryString);
+            ->get($this->baseUrl . $endpoint . '?' . $queryString);
+
+        $this->logTransaction($account, $endpoint . ' (SpecificAsset)', $params, $response, $signalId);
 
         if ($response->successful()) {
             $coins = $response->json()['result']['list'][0]['coin'] ?? [];

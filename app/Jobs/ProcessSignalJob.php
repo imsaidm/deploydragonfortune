@@ -48,6 +48,10 @@ class ProcessSignalJob implements ShouldQueue
         ]);
 
         try {
+            // Get method/strategy details to know which exchange this signal is for
+            $method = DB::connection('methods')->table('qc_method')->where('id', $strategyId)->first();
+            $targetExchange = strtolower($method->exchange ?? 'binance');
+
             $accountIds = DB::connection('mysql')->table('strategy_accounts')
                 ->where('strategy_id', $strategyId)
                 ->where('is_active', true)
@@ -57,11 +61,22 @@ class ProcessSignalJob implements ShouldQueue
                 ->where('is_active', true)
                 ->get();
 
-            Log::info("ProcessSignalJob: Found " . $accounts->count() . " accounts for Master Method ID " . $strategyId);
+            Log::info("ProcessSignalJob: Strategy [ID: {$strategyId}] target exchange: [{$targetExchange}]. Found " . $accounts->count() . " linked accounts.");
 
+            $matchedCount = 0;
             foreach ($accounts as $account) {
-                AccountExecutionJob::dispatch($account, $signal->id, $strategyId);
+                $accountExchange = strtolower($account->exchange ?: 'binance');
+                
+                // ONLY dispatch if exchanges match (e.g., BINANCE strategy -> binance account)
+                if ($accountExchange === $targetExchange) {
+                    AccountExecutionJob::dispatch($account, $signal->id, $strategyId);
+                    $matchedCount++;
+                } else {
+                    Log::warning("ProcessSignalJob: Skipping account [ID: {$account->id}] ({$accountExchange}) because it does not match strategy exchange ({$targetExchange}).");
+                }
             }
+
+            Log::info("ProcessSignalJob: Dispatched AccountExecutionJob for {$matchedCount} accounts matching [{$targetExchange}].");
 
             $mirrorStatus->update([
                 'status' => 'completed',

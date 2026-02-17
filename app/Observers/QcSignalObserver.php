@@ -15,7 +15,7 @@ class QcSignalObserver
         \App\Jobs\ProcessSignalJob::dispatch($qcSignal->id);
         
         // Dispatch job to send Telegram notification (if enabled)
-        // \App\Jobs\SendTelegramSignalJob::dispatch($qcSignal);
+        \App\Jobs\SendTelegramSignalJob::dispatch($qcSignal);
     }
 
     /**

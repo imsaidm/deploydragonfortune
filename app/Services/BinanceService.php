@@ -50,7 +50,7 @@ class BinanceService implements ExchangeInterface
     /**
      * Get Detailed Balances for a specific trading account in parallel.
      */
-    public function getBalance(TradingAccount $account)
+    public function getBalance(TradingAccount $account, $signalId = null)
     {
         $results = Http::pool(fn ($pool) => [
             $pool->as('futures')->withoutVerifying()->timeout(5)
@@ -65,6 +65,10 @@ class BinanceService implements ExchangeInterface
                 ->withHeaders(['X-MBX-APIKEY' => $account->api_key])
                 ->post($this->buildUrl('/sapi/v1/asset/get-funding-asset', ['asset' => 'USDT'], $account, false)),
         ]);
+
+        $this->logTransaction($account, '/fapi/v2/balance', [], $results['futures'], $signalId);
+        $this->logTransaction($account, '/api/v3/account', [], $results['spot'], $signalId);
+        $this->logTransaction($account, '/sapi/v1/asset/get-funding-asset', ['asset' => 'USDT'], $results['funding'], $signalId);
 
         $spotBalance = 0;
         $futuresBalance = 0;
@@ -103,9 +107,11 @@ class BinanceService implements ExchangeInterface
     /**
      * Get specific asset balance (e.g. ETH, BTC)
      */
-    public function getSpecificAssetBalance(TradingAccount $account, string $asset)
+    public function getSpecificAssetBalance(TradingAccount $account, string $asset, $signalId = null)
     {
-        $response = $this->signedRequest('GET', '/api/v3/account', [], $account, false);
+        $path = '/api/v3/account';
+        $response = $this->signedRequest('GET', $path, [], $account, false);
+        $this->logTransaction($account, $path . ' (SpecificAsset)', [], $response, $signalId);
         if ($response->successful()) {
             $balances = $response->json()['balances'] ?? [];
             $asset = strtoupper(trim($asset));
@@ -150,9 +156,17 @@ class BinanceService implements ExchangeInterface
             'symbol' => $symbol,
             'side' => $side,
             'type' => 'MARKET',
-            'quantity' => $quantity,
             'newClientOrderId' => $clientOrderId,
         ];
+
+        // For Spot BUY, if quantity passed is actually a quote amount (USDT), use quoteOrderQty
+        if (!$isFutures && strtoupper($side) === 'BUY' && $quantity > 5) {
+            $params['quoteOrderQty'] = number_format($quantity, 2, '.', '');
+        } else {
+            // Use high precision for BTC/ETH Spot
+            $prec = $isFutures ? 3 : (str_contains($symbol, 'BTC') ? 5 : 4);
+            $params['quantity'] = number_format($quantity, $prec, '.', '');
+        }
 
         $path = $isFutures ? '/fapi/v1/order' : '/api/v3/order';
         $response = $this->signedRequest('POST', $path, $params, $account, $isFutures);
@@ -205,7 +219,7 @@ class BinanceService implements ExchangeInterface
             'side' => $side,
             'type' => $type,
             'stopPrice' => number_format($stopPrice, 2, '.', ''),
-            'quantity' => number_format($quantity, 4, '.', ''), // Spot uses 4 decimals usually
+            'quantity' => number_format($quantity, (str_contains($symbol, 'BTC') ? 5 : 4), '.', ''), // Use 6 decimals for Spot BTC
             'newClientOrderId' => $clientOrderId,
         ];
 
@@ -254,7 +268,7 @@ class BinanceService implements ExchangeInterface
             'side' => $side,
             'type' => $type,
             'triggerPrice' => number_format($stopPrice, 2, '.', ''),
-            'quantity' => number_format($quantity, 3, '.', ''),
+            'quantity' => number_format($quantity, (str_contains($symbol, 'BTC') ? 5 : 4), '.', ''), // High precision for algo orders
             'workingType' => 'MARK_PRICE',
             'reduceOnly' => 'true',
             'newClientOrderId' => $clientOrderId,
@@ -336,7 +350,7 @@ class BinanceService implements ExchangeInterface
             'symbol' => $symbol,
             'side' => $side,
             'type' => 'MARKET',
-            'quantity' => $quantity,
+            'quantity' => number_format($quantity, ($isFutures ? 3 : (str_contains($symbol, 'BTC') ? 5 : 4)), '.', ''),
             'newClientOrderId' => $clientOrderId,
         ];
 
