@@ -524,3 +524,15 @@ if (app()->isLocal()) {
 }
 
 // API consumption happens directly from frontend using meta api-base-url
+
+// ── Market Data Crawler ──────────────────────────────────────────────────────
+Route::get('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'index'])
+    ->name('market-data.index');
+Route::post('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'store'])
+    ->name('market-data.store');
+
+// ── Price Level Checker ───────────────────────────────────────────────────────
+Route::get('/market-data/price-checker', [App\Http\Controllers\MarketDataController::class, 'priceChecker'])
+    ->name('market-data.price-checker');
+Route::post('/market-data/price-checker', [App\Http\Controllers\MarketDataController::class, 'priceCheck'])
+    ->name('market-data.price-check');

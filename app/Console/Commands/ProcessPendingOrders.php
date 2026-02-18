@@ -33,7 +33,15 @@ class ProcessPendingOrders extends Command
 
         // Get IDs of signals that have already been processed or are being processed
         // SignalMirrorStatus is on the default 'mysql' connection
-        $processedSignalIds = SignalMirrorStatus::pluck('qc_signal_id')->toArray();
+        try {
+            $processedSignalIds = SignalMirrorStatus::pluck('qc_signal_id')->toArray();
+        } catch (\Exception $e) {
+            // Table may not exist in local/dev environment — skip gracefully
+            Log::warning('ProcessPendingOrders: signal_mirror_status table not found, skipping.', [
+                'error' => $e->getMessage(),
+            ]);
+            return Command::SUCCESS;
+        }
 
         // Query pending signals from the 'methods' connection
         // We only look for recent signals (e.g., last 1 hour) to avoid processing ancient data if any
