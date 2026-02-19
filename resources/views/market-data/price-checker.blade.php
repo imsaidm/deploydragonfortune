@@ -3,227 +3,499 @@
 @section('title', 'Price Level Checker | DragonFortune')
 
 @push('head')
+{{-- jQuery + DataTables --}}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+<script>
+    var $jq = jQuery.noConflict(true);
+</script>
+{{-- DataTables CSS --}}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
 <style>
-    .pc-wrap { max-width: 900px; margin: 0 auto; padding: 2rem 1rem; }
-    .pc-card {
-        background: rgba(255,255,255,0.65);
-        backdrop-filter: blur(14px);
-        border: 1px solid rgba(148,163,184,0.2);
-        border-radius: 20px;
-        padding: 2rem;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.08);
-        margin-bottom: 1.5rem;
+    /* ── Shell ── */
+    .pc-page {
+        padding: 1.5rem 1.75rem;
+        max-width: 960px;
+        margin: 0 auto;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
     }
-    .dark .pc-card { background: rgba(15,23,42,0.75); border-color: rgba(148,163,184,0.12); }
 
+    /* ── Header ── */
+    .pc-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
     .pc-title {
-        font-size: 1.4rem; font-weight: 800;
-        background: linear-gradient(135deg, #f59e0b, #ef4444);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--foreground, #111827);
+        letter-spacing: -0.01em;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+    .pc-subtitle {
+        font-size: 0.78rem;
+        color: var(--muted-foreground, #6b7280);
+        margin: 0.2rem 0 0;
+    }
+    .pc-back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #4b5563;
+        border: 1px solid #e5e7eb;
+        background: #fff;
+        padding: 0.3rem 0.75rem;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.12s;
+        text-decoration: none;
+    }
+    .pc-back-btn:hover { background: #f9fafb; }
+
+    /* ── Card ── */
+    .pc-card {
+        background: var(--card, #fff);
+        border: 1px solid var(--border, #e5e7eb);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 1.25rem;
+    }
+    .pc-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.65rem 1.1rem;
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        background: var(--muted, #f9fafb);
+    }
+    .pc-card-title {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        color: var(--muted-foreground, #6b7280);
+        margin: 0;
+    }
+    .pc-card-body { padding: 1.1rem 1.25rem; }
+
+    /* ── Alert ── */
+    .pc-alert {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+        padding: 0.7rem 0.9rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        margin-bottom: 1.1rem;
+        border: 1px solid #fecdd3;
+        background: #fff1f2;
+        color: #9f1239;
+    }
+    .pc-alert ul { margin: 0.3rem 0 0 1rem; padding: 0; }
+
+    /* ── Form Grid ── */
+    .pc-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.8rem 1rem; }
+    .pc-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem 1rem; }
+    @media (max-width: 640px) { .pc-grid-3, .pc-grid-2 { grid-template-columns: 1fr; } }
+
+    .pc-field { display: flex; flex-direction: column; gap: 0.28rem; }
+    .pc-label {
+        font-size: 0.63rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted-foreground, #71717a);
+    }
+    .pc-input, .pc-select {
+        width: 100%;
+        padding: 0.42rem 0.65rem;
+        font-size: 0.82rem;
+        border: 1px solid var(--border, #d1d5db);
+        border-radius: 5px;
+        background: var(--card, #fff);
+        color: var(--foreground, #111827);
+        outline: none;
+        transition: border-color 0.12s, box-shadow 0.12s;
+        box-sizing: border-box;
+        appearance: none;
+        -webkit-appearance: none;
+    }
+    .pc-input:focus, .pc-select:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 2.5px rgba(99,102,241,0.12);
+    }
+    .pc-input.mono, .pc-select.mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.8rem;
+    }
+    .pc-select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.6rem center;
+        padding-right: 1.8rem;
+        cursor: pointer;
+    }
+
+    /* ── Section spacers ── */
+    .pc-row { margin-bottom: 0.85rem; }
+    .pc-divider {
+        height: 1px;
+        background: var(--border, #e5e7eb);
+        margin: 1rem 0;
+    }
+
+    /* ── Segmented Control (Long / Short) ── */
+    .pc-seg {
+        display: flex;
+        border: 1px solid var(--border, #d1d5db);
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    .pc-seg-btn {
+        flex: 1;
+        padding: 0.42rem 0;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        cursor: pointer;
+        transition: background 0.1s, color 0.1s;
+        border-right: 1px solid var(--border, #d1d5db);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+    }
+    .pc-seg-btn:last-child { border-right: none; }
+    .pc-seg-btn.long.active  { background: #14532d; color: #fff; }
+    .pc-seg-btn.short.active { background: #7f1d1d; color: #fff; }
+    .pc-seg-btn:not(.active):hover { background: #f9fafb; color: #374151; }
+
+    /* ── Submit Button ── */
+    .pc-btn-submit {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.55rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #fff;
+        background: #18181b;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.12s, opacity 0.12s;
+        letter-spacing: 0.01em;
+    }
+    .pc-btn-submit:hover   { background: #27272a; }
+    .pc-btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Outcome Banner ── */
+    .pc-outcome {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 0.85rem 1.1rem;
+        border-radius: 6px;
+        border: 1px solid;
+        margin-bottom: 1.1rem;
+    }
+    .pc-outcome.tp   { background: #f0fdf4; border-color: #86efac; }
+    .pc-outcome.sl   { background: #fff1f2; border-color: #fecdd3; }
+    .pc-outcome.open { background: #eff6ff; border-color: #bfdbfe; }
+    .pc-outcome-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; margin-top: 0.1rem; }
+    .pc-outcome-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.25rem;
+    }
+    .pc-outcome.tp   .pc-outcome-label { color: #166534; }
+    .pc-outcome.sl   .pc-outcome-label { color: #9f1239; }
+    .pc-outcome.open .pc-outcome-label { color: #1e40af; }
+    .pc-outcome-detail {
+        font-size: 0.8rem;
+        color: #4b5563;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        line-height: 1.5;
+    }
+
+    /* ── Stats Row ── */
+    .pc-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.65rem;
+        margin-bottom: 1.1rem;
+    }
+    @media (max-width: 480px) { .pc-stats { grid-template-columns: 1fr; } }
+    .pc-stat {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 0.6rem 0.85rem;
+    }
+    .pc-stat-label {
+        font-size: 0.6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #9ca3af;
         margin-bottom: 0.2rem;
     }
-    .pc-sub { font-size: 0.84rem; color: #64748b; margin-bottom: 1.75rem; }
-    .dark .pc-sub { color: #94a3b8; }
-
-    .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
-    .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    @media(max-width:640px) { .form-grid-3, .form-grid-2 { grid-template-columns: 1fr; } }
-
-    .field-group { display: flex; flex-direction: column; gap: 0.35rem; }
-    .field-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #475569; }
-    .dark .field-label { color: #94a3b8; }
-    .field-input, .field-select {
-        width: 100%; padding: 0.6rem 0.85rem; border-radius: 10px;
-        border: 1.5px solid rgba(203,213,225,0.8);
-        background: rgba(255,255,255,0.9); font-size: 0.9rem; color: #1e293b;
-        transition: border-color 0.15s, box-shadow 0.15s; outline: none; appearance: none;
-    }
-    .dark .field-input, .dark .field-select { background: rgba(30,41,59,0.8); border-color: rgba(71,85,105,0.6); color: #e2e8f0; }
-    .field-input:focus, .field-select:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
-    .field-select {
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-        background-repeat: no-repeat; background-position: right 0.75rem center; padding-right: 2.25rem;
+    .pc-stat-value {
+        font-size: 0.92rem;
+        font-weight: 700;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
-    .divider { height: 1px; background: rgba(148,163,184,0.15); margin: 1.25rem 0; }
-
-    .submit-btn {
-        width: 100%; padding: 0.75rem; border-radius: 12px; border: none;
-        background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-        color: white; font-size: 0.95rem; font-weight: 700; cursor: pointer;
-        transition: opacity 0.15s, transform 0.1s; box-shadow: 0 4px 14px rgba(245,158,11,0.35);
-        margin-top: 0.5rem;
+    /* ── Table (DataTables Overrides) ── */
+    .pc-table-wrap { padding: 0.5rem 0.2rem; }
+    .pc-table {
+        width: 100% !important;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
-    .submit-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-
-    /* Direction toggle */
-    .dir-toggle { display: flex; gap: 0.5rem; }
-    .dir-btn {
-        flex: 1; padding: 0.6rem; border-radius: 10px; border: 1.5px solid rgba(203,213,225,0.8);
-        background: transparent; font-size: 0.88rem; font-weight: 700; cursor: pointer;
-        transition: all 0.15s; color: #64748b;
+    .pc-table thead th {
+        padding: 0.45rem 0.85rem;
+        font-size: 0.6rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted-foreground, #6b7280);
+        border-bottom: 1px solid var(--border, #e5e7eb);
+        background: var(--muted, #f9fafb);
+        white-space: nowrap;
     }
-    .dir-btn.long.active  { background: rgba(34,197,94,0.15);  border-color: #22c55e; color: #15803d; }
-    .dir-btn.short.active { background: rgba(239,68,68,0.12);  border-color: #ef4444; color: #b91c1c; }
-    .dark .dir-btn { color: #94a3b8; border-color: rgba(71,85,105,0.6); }
-    .dark .dir-btn.long.active  { color: #86efac; }
-    .dark .dir-btn.short.active { color: #fca5a5; }
-
-    /* Outcome banner */
-    .outcome-banner {
-        border-radius: 16px; padding: 1.25rem 1.5rem;
-        display: flex; align-items: center; gap: 1rem;
-        margin-bottom: 1.5rem;
+    /* DataTables specific UI tweaks */
+    div.dataTables_wrapper div.dataTables_length label,
+    div.dataTables_wrapper div.dataTables_filter label,
+    div.dataTables_wrapper div.dataTables_info {
+        font-size: 0.72rem;
+        color: #71717a;
+        margin-bottom: 0.5rem;
     }
-    .outcome-tp  { background: rgba(34,197,94,0.12);  border: 1.5px solid rgba(34,197,94,0.35); }
-    .outcome-sl  { background: rgba(239,68,68,0.10);  border: 1.5px solid rgba(239,68,68,0.30); }
-    .outcome-open{ background: rgba(59,130,246,0.10); border: 1.5px solid rgba(59,130,246,0.25); }
-    .outcome-icon { font-size: 2rem; }
-    .outcome-label { font-size: 1.1rem; font-weight: 800; }
-    .outcome-tp   .outcome-label { color: #15803d; }
-    .outcome-sl   .outcome-label { color: #b91c1c; }
-    .outcome-open .outcome-label { color: #1d4ed8; }
-    .dark .outcome-tp   .outcome-label { color: #86efac; }
-    .dark .outcome-sl   .outcome-label { color: #fca5a5; }
-    .dark .outcome-open .outcome-label { color: #93c5fd; }
-    .outcome-detail { font-size: 0.85rem; color: #64748b; margin-top: 0.2rem; }
-    .dark .outcome-detail { color: #94a3b8; }
-
-    /* Stats row */
-    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
-    @media(max-width:540px) { .stats-row { grid-template-columns: 1fr; } }
-    .stat-box {
-        background: rgba(248,250,252,0.8); border: 1px solid rgba(148,163,184,0.15);
-        border-radius: 12px; padding: 0.85rem 1rem; text-align: center;
+    div.dataTables_wrapper div.dataTables_filter input {
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        outline: none;
     }
-    .dark .stat-box { background: rgba(30,41,59,0.6); }
-    .stat-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 0.3rem; }
-    .stat-value { font-size: 1.05rem; font-weight: 800; color: #1e293b; }
-    .dark .stat-value { color: #e2e8f0; }
+    div.dataTables_wrapper div.dataTables_paginate .paginate_button {
+        font-size: 0.72rem;
+        padding: 0.15rem 0.45rem;
+    }
+    div.dataTables_wrapper div.dataTables_paginate .paginate_button.current {
+        background: #18181b !important;
+        color: white !important;
+        border: 1px solid #18181b !important;
+    }
 
-    /* Timeline table */
-    .tl-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-    .tl-table th { text-align: left; padding: 0.5rem 0.75rem; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; border-bottom: 1.5px solid rgba(148,163,184,0.2); }
-    .tl-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid rgba(148,163,184,0.08); color: #334155; font-variant-numeric: tabular-nums; }
-    .dark .tl-table td { color: #cbd5e1; }
-    .tl-table tr:last-child td { border-bottom: none; }
-    .tl-tp td { background: rgba(34,197,94,0.06); }
-    .tl-sl td { background: rgba(239,68,68,0.06); }
-    .badge-hit { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
-    .badge-tp { background: rgba(34,197,94,0.15); color: #15803d; }
-    .badge-sl { background: rgba(239,68,68,0.12); color: #b91c1c; }
-    .badge-near { background: rgba(245,158,11,0.12); color: #b45309; }
-    .dark .badge-tp { color: #86efac; }
-    .dark .badge-sl { color: #fca5a5; }
-    .dark .badge-near { color: #fcd34d; }
+    .pc-table tbody tr {
+        border-bottom: 1px solid #f3f4f6;
+        transition: background 0.07s;
+    }
+    .pc-table tbody tr:hover { background: #f9fafb; }
+    .pc-table tbody tr:last-child { border-bottom: none; }
+    .pc-table td {
+        padding: 0.48rem 0.85rem;
+        color: var(--foreground, #374151);
+        vertical-align: middle;
+    }
+    .pc-table tr.row-tp td { background: #f0fdf4; }
+    .pc-table tr.row-sl td { background: #fff1f2; }
 
-    .alert-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #b91c1c; border-radius: 12px; padding: 0.85rem 1rem; font-size: 0.88rem; margin-bottom: 1.25rem; }
-    .dark .alert-error { color: #fca5a5; }
+    /* ── Badge ── */
+    .pc-badge {
+        display: inline-block;
+        padding: 1px 7px;
+        border-radius: 4px;
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        border: 1px solid;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    }
+    .pc-badge-tp   { background: #f0fdf4; color: #166534; border-color: #86efac; }
+    .pc-badge-sl   { background: #fff1f2; color: #9f1239; border-color: #fecdd3; }
+    .pc-badge-near { background: #fffbeb; color: #92400e; border-color: #fde68a; }
 
-    .section-title { font-size: 0.9rem; font-weight: 700; color: #1e293b; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-    .dark .section-title { color: #e2e8f0; }
+    .pc-empty {
+        text-align: center;
+        padding: 2.5rem;
+        color: #9ca3af;
+        font-size: 0.82rem;
+    }
+
+    /* ── Spinner ── */
+    @keyframes pc-spin { to { transform: rotate(360deg); } }
+    .pc-spinner {
+        display: inline-block;
+        width: 13px; height: 13px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: #fff;
+        border-radius: 50%;
+        animation: pc-spin 0.7s linear infinite;
+    }
 </style>
 @endpush
 
 @section('content')
-<div class="pc-wrap">
+<div class="pc-page">
+
+    {{-- ── Header ── --}}
+    <div class="pc-header">
+        <div>
+            <h1 class="pc-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#6366f1">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                Price Level Checker
+            </h1>
+            <p class="pc-subtitle">Cek kapan pertama kali harga menyentuh level TP / SL berdasarkan data candle lokal.</p>
+        </div>
+        <a href="{{ route('market-data.index') }}" class="pc-back-btn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Crawler
+        </a>
+    </div>
 
     {{-- ── Form Card ── --}}
     <div class="pc-card">
-        <div class="pc-title">🎯 Price Level Checker</div>
-        <div class="pc-sub">Cek kapan pertama kali harga menyentuh level TP / SL berdasarkan data candle lokal.</div>
-
-        @if($errors->any())
-        <div class="alert-error">
-            <strong>Error:</strong>
-            <ul style="margin:0.4rem 0 0 1.2rem;padding:0;">
-                @foreach($errors->all() as $e) <li>{{ $e }}</li> @endforeach
-            </ul>
+        <div class="pc-card-header">
+            <span class="pc-card-title">Check Configuration</span>
+            <span style="font-size:0.68rem;color:var(--muted-foreground,#9ca3af);">Local OHLCV candle DB</span>
         </div>
-        @endif
+        <div class="pc-card-body">
 
-        <form method="POST" action="{{ route('market-data.price-check') }}" id="pcForm">
-            @csrf
-
-            {{-- Dataset selector --}}
-            <div class="field-group" style="margin-bottom:1rem;">
-                <label class="field-label">Dataset (Exchange · Type · Symbol · Timeframe)</label>
-                <select name="_dataset" id="datasetSelect" class="field-select" required>
-                    <option value="">— Pilih dataset —</option>
-                    @foreach($datasets as $d)
-                    @php
-                        $key = "{$d->exchange}|{$d->type}|{$d->symbol}|{$d->timeframe}";
-                        $old = isset($validated) ? "{$validated['exchange']}|{$validated['type']}|{$validated['symbol']}|{$validated['timeframe']}" : '';
-                        $oldest = \Carbon\Carbon::createFromTimestampMs($d->oldest_ts)->addHours(7)->format('d M Y');
-                        $newest = \Carbon\Carbon::createFromTimestampMs($d->newest_ts)->addHours(7)->format('d M Y');
-                    @endphp
-                    <option value="{{ $key }}"
-                        data-exchange="{{ $d->exchange }}"
-                        data-type="{{ $d->type }}"
-                        data-symbol="{{ $d->symbol }}"
-                        data-timeframe="{{ $d->timeframe }}"
-                        data-oldest="{{ \Carbon\Carbon::createFromTimestampMs($d->oldest_ts)->format('Y-m-d') }}"
-                        data-newest="{{ \Carbon\Carbon::createFromTimestampMs($d->newest_ts)->format('Y-m-d') }}"
-                        {{ $old === $key ? 'selected' : '' }}>
-                        {{ strtoupper($d->exchange) }} · {{ $d->type }} · {{ $d->symbol }} · {{ $d->timeframe }}
-                        &nbsp;({{ $oldest }} – {{ $newest }})
-                    </option>
-                    @endforeach
-                </select>
-                {{-- Hidden fields populated by JS --}}
-                <input type="hidden" name="exchange"  id="hExchange"  value="{{ old('exchange', $validated['exchange'] ?? '') }}">
-                <input type="hidden" name="type"      id="hType"      value="{{ old('type', $validated['type'] ?? '') }}">
-                <input type="hidden" name="symbol"    id="hSymbol"    value="{{ old('symbol', $validated['symbol'] ?? '') }}">
-                <input type="hidden" name="timeframe" id="hTimeframe" value="{{ old('timeframe', $validated['timeframe'] ?? '') }}">
-            </div>
-
-            {{-- Direction --}}
-            <div class="field-group" style="margin-bottom:1rem;">
-                <label class="field-label">Arah Posisi</label>
-                <div class="dir-toggle">
-                    <button type="button" class="dir-btn long {{ (old('direction', $validated['direction'] ?? 'long')) === 'long' ? 'active' : '' }}" data-dir="long">📈 LONG</button>
-                    <button type="button" class="dir-btn short {{ (old('direction', $validated['direction'] ?? '')) === 'short' ? 'active' : '' }}" data-dir="short">📉 SHORT</button>
-                </div>
-                <input type="hidden" name="direction" id="hDirection" value="{{ old('direction', $validated['direction'] ?? 'long') }}">
-            </div>
-
-            {{-- Prices --}}
-            <div class="form-grid-3" style="margin-bottom:1rem;">
-                <div class="field-group">
-                    <label class="field-label" for="entry_price">Entry Price ($)</label>
-                    <input id="entry_price" name="entry_price" type="number" step="0.01" class="field-input"
-                        placeholder="e.g. 1965.25" value="{{ old('entry_price', $validated['entry_price'] ?? '') }}" required>
-                </div>
-                <div class="field-group">
-                    <label class="field-label" for="tp_price">Take Profit ($)</label>
-                    <input id="tp_price" name="tp_price" type="number" step="0.01" class="field-input"
-                        placeholder="e.g. 1866.99" value="{{ old('tp_price', $validated['tp_price'] ?? '') }}">
-                </div>
-                <div class="field-group">
-                    <label class="field-label" for="sl_price">Stop Loss ($)</label>
-                    <input id="sl_price" name="sl_price" type="number" step="0.01" class="field-input"
-                        placeholder="e.g. 2024.21" value="{{ old('sl_price', $validated['sl_price'] ?? '') }}">
+            @if($errors->any())
+            <div class="pc-alert">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <div>
+                    <strong>Validation error:</strong>
+                    <ul>@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
                 </div>
             </div>
+            @endif
 
-            {{-- Date range --}}
-            <div class="form-grid-2" style="margin-bottom:1rem;">
-                <div class="field-group">
-                    <label class="field-label" for="from_date">Dari Tanggal (WIB)</label>
-                    <input id="from_date" name="from_date" type="date" class="field-input"
-                        value="{{ old('from_date', $validated['from_date'] ?? now()->subDays(7)->format('Y-m-d')) }}" required>
-                </div>
-                <div class="field-group">
-                    <label class="field-label" for="to_date">Sampai Tanggal (WIB)</label>
-                    <input id="to_date" name="to_date" type="date" class="field-input"
-                        value="{{ old('to_date', $validated['to_date'] ?? now()->format('Y-m-d')) }}" required>
-                </div>
-            </div>
+            <form method="POST" action="{{ route('market-data.price-check') }}" id="pcForm">
+                @csrf
 
-            <div class="divider"></div>
-            <button type="submit" class="submit-btn" id="pcSubmit">🔍 Cek Harga</button>
-        </form>
+                {{-- Dataset --}}
+                <div class="pc-field pc-row">
+                    <label class="pc-label" for="datasetSelect">Dataset — Exchange · Type · Symbol · Timeframe</label>
+                    <select name="_dataset" id="datasetSelect" class="pc-select" required>
+                        <option value="">— Pilih dataset —</option>
+                        @foreach($datasets as $d)
+                        @php
+                            $key = "{$d->exchange}|{$d->type}|{$d->symbol}|{$d->timeframe}";
+                            $old = isset($validated) ? "{$validated['exchange']}|{$validated['type']}|{$validated['symbol']}|{$validated['timeframe']}" : '';
+                            $oldest = \Carbon\Carbon::createFromTimestampMs($d->oldest_ts)->addHours(7)->format('d M Y');
+                            $newest = \Carbon\Carbon::createFromTimestampMs($d->newest_ts)->addHours(7)->format('d M Y');
+                        @endphp
+                        <option value="{{ $key }}"
+                            data-exchange="{{ $d->exchange }}"
+                            data-type="{{ $d->type }}"
+                            data-symbol="{{ $d->symbol }}"
+                            data-timeframe="{{ $d->timeframe }}"
+                            data-oldest="{{ \Carbon\Carbon::createFromTimestampMs($d->oldest_ts)->format('Y-m-d') }}"
+                            data-newest="{{ \Carbon\Carbon::createFromTimestampMs($d->newest_ts)->format('Y-m-d') }}"
+                            {{ $old === $key ? 'selected' : '' }}>
+                            {{ strtoupper($d->exchange) }} · {{ strtoupper($d->type) }} · {{ $d->symbol }} · {{ $d->timeframe }}
+                            &nbsp;({{ $oldest }} – {{ $newest }})
+                        </option>
+                        @endforeach
+                    </select>
+                    {{-- Hidden fields populated by JS --}}
+                    <input type="hidden" name="exchange"  id="hExchange"  value="{{ old('exchange',  $validated['exchange']  ?? '') }}">
+                    <input type="hidden" name="type"      id="hType"      value="{{ old('type',      $validated['type']      ?? '') }}">
+                    <input type="hidden" name="symbol"    id="hSymbol"    value="{{ old('symbol',    $validated['symbol']    ?? '') }}">
+                    <input type="hidden" name="timeframe" id="hTimeframe" value="{{ old('timeframe', $validated['timeframe'] ?? '') }}">
+                </div>
+
+                {{-- Direction — Segmented Control --}}
+                <div class="pc-field pc-row">
+                    <label class="pc-label">Arah Posisi</label>
+                    <div class="pc-seg" id="dirSeg">
+                        <button type="button" class="pc-seg-btn long {{ (old('direction', $validated['direction'] ?? 'long')) === 'long' ? 'active' : '' }}" data-dir="long">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                            LONG
+                        </button>
+                        <button type="button" class="pc-seg-btn short {{ (old('direction', $validated['direction'] ?? '')) === 'short' ? 'active' : '' }}" data-dir="short">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+                            SHORT
+                        </button>
+                    </div>
+                    <input type="hidden" name="direction" id="hDirection" value="{{ old('direction', $validated['direction'] ?? 'long') }}">
+                </div>
+
+                {{-- Prices --}}
+                <div class="pc-grid-3 pc-row">
+                    <div class="pc-field">
+                        <label class="pc-label" for="entry_price">Entry Price ($)</label>
+                        <input id="entry_price" name="entry_price" type="number" step="0.01"
+                            class="pc-input mono" placeholder="e.g. 1965.25"
+                            value="{{ old('entry_price', $validated['entry_price'] ?? '') }}" required>
+                    </div>
+                    <div class="pc-field">
+                        <label class="pc-label" for="tp_price">Take Profit ($) <span style="font-weight:400;opacity:.6">optional</span></label>
+                        <input id="tp_price" name="tp_price" type="number" step="0.01"
+                            class="pc-input mono" placeholder="e.g. 2100.00"
+                            value="{{ old('tp_price', $validated['tp_price'] ?? '') }}">
+                    </div>
+                    <div class="pc-field">
+                        <label class="pc-label" for="sl_price">Stop Loss ($) <span style="font-weight:400;opacity:.6">optional</span></label>
+                        <input id="sl_price" name="sl_price" type="number" step="0.01"
+                            class="pc-input mono" placeholder="e.g. 1900.00"
+                            value="{{ old('sl_price', $validated['sl_price'] ?? '') }}">
+                    </div>
+                </div>
+
+                {{-- Date Range --}}
+                <div class="pc-grid-2 pc-row">
+                    <div class="pc-field">
+                        <label class="pc-label" for="from_date">Dari Tanggal (WIB)</label>
+                        <input id="from_date" name="from_date" type="date"
+                            class="pc-input mono"
+                            value="{{ old('from_date', $validated['from_date'] ?? now()->subDays(7)->format('Y-m-d')) }}" required>
+                    </div>
+                    <div class="pc-field">
+                        <label class="pc-label" for="to_date">Sampai Tanggal (WIB)</label>
+                        <input id="to_date" name="to_date" type="date"
+                            class="pc-input mono"
+                            value="{{ old('to_date', $validated['to_date'] ?? now()->format('Y-m-d')) }}" required>
+                    </div>
+                </div>
+
+                <div class="pc-divider"></div>
+
+                <button type="submit" class="pc-btn-submit" id="pcSubmit">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    Cek Harga
+                </button>
+
+            </form>
+        </div>
     </div>
 
     {{-- ── Results ── --}}
@@ -231,20 +503,22 @@
 
     {{-- Outcome Banner --}}
     @php
-        $bannerClass = match($outcome) { 'tp' => 'outcome-tp', 'sl' => 'outcome-sl', default => 'outcome-open' };
+        $bannerClass = match($outcome) { 'tp' => 'tp', 'sl' => 'sl', default => 'open' };
         $bannerIcon  = match($outcome) { 'tp' => '🎯', 'sl' => '🛑', default => '⏳' };
-        $bannerText  = match($outcome) { 'tp' => 'TAKE PROFIT TERCAPAI', 'sl' => 'STOP LOSS KENA', default => 'MASIH OPEN / TIDAK TERSENTUH' };
+        $bannerText  = match($outcome) { 'tp' => 'TAKE PROFIT TERCAPAI', 'sl' => 'STOP LOSS KENA', default => 'MASIH OPEN — TIDAK TERSENTUH' };
     @endphp
-    <div class="outcome-banner {{ $bannerClass }}">
-        <div class="outcome-icon">{{ $bannerIcon }}</div>
+    <div class="pc-outcome {{ $bannerClass }}">
+        <div class="pc-outcome-icon">{{ $bannerIcon }}</div>
         <div>
-            <div class="outcome-label">{{ $bannerText }}</div>
-            <div class="outcome-detail">
+            <div class="pc-outcome-label">{{ $bannerText }}</div>
+            <div class="pc-outcome-detail">
                 @if($outcome === 'tp' && $firstTp)
-                    Pertama kali TP tersentuh: <strong>{{ $firstTp['wib']->format('d M Y, H:i') }} WIB</strong>
+                    TP pertama tersentuh:
+                    <strong>{{ $firstTp['wib']->format('d M Y, H:i') }} WIB</strong>
                     &nbsp;·&nbsp; Low: ${{ number_format($firstTp['candle']->low, 4) }}
                 @elseif($outcome === 'sl' && $firstSl)
-                    Pertama kali SL tersentuh: <strong>{{ $firstSl['wib']->format('d M Y, H:i') }} WIB</strong>
+                    SL pertama tersentuh:
+                    <strong>{{ $firstSl['wib']->format('d M Y, H:i') }} WIB</strong>
                     &nbsp;·&nbsp; High: ${{ number_format($firstSl['candle']->high, 4) }}
                 @else
                     Tidak ada candle yang menyentuh TP atau SL dalam range yang dipilih.
@@ -253,64 +527,69 @@
         </div>
     </div>
 
-    {{-- Stats --}}
-    <div class="stats-row">
-        <div class="stat-box">
-            <div class="stat-label">Entry</div>
-            <div class="stat-value" style="color:#3b82f6;">${{ number_format($entry, 2) }}</div>
+    {{-- Stats ── --}}
+    <div class="pc-stats">
+        <div class="pc-stat">
+            <div class="pc-stat-label">Entry</div>
+            <div class="pc-stat-value" style="color:#4f46e5;">${{ number_format($entry, 4) }}</div>
         </div>
-        <div class="stat-box">
-            <div class="stat-label">Take Profit</div>
-            <div class="stat-value" style="color:#22c55e;">{{ $tp ? '$'.number_format($tp, 2) : '—' }}</div>
+        <div class="pc-stat">
+            <div class="pc-stat-label">Take Profit</div>
+            <div class="pc-stat-value" style="color:#166534;">{{ $tp ? '$'.number_format($tp, 4) : '—' }}</div>
         </div>
-        <div class="stat-box">
-            <div class="stat-label">Stop Loss</div>
-            <div class="stat-value" style="color:#ef4444;">{{ $sl ? '$'.number_format($sl, 2) : '—' }}</div>
+        <div class="pc-stat">
+            <div class="pc-stat-label">Stop Loss</div>
+            <div class="pc-stat-value" style="color:#9f1239;">{{ $sl ? '$'.number_format($sl, 4) : '—' }}</div>
         </div>
     </div>
 
-    {{-- Timeline --}}
+    {{-- Timeline ── --}}
     @if(count($timeline) > 0)
     <div class="pc-card">
-        <div class="section-title">📋 Timeline Candle Relevan</div>
-        <div style="overflow-x:auto;">
-        <table class="tl-table">
-            <thead>
-                <tr>
-                    <th>Waktu (WIB)</th>
-                    <th>Open</th>
-                    <th>High</th>
-                    <th>Low</th>
-                    <th>Close</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($timeline as $row)
-                <tr class="{{ $row['hit_tp'] ? 'tl-tp' : ($row['hit_sl'] ? 'tl-sl' : '') }}">
-                    <td><strong>{{ $row['wib']->format('d M Y, H:i') }}</strong></td>
-                    <td>${{ number_format($row['open'],  4) }}</td>
-                    <td style="color:#22c55e;font-weight:600;">${{ number_format($row['high'],  4) }}</td>
-                    <td style="color:#ef4444;font-weight:600;">${{ number_format($row['low'],   4) }}</td>
-                    <td>${{ number_format($row['close'], 4) }}</td>
-                    <td>
-                        @if($row['hit_tp'])
-                            <span class="badge-hit badge-tp">🎯 HIT TP</span>
-                        @elseif($row['hit_sl'])
-                            <span class="badge-hit badge-sl">🛑 HIT SL</span>
-                        @else
-                            <span class="badge-hit badge-near">⚠️ Near</span>
-                        @endif
-                    </td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
+        <div class="pc-card-header">
+            <span class="pc-card-title">Timeline Candle Relevan</span>
+            <span style="font-size:0.68rem;color:var(--muted-foreground,#9ca3af);">{{ count($timeline) }} candle</span>
+        </div>
+        <div class="pc-table-wrap">
+            <table class="pc-table" id="timelineTable">
+                <thead>
+                    <tr>
+                        <th>Waktu (WIB)</th>
+                        <th>Open</th>
+                        <th>High</th>
+                        <th>Low</th>
+                        <th>Close</th>
+                        <th style="width: 80px">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($timeline as $row)
+                    <tr class="{{ $row['hit_tp'] ? 'row-tp' : ($row['hit_sl'] ? 'row-sl' : '') }}">
+                        <td style="font-weight:600;white-space:nowrap;">{{ $row['wib']->format('d M Y, H:i') }}</td>
+                        <td>${{ number_format($row['open'],  4) }}</td>
+                        <td style="color:#166534;font-weight:600;">${{ number_format($row['high'],  4) }}</td>
+                        <td style="color:#9f1239;font-weight:600;">${{ number_format($row['low'],   4) }}</td>
+                        <td>${{ number_format($row['close'], 4) }}</td>
+                        <td>
+                            @if($row['hit_tp'])
+                                <span class="pc-badge pc-badge-tp">HIT TP</span>
+                            @elseif($row['hit_sl'])
+                                <span class="pc-badge pc-badge-sl">HIT SL</span>
+                            @else
+                                <span class="pc-badge pc-badge-near">NEAR</span>
+                            @endif
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
     </div>
     @else
-    <div class="pc-card" style="text-align:center;color:#94a3b8;padding:2rem;">
-        Tidak ada candle yang mendekati atau menyentuh level TP/SL dalam range ini.
+    <div class="pc-card">
+        <div class="pc-empty">
+            Tidak ada candle yang mendekati atau menyentuh level TP / SL dalam range ini.
+        </div>
     </div>
     @endif
 
@@ -318,36 +597,59 @@
 
 </div>
 
+@endsection
+
+@section('scripts')
 <script>
-// Dataset select → populate hidden fields
+// ── DataTables Init ──
+$jq(function() {
+    if ($jq('#timelineTable').length) {
+        $jq('#timelineTable').DataTable({
+            pageLength: 25,
+            lengthMenu: [10, 25, 50, 100],
+            order: [[0, 'asc']], // Urut berdasarkan waktu
+            language: {
+                search:       'Cari:',
+                lengthMenu:   'Tampilkan _MENU_',
+                info:         'Menampilkan _START_–_END_ dari _TOTAL_',
+                paginate: { previous: '‹', next: '›' }
+            }
+        });
+    }
+});
+
+// ── Dataset select → populate hidden fields ──
 const sel = document.getElementById('datasetSelect');
 function syncDataset() {
     const opt = sel.options[sel.selectedIndex];
+    if(!opt) return;
     document.getElementById('hExchange').value  = opt.dataset.exchange  || '';
     document.getElementById('hType').value      = opt.dataset.type      || '';
     document.getElementById('hSymbol').value    = opt.dataset.symbol    || '';
     document.getElementById('hTimeframe').value = opt.dataset.timeframe || '';
-    // Auto-fill date range from dataset bounds
     if (opt.dataset.oldest) document.getElementById('from_date').value = opt.dataset.oldest;
     if (opt.dataset.newest) document.getElementById('to_date').value   = opt.dataset.newest;
 }
-sel.addEventListener('change', syncDataset);
-if (sel.value) syncDataset(); // on page load if pre-selected
+if(sel) sel.addEventListener('change', syncDataset);
+if (sel && sel.value) syncDataset();
 
-// Direction toggle
-document.querySelectorAll('.dir-btn').forEach(btn => {
+// ── Direction Segmented Control ──
+document.querySelectorAll('.pc-seg-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.pc-seg-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById('hDirection').value = btn.dataset.dir;
     });
 });
 
-// Submit loading
-document.getElementById('pcForm').addEventListener('submit', function() {
-    const btn = document.getElementById('pcSubmit');
-    btn.disabled = true;
-    btn.textContent = '⏳ Menganalisis...';
-});
+// ── Submit loading state ──
+const pcForm = document.getElementById('pcForm');
+if(pcForm) {
+    pcForm.addEventListener('submit', function () {
+        const btn = document.getElementById('pcSubmit');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="pc-spinner"></span> Menganalisis…';
+    });
+}
 </script>
 @endsection

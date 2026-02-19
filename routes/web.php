@@ -530,6 +530,8 @@ Route::get('/market-data/crawler', [App\Http\Controllers\MarketDataController::c
     ->name('market-data.index');
 Route::post('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'store'])
     ->name('market-data.store');
+Route::delete('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'destroy'])
+    ->name('market-data.destroy');
 
 // ── Price Level Checker ───────────────────────────────────────────────────────
 Route::get('/market-data/price-checker', [App\Http\Controllers\MarketDataController::class, 'priceChecker'])

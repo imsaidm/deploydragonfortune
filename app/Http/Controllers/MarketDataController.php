@@ -49,6 +49,27 @@ class MarketDataController extends Controller
         );
     }
 
+    public function destroy(Request $request)
+    {
+        $validated = $request->validate([
+            'exchange'  => ['required', 'in:binance,bybit'],
+            'type'      => ['required', 'in:spot,future'],
+            'symbol'    => ['required', 'string'],
+            'timeframe' => ['required', 'string'],
+        ]);
+
+        $deleted = \App\Models\MarketCandle::where('exchange',  $validated['exchange'])
+            ->where('type',      $validated['type'])
+            ->where('symbol',    $validated['symbol'])
+            ->where('timeframe', $validated['timeframe'])
+            ->delete();
+
+        return back()->with('success',
+            "🗑️ Deleted {$deleted} candles for {$validated['symbol']} "
+            . "({$validated['exchange']} {$validated['type']}, {$validated['timeframe']})."
+        );
+    }
+
     public function priceChecker(Request $request)
     {
         // Available datasets for dropdown
