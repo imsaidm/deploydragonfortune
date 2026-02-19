@@ -321,7 +321,7 @@ body{
         </div>
     </div>
 
-    <div class="row g-3 mb-4" id="summaryCards"></div>
+    <div class="row g-3 pt-4 mb-4" id="summaryCards"></div>
     <div class="d-flex justify-content-between mb-3">
         <div>
             <select id="rowsPerPage" class="form-select form-select-sm" style="width:140px">
