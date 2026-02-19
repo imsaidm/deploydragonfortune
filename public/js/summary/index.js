@@ -43,7 +43,7 @@
 
             lastLoadedData = res.data;
 
-            // renderSummary(res);
+            renderSummary(res);
             renderTable(res.data);
             renderPagination(res);
 
@@ -54,53 +54,33 @@
     };
 
     const renderSummary = data => {
+        const creatorSummary = data.creator_summary || [];
+        const $container = $("#summaryCards");
+        $container.empty();
 
-        let totalStrategies = data.length;
-        let totalOrders = "0";
-        let avgWinrate = "0";
+        const colorClasses = ['card-activity', 'card-profit', 'card-risk', 'card-profit'];
 
-        $("#summaryCards").html(`
+        creatorSummary.forEach((item, index) => {
+            const creatorName = item.creator || 'SYSTEM';
+            const colorClass = colorClasses[index % colorClasses.length];
 
-            <div class="col-md-4">
-                <div class="crypto-card card-activity">
-
-                    <div class="crypto-title">Active Strategies</div>
-                    <div class="crypto-value">${totalStrategies}</div>
-                    <div class="crypto-sub">currently running bots</div>
-
-                    <div class="crypto-icon">
-                        <img src="https://cdn-icons-png.flaticon.com/512/2721/2721297.png">
+            $container.append(`
+                <div class="col-md-3">
+                    <div class="crypto-card ${colorClass}">
+                        <div class="crypto-title">${creatorName} Summary</div>
+                        <div class="crypto-value">
+                            ${Number(item.total_methods)} 
+                            <small style="font-size:12px; opacity:0.6; font-weight:400">Methods</small>
+                        </div>
+                        <div class="crypto-sub">
+                            Signal: <strong>${Number(item.total_signals).toLocaleString()}</strong> | 
+                            TP: <span class="text-success">${Number(item.total_tp).toLocaleString()}</span> | 
+                            SL: <span class="text-danger">${Number(item.total_sl).toLocaleString()}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="crypto-card card-profit">
-
-                    <div class="crypto-title">Total Orders</div>
-                    <div class="crypto-value">${totalOrders.toLocaleString()}</div>
-                    <div class="crypto-sub">executed trades</div>
-
-                    <div class="crypto-icon">
-                        <img src="#">
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="crypto-card card-risk">
-
-                    <div class="crypto-title">Average Winrate</div>
-                    <div class="crypto-value">${avgWinrate}%</div>
-                    <div class="crypto-sub">strategy performance</div>
-
-                    <div class="crypto-icon">
-                        <img src="#">
-                    </div>
-                </div>
-            </div>
-
-        `);
+            `);
+        });
     };
 
     const renderTable = data => {
