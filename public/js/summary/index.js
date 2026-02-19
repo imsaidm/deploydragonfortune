@@ -49,16 +49,18 @@ const TraderTable = (() => {
 
             $container.append(`
                 <div class="col-md-3">
-                    <div class="crypto-card ${colorClass}">
-                        <div class="crypto-title">${creatorName} Summary</div>
-                        <div class="crypto-value">
-                            ${Number(item.total_methods)} 
-                            <small style="font-size:12px; opacity:0.6; font-weight:400">Methods</small>
+                    <div class="crypto-card ${colorClass}" style="padding: 18px 22px; min-height: 130px; display: flex; flex-direction: column; justify-content: center;">
+                        <div style="font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 2px;">
+                            ${creatorName}
                         </div>
-                        <div class="crypto-sub">
-                            Signal: <strong>${Number(item.total_signals).toLocaleString()}</strong> | 
-                            TP: <span class="text-success">${Number(item.total_tp).toLocaleString()}</span> | 
-                            SL: <span class="text-danger">${Number(item.total_sl).toLocaleString()}</span>
+                        <div style="font-size: 42px; font-weight: 900; line-height: 1; color: #111827; margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px;">
+                            ${Number(item.total_methods)}
+                            <span style="font-size: 14px; font-weight: 600; opacity: 0.5; text-transform: uppercase;">Methods</span>
+                        </div>
+                        <div style="font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 12px; margin-top: 2px;">
+                            <div>Sig: <span style="color: #18181b;">${Number(item.total_signals).toLocaleString()}</span></div>
+                            <div>TP: <span class="text-success">${Number(item.total_tp).toLocaleString()}</span></div>
+                            <div>SL: <span class="text-danger">${Number(item.total_sl).toLocaleString()}</span></div>
                         </div>
                     </div>
                 </div>
