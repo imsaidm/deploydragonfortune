@@ -55,7 +55,7 @@ const TraderTable = (() => {
                         </div>
                         <div style="font-size: 42px; font-weight: 900; line-height: 1; color: #111827; margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px;">
                             ${Number(item.total_methods)}
-                            <span style="font-size: 14px; font-weight: 600; opacity: 0.5; text-transform: uppercase;">Methods</span>
+                            <span style="font-size: 14px; font-weight: 600; opacity: 0.5; text-transform: uppercase;">Strategy</span>
                         </div>
                         <div style="font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 12px; margin-top: 2px;">
                             <div>Sig: <span style="color: #18181b;">${Number(item.total_signals).toLocaleString()}</span></div>
