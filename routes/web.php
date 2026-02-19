@@ -4,6 +4,7 @@ use App\Http\Controllers\BacktestResultController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\BinanceFuturesController;
+use App\Http\Controllers\TradingAccountController;
 use App\Http\Controllers\QuantConnectController;
 use App\Http\Controllers\SummaryController;
 use Illuminate\Support\Facades\Route;
@@ -186,6 +187,12 @@ Route::get('/api/bybit/orders', [App\Http\Controllers\BybitController::class, 'o
 Route::get('/api/bybit/trades', [App\Http\Controllers\BybitController::class, 'trades'])
     ->middleware('throttle:20,1')
     ->name('api.bybit.trades');
+
+// Trading Accounts Management
+Route::resource('trading-accounts', TradingAccountController::class);
+Route::get('trading-accounts/{trading_account}/balance', [TradingAccountController::class, 'getBalance'])->name('trading-accounts.balance');
+Route::get('trading-accounts/{trading_account}/strategies', [TradingAccountController::class, 'getStrategies'])->name('trading-accounts.strategies');
+Route::post('trading-accounts/{trading_account}/strategies', [TradingAccountController::class, 'syncStrategies'])->name('trading-accounts.sync-strategies');
 
 
 // Coinglass API Proxy Routes
@@ -523,3 +530,17 @@ if (app()->isLocal()) {
 }
 
 // API consumption happens directly from frontend using meta api-base-url
+
+// ── Market Data Crawler ──────────────────────────────────────────────────────
+Route::get('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'index'])
+    ->name('market-data.index');
+Route::post('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'store'])
+    ->name('market-data.store');
+Route::delete('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'destroy'])
+    ->name('market-data.destroy');
+
+// ── Price Level Checker ───────────────────────────────────────────────────────
+Route::get('/market-data/price-checker', [App\Http\Controllers\MarketDataController::class, 'priceChecker'])
+    ->name('market-data.price-checker');
+Route::post('/market-data/price-checker', [App\Http\Controllers\MarketDataController::class, 'priceCheck'])
+    ->name('market-data.price-check');

@@ -27,6 +27,7 @@ class QcSignal extends Model
         'datetime',
         'type',
         'jenis',
+        'leverage',
         'price_entry',
         'price_exit',
         'target_tp',
@@ -37,17 +38,24 @@ class QcSignal extends Model
         'telegram_sent',
         'telegram_sent_at',
         'telegram_response',
+        'quantity',
+        'ratio',
+        'market_type',
     ];
     
     protected $casts = [
         'datetime' => 'datetime',
         'telegram_sent' => 'boolean',
         'telegram_sent_at' => 'datetime',
+        'leverage' => 'integer',
         'price_entry' => 'decimal:8',
         'price_exit' => 'decimal:8',
         'target_tp' => 'decimal:8',
         'target_sl' => 'decimal:8',
         'real_tp' => 'decimal:8',
         'real_sl' => 'decimal:8',
+        'quantity' => 'decimal:8',
+        'ratio' => 'decimal:3',
+        'market_type' => 'string',
     ];
 }
