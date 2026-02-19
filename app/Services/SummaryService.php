@@ -51,7 +51,31 @@ class SummaryService
             $query->orderBy($orderBy, $orderDir);
         }
 
-        return response()->json($query->paginate($perPage));
+        $paginated = $query->paginate($perPage);
+
+        // Calculate summary for all active methods (not just paginated ones)
+        $summary = DB::connection('methods')
+            ->table('qc_method as qm')
+            ->leftJoinSub(function ($query) {
+                $query->from('qc_signal')
+                    ->select('id_method')
+                    ->selectRaw('COUNT(CASE WHEN real_tp != 0 THEN 1 END) AS total_tp')
+                    ->selectRaw('COUNT(CASE WHEN real_sl != 0 THEN 1 END) AS total_sl')
+                    ->selectRaw('COUNT(1) AS total_signal')
+                    ->groupBy('id_method');
+            }, 'stat', 'qm.id', '=', 'stat.id_method')
+            ->select('qm.creator')
+            ->selectRaw('COUNT(qm.id) as total_methods')
+            ->selectRaw('SUM(COALESCE(stat.total_signal, 0)) as total_signals')
+            ->selectRaw('SUM(COALESCE(stat.total_tp, 0)) as total_tp')
+            ->selectRaw('SUM(COALESCE(stat.total_sl, 0)) as total_sl')
+            ->where('qm.onactive', 1)
+            ->groupBy('qm.creator')
+            ->get();
+
+        return response()->json(array_merge($paginated->toArray(), [
+            'creator_summary' => $summary
+        ]));
     }
 
     public function ExchangeAccount(Request $r)
