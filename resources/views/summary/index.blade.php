@@ -249,63 +249,40 @@ body{
 
 
 
-.crypto-card{
-    background:#ffffff;
-    border-radius:18px;
-    padding:20px;
-    position:relative;
-    overflow:hidden;
-    box-shadow:0 6px 20px rgba(0,0,0,.05);
-    transition:.2s ease;
+/* Soft Clean Technical Theme (Boss's Request) */
+.crypto-card {
+    background: #ffffff;
+    border: 1px solid #f1f5f9; /* slate-100 */
+    border-left-width: 4px !important;
+    border-radius: 0.75rem; /* rounded-xl */
+    padding: 1.25rem; /* p-5 */
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+    transition: all 0.2s ease;
 }
 
-.crypto-card:hover{
-    transform:translateY(-2px);
-    box-shadow:0 12px 26px rgba(0,0,0,.08);
+.crypto-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-color: #e2e8f0; /* slate-200 */
 }
 
-/* subtle gradient accent line */
-.crypto-card::before{
-    content:"";
-    position:absolute;
-    left:0;
-    top:0;
-    width:4px;
-    height:100%;
-}
+/* Row 1 Accent Colors */
+.card-activity { border-left-color: #3b82f6 !important; } /* blue-500 */
+.card-profit { border-left-color: #10b981 !important; }   /* emerald-500 */
+.card-risk { border-left-color: #f59e0b !important; }      /* amber-500 */
+.card-neutral { border-left-color: #64748b !important; }   /* slate-500 */
 
-/* variants */
+/* Typography Utilities */
+.text-slate-400 { color: #94a3b8; }
+.text-slate-700 { color: #334155; }
+.text-slate-800 { color: #1e293b; }
+.text-emerald-600 { color: #059669; }
+.text-rose-600 { color: #e11d48; }
 
-.card-profit::before{ background:#22c55e; }
-.card-activity::before{ background:#3b82f6; }
-.card-risk::before{ background:#f59e0b; }
-
-.crypto-title{
-    font-size:13px;
-    color:#6b7280;
-}
-
-.crypto-value{
-    font-size:24px;
-    font-weight:700;
-    margin-top:4px;
-}
-
-.crypto-sub{
-    font-size:12px;
-    color:#9ca3af;
-}
-
-.crypto-icon{
-    position:absolute;
-    right:16px;
-    top:16px;
-    opacity:.12;
-}
-
-.crypto-icon img{
-    width:48px;
-}
+.tracking-wider { letter-spacing: 0.05em; }
+.font-black { font-weight: 900; }
+.font-extrabold { font-weight: 800; }
 
 </style>
 @endpush

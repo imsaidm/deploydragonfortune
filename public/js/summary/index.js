@@ -41,7 +41,7 @@ const TraderTable = (() => {
         const $container = $("#summaryCards");
         $container.empty();
 
-        const colorClasses = ['card-activity', 'card-profit', 'card-risk', 'card-profit'];
+        const colorClasses = ['card-activity', 'card-profit', 'card-risk', 'card-neutral'];
 
         creatorSummary.forEach((item, index) => {
             const creatorName = item.creator || 'SYSTEM';
@@ -49,19 +49,39 @@ const TraderTable = (() => {
 
             $container.append(`
                 <div class="col-md-3">
-                    <div class="crypto-card ${colorClass}" style="padding: 18px 22px; min-height: 130px; display: flex; flex-direction: column; justify-content: center;">
-                        <div style="font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 2px;">
+                    <div class="crypto-card ${colorClass}" style="display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px 18px;">
+                        
+                        <!-- Row 1: Name -->
+                        <div class="text-slate-700 font-extrabold uppercase tracking-wider mb-2" style="font-size: 14px;">
                             ${creatorName}
                         </div>
-                        <div style="font-size: 42px; font-weight: 900; line-height: 1; color: #111827; margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px;">
-                            ${Number(item.total_methods)}
-                            <span style="font-size: 14px; font-weight: 600; opacity: 0.5; text-transform: uppercase;">Strategy</span>
+                        
+                        <!-- Row 2: Strategy & Signals (CENTERED) -->
+                        <div class="d-flex gap-5 mb-2 mt-1">
+                            <div>
+                                <span class="text-slate-800 font-black mono" style="font-size: 36px; line-height: 1;">${Number(item.total_methods)}</span>
+                                <div class="text-slate-400 font-black uppercase" style="font-size: 13px; margin-top: 2px; letter-spacing: 0.05em;">strategy</div>
+                            </div>
+                            <div>
+                                <span class="text-slate-800 font-black mono" style="font-size: 36px; line-height: 1;">${Number(item.total_signals).toLocaleString()}</span>
+                                <div class="text-slate-400 font-black uppercase" style="font-size: 13px; margin-top: 2px; letter-spacing: 0.05em;">signals</div>
+                            </div>
                         </div>
-                        <div style="font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 12px; margin-top: 2px;">
-                            <div>Sig: <span style="color: #18181b;">${Number(item.total_signals).toLocaleString()}</span></div>
-                            <div>TP: <span class="text-success">${Number(item.total_tp).toLocaleString()}</span></div>
-                            <div>SL: <span class="text-danger">${Number(item.total_sl).toLocaleString()}</span></div>
+
+                        <hr class="border-slate-100 w-75 mb-3" style="margin: 0 auto;">
+
+                        <!-- Row 3: TP & SL (CENTERED) -->
+                        <div class="d-flex gap-5">
+                            <div class="d-flex align-items-center">
+                                <span class="text-slate-800 font-black" style="font-size: 14px;">TP:</span>
+                                <span class="text-emerald-600 font-black mono ml-2" style="font-size: 18px;">${Number(item.total_tp).toLocaleString()}x</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="text-slate-800 font-black" style="font-size: 14px;">SL:</span>
+                                <span class="text-rose-600 font-black mono ml-2" style="font-size: 18px;">${Number(item.total_sl).toLocaleString()}x</span>
+                            </div>
                         </div>
+
                     </div>
                 </div>
             `);
