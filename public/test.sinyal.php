@@ -2,10 +2,10 @@
 // ==========================================
 // KONFIGURASI DATABASE
 // ==========================================
-$host = '127.0.0.1';
+$host = '103.150.81.86';
 $db   = 'xgboostqc';       // Nama Database
-$user = 'root';            // Ganti dengan username DB kamu
-$pass = 'password_kamu';   // Ganti dengan password DB kamu
+$user = 'xgboostqc';            // Ganti dengan username DB kamu
+$pass = '6SPxBDwXH6WyxpfT';   // Ganti dengan password DB kamu
 
 try {
     // Membuat koneksi PDO
