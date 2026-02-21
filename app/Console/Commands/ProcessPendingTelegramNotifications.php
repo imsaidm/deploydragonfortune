@@ -8,6 +8,7 @@ use App\Models\QcReminder;
 use App\Models\QcSignal;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache; // <-- Wajib dipanggil
 
 class ProcessPendingTelegramNotifications extends Command
 {
@@ -26,11 +27,18 @@ class ProcessPendingTelegramNotifications extends Command
             ->get();
 
         foreach ($signals as $signal) {
+            // [GEMBOK SAKTI] Biar Telegram gak spam antrean dobel
+            if (!Cache::add('lock_tele_signal_' . $signal->id, true, 600)) {
+                continue; 
+            }
+
             try {
                 SendTelegramSignalJob::dispatch($signal);
                 $this->info("Dispatched job for signal ID: {$signal->id}");
                 Log::info('Telegram job dispatched for signal', ['id' => $signal->id]);
             } catch (\Exception $e) {
+                Cache::forget('lock_tele_signal_' . $signal->id);
+                
                 $this->error("Failed to dispatch job for signal ID: {$signal->id} - {$e->getMessage()}");
                 Log::error('Failed to dispatch telegram job for signal', [
                     'id' => $signal->id,
@@ -47,11 +55,18 @@ class ProcessPendingTelegramNotifications extends Command
             ->get();
 
         foreach ($reminders as $reminder) {
+            // [GEMBOK SAKTI] Untuk Reminders
+            if (!Cache::add('lock_tele_reminder_' . $reminder->id, true, 600)) {
+                continue;
+            }
+
             try {
                 SendTelegramReminderJob::dispatch($reminder);
                 $this->info("Dispatched job for reminder ID: {$reminder->id}");
                 Log::info('Telegram job dispatched for reminder', ['id' => $reminder->id]);
             } catch (\Exception $e) {
+                Cache::forget('lock_tele_reminder_' . $reminder->id);
+
                 $this->error("Failed to dispatch job for reminder ID: {$reminder->id} - {$e->getMessage()}");
                 Log::error('Failed to dispatch telegram job for reminder', [
                     'id' => $reminder->id,
