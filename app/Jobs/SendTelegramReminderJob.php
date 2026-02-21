@@ -27,9 +27,10 @@ class SendTelegramReminderJob implements ShouldQueue
      */
     public function handle(TelegramNotificationService $telegram): void
     {
-        // [LOCK SAKTI]: Mencegah bentrokan pengiriman dobel
-        if (!\Illuminate\Support\Facades\Cache::add('lock_tele_reminder_' . $this->reminder->id, true, 600)) {
-            Log::info("Job skipped: Reminder #{$this->reminder->id} already being processed.");
+        // [LOCK AKTIF]: Pakai nama kunci beda ('active_') biar gak bentrok sama Scheduler ('dispatch_')
+        $lockKey = 'active_tele_reminder_' . $this->reminder->id;
+        if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 300)) {
+            Log::info("Job skipped: Reminder #{$this->reminder->id} is already being executed.");
             return;
         }
 
@@ -105,11 +106,16 @@ class SendTelegramReminderJob implements ShouldQueue
                 'telegram_response' => json_encode($response)
             ]);
             
+            // Lepas gembok
+            \Illuminate\Support\Facades\Cache::forget($lockKey);
+            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_reminder_' . $this->reminder->id);
+            
             Log::info("✅ Reminder #{$this->reminder->id} sent to Telegram");
             
         } catch (\Exception $e) {
-            // Lepas kunci jika gagal
-            \Illuminate\Support\Facades\Cache::forget('lock_tele_reminder_' . $this->reminder->id);
+            // Lepas semua gembok biar bisa dicoba lagi
+            \Illuminate\Support\Facades\Cache::forget('active_tele_reminder_' . $this->reminder->id);
+            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_reminder_' . $this->reminder->id);
 
             Log::error("❌ Reminder #{$this->reminder->id} failed: {$e->getMessage()}");
             
