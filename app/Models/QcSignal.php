@@ -41,6 +41,7 @@ class QcSignal extends Model
         'quantity',
         'ratio',
         'market_type',
+        'telegram_processing',
     ];
     
     protected $casts = [

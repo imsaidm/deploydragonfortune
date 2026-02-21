@@ -20,15 +20,18 @@ class ProcessPendingTelegramNotifications extends Command
         $limit = (int) $this->option('limit');
 
         // Process pending signals
-        $signals = QcSignal::where('telegram_sent', false)
-            ->orWhereNull('telegram_sent')
+        $signals = QcSignal::where(function($q) {
+                $q->where('telegram_sent', false)->orWhereNull('telegram_sent');
+            })
+            ->where('telegram_processing', false)
             ->orderBy('created_at', 'asc')
             ->limit($limit)
             ->get();
 
         foreach ($signals as $signal) {
-            // [GEMBOK SAKTI] Biar Telegram gak spam antrean dobel
-            if (!Cache::add('lock_tele_signal_' . $signal->id, true, 600)) {
+            // [GEMBOK DISPATCH] Nama kunci beda dari Job aktif ('active_')
+            $dLock = 'dispatch_tele_signal_' . $signal->id;
+            if (!Cache::add($dLock, true, 300)) {
                 continue; 
             }
 
@@ -37,7 +40,7 @@ class ProcessPendingTelegramNotifications extends Command
                 $this->info("Dispatched job for signal ID: {$signal->id}");
                 Log::info('Telegram job dispatched for signal', ['id' => $signal->id]);
             } catch (\Exception $e) {
-                Cache::forget('lock_tele_signal_' . $signal->id);
+                Cache::forget($dLock);
                 
                 $this->error("Failed to dispatch job for signal ID: {$signal->id} - {$e->getMessage()}");
                 Log::error('Failed to dispatch telegram job for signal', [
@@ -48,15 +51,17 @@ class ProcessPendingTelegramNotifications extends Command
         }
 
         // Process pending reminders
-        $reminders = QcReminder::where('telegram_sent', false)
-            ->orWhereNull('telegram_sent')
+        $reminders = QcReminder::where(function($q) {
+                $q->where('telegram_sent', false)->orWhereNull('telegram_sent');
+            })
             ->orderBy('created_at', 'asc')
             ->limit($limit)
             ->get();
 
         foreach ($reminders as $reminder) {
-            // [GEMBOK SAKTI] Untuk Reminders
-            if (!Cache::add('lock_tele_reminder_' . $reminder->id, true, 600)) {
+            // [GEMBOK DISPATCH]
+            $rLock = 'dispatch_tele_reminder_' . $reminder->id;
+            if (!Cache::add($rLock, true, 300)) {
                 continue;
             }
 
@@ -65,7 +70,7 @@ class ProcessPendingTelegramNotifications extends Command
                 $this->info("Dispatched job for reminder ID: {$reminder->id}");
                 Log::info('Telegram job dispatched for reminder', ['id' => $reminder->id]);
             } catch (\Exception $e) {
-                Cache::forget('lock_tele_reminder_' . $reminder->id);
+                Cache::forget($rLock);
 
                 $this->error("Failed to dispatch job for reminder ID: {$reminder->id} - {$e->getMessage()}");
                 Log::error('Failed to dispatch telegram job for reminder', [

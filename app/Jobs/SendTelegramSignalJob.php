@@ -21,14 +21,17 @@ class SendTelegramSignalJob implements ShouldQueue
 
     public function handle(TelegramNotificationService $telegram): void
     {
-        // [LOCK SAKTI]: Mencegah bentrokan antara Observer dan Cron Job
-        // Kunci selama 10 menit. Jika sudah ada yang proses, lewatkan.
-        if (!\Illuminate\Support\Facades\Cache::add('lock_tele_signal_' . $this->signal->id, true, 600)) {
-            Log::info("Job skipped: Signal #{$this->signal->id} already being processed or sent.");
+        // [LOCK AKTIF]: Pakai nama kunci beda ('active_') biar gak bentrok sama Scheduler ('dispatch_')
+        $lockKey = 'active_tele_signal_' . $this->signal->id;
+        if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 300)) {
+            Log::info("Job skipped: Signal #{$this->signal->id} is already being executed.");
             return;
         }
 
         try {
+            // Tandai di DB sedang diproses
+            $this->signal->update(['telegram_processing' => true]);
+            
             $this->signal->load('method.telegramChannels');
             $method = $this->signal->method;
             
@@ -63,14 +66,21 @@ class SendTelegramSignalJob implements ShouldQueue
             $this->signal->update([
                 'telegram_sent' => true,
                 'telegram_sent_at' => now(),
-                'telegram_response' => json_encode($response)
+                'telegram_response' => json_encode($response),
+                'telegram_processing' => false
             ]);
+            
+            // Lepas gembok
+            \Illuminate\Support\Facades\Cache::forget($lockKey);
+            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
             
             Log::info("✅ Signal #{$this->signal->id} sent to Telegram");
             
         } catch (\Exception $e) {
-            // Lepas kunci jika gagal, agar bisa dicoba lagi (lewat antrean retry)
-            \Illuminate\Support\Facades\Cache::forget('lock_tele_signal_' . $this->signal->id);
+            // Lepas semua gembok biar bisa dicoba lagi
+            \Illuminate\Support\Facades\Cache::forget('active_tele_signal_' . $this->signal->id);
+            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
+            $this->signal->update(['telegram_processing' => false]);
             
             Log::error("❌ Signal #{$this->signal->id} failed: {$e->getMessage()}");
             
