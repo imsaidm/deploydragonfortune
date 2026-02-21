@@ -21,6 +21,13 @@ class SendTelegramSignalJob implements ShouldQueue
 
     public function handle(TelegramNotificationService $telegram): void
     {
+        // [LOCK SAKTI]: Mencegah bentrokan antara Observer dan Cron Job
+        // Kunci selama 10 menit. Jika sudah ada yang proses, lewatkan.
+        if (!\Illuminate\Support\Facades\Cache::add('lock_tele_signal_' . $this->signal->id, true, 600)) {
+            Log::info("Job skipped: Signal #{$this->signal->id} already being processed or sent.");
+            return;
+        }
+
         try {
             $this->signal->load('method.telegramChannels');
             $method = $this->signal->method;
@@ -62,6 +69,9 @@ class SendTelegramSignalJob implements ShouldQueue
             Log::info("✅ Signal #{$this->signal->id} sent to Telegram");
             
         } catch (\Exception $e) {
+            // Lepas kunci jika gagal, agar bisa dicoba lagi (lewat antrean retry)
+            \Illuminate\Support\Facades\Cache::forget('lock_tele_signal_' . $this->signal->id);
+            
             Log::error("❌ Signal #{$this->signal->id} failed: {$e->getMessage()}");
             
             if ($this->attempts() < $this->tries) {
