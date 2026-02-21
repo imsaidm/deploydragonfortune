@@ -19,36 +19,43 @@ class ProcessSignalJob implements ShouldQueue
 
     protected $signalId;
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct(int $signalId)
     {
         $this->signalId = $signalId;
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle()
     {
-        $signal = QcSignal::find($this->signalId);
-        if (!$signal) {
-            Log::error("ProcessSignalJob: Signal ID {$this->signalId} not found.");
+        // GEMBOK DATABASE: Mencegah worker kloningan bikin error 1ms
+        $mirrorStatus = DB::transaction(function () {
+            // Cek apakah sinyal ini sudah dibuat statusnya? Kalau sudah, BATALKAN.
+            if (SignalMirrorStatus::where('qc_signal_id', $this->signalId)->exists()) {
+                return null; 
+            }
+
+            // Kunci baris sinyal ini
+            $signal = QcSignal::where('id', $this->signalId)->lockForUpdate()->first();
+            if (!$signal) return null;
+
+            // Buat record baru di DALAM gembok transaksi
+            return SignalMirrorStatus::create([
+                'qc_signal_id' => $signal->id,
+                'strategy_id' => $signal->id_method,
+                'status' => 'processing', 
+            ]);
+        });
+
+        // Kalau null, berarti worker lain udah ngerjain ini duluan. Stop sekarang juga.
+        if (!$mirrorStatus) {
+            Log::info("🛡️ ProcessSignalJob: Signal ID {$this->signalId} sudah diproses worker lain. Dibatalkan untuk cegah error.");
             return;
         }
 
+        // --- LANJUT KE PROSES NORMAL ---
+        $signal = QcSignal::find($this->signalId);
         $strategyId = $signal->id_method;
-        
-        // signal_mirror_status.status ENUM: pending, processing, completed, partial_failed, failed
-        $mirrorStatus = SignalMirrorStatus::create([
-            'qc_signal_id' => $signal->id,
-            'strategy_id' => $strategyId,
-            'status' => 'processing', 
-        ]);
 
         try {
-            // Get method/strategy details to know which exchange this signal is for
             $method = DB::connection('methods')->table('qc_method')->where('id', $strategyId)->first();
             $targetExchange = strtolower($method->exchange ?? 'binance');
 
@@ -57,9 +64,7 @@ class ProcessSignalJob implements ShouldQueue
                 ->where('is_active', true)
                 ->pluck('account_id');
 
-            $accounts = TradingAccount::whereIn('id', $accountIds)
-                ->where('is_active', true)
-                ->get();
+            $accounts = TradingAccount::whereIn('id', $accountIds)->where('is_active', true)->get();
 
             Log::info("ProcessSignalJob: Strategy [ID: {$strategyId}] target exchange: [{$targetExchange}]. Found " . $accounts->count() . " linked accounts.");
 
@@ -67,7 +72,6 @@ class ProcessSignalJob implements ShouldQueue
             foreach ($accounts as $account) {
                 $accountExchange = strtolower($account->exchange ?: 'binance');
                 
-                // ONLY dispatch if exchanges match (e.g., BINANCE strategy -> binance account)
                 if ($accountExchange === $targetExchange) {
                     AccountExecutionJob::dispatch($account, $signal->id, $strategyId);
                     $matchedCount++;
