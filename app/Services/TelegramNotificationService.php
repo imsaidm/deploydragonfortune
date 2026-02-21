@@ -50,8 +50,10 @@ class TelegramNotificationService
                 // Jeda 0.5 detik antar grup (Anti-Spam)
                 usleep(500000);
 
-                // Timeout panjang 30 detik, TANPA retry (Anti-Dobel)
-                $response = Http::timeout(30)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                // [VAKSIN IPV4] Paksa pakai IPv4 & Timeout 30 detik (Anti nyangkut / Anti cURL 28)
+                $response = Http::withOptions([
+                    'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
+                ])->timeout(30)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                     'chat_id' => $cid,
                     'text' => $message,
                     'parse_mode' => 'Markdown',
@@ -90,7 +92,10 @@ class TelegramNotificationService
     public function getUpdates(): array
     {
         try {
-            $response = Http::get("{$this->apiUrl}{$this->botToken}/getUpdates", [
+            // [VAKSIN IPV4]
+            $response = Http::withOptions([
+                'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
+            ])->get("{$this->apiUrl}{$this->botToken}/getUpdates", [
                 'limit' => 10,
                 'offset' => -10
             ]);
@@ -103,7 +108,10 @@ class TelegramNotificationService
     public function sendMessageToId(string $chatId, string $message): array
     {
         try {
-            $response = Http::timeout(30)->post("{$this->apiUrl}{$this->botToken}/sendMessage", [
+            // [VAKSIN IPV4]
+            $response = Http::withOptions([
+                'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
+            ])->timeout(30)->post("{$this->apiUrl}{$this->botToken}/sendMessage", [
                 'chat_id' => $chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown'
@@ -124,7 +132,10 @@ class TelegramNotificationService
         $message = $this->formatMessage($signal);
         
         try {
-            $response = Http::timeout(30)->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
+            // [VAKSIN IPV4]
+            $response = Http::withOptions([
+                'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
+            ])->timeout(30)->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
                 'chat_id' => $this->chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown',
