@@ -9,9 +9,10 @@ use App\Models\QuantConnectSignal;
 class TelegramNotificationService
 {
     private ?string $botToken;
-    private ?string $chatId;
-    private ?string $devBotToken;
-    private ?string $devChatId;
+    protected string $chatId;
+    protected string $devBotToken;
+    protected string $devChatId;
+    protected string $apiUrl = 'https://api.telegram.org/bot';
     private bool $enabled;
 
     public function __construct()
@@ -23,12 +24,6 @@ class TelegramNotificationService
         $this->enabled = config('services.telegram.enabled', false);
     }
 
-    /**
-     * Send a generic message to Telegram
-     * * @param string $message
-     * @param bool|array|null $ids If bool, use production/dev from config. If array/collection, use those chat IDs.
-     * @return array
-     */
     public function sendMessage(string $message, mixed $ids = true): array
     {
         if (!$this->enabled) {
@@ -37,10 +32,9 @@ class TelegramNotificationService
         }
 
         $chatIds = [];
-        $botToken = $this->botToken; // Default to production bot
+        $botToken = $this->botToken;
 
         if (is_bool($ids)) {
-            // Legacy behavior: use config based on isProduction
             $isProduction = $ids;
             $botToken = $isProduction ? $this->botToken : ($this->devBotToken ?: $this->botToken);
             $chatIds[] = $isProduction ? $this->chatId : ($this->devChatId ?: $this->chatId);
@@ -53,13 +47,11 @@ class TelegramNotificationService
         $results = [];
         foreach ($chatIds as $cid) {
             try {
-                // [TAMBAHAN SAYA] Kasih jeda 0.5 detik (500ms) tiap kirim ke grup baru biar Telegram gak marah (Anti-Spam)
+                // Jeda 0.5 detik antar grup (Anti-Spam)
                 usleep(500000);
 
-                // [TAMBAHAN SAYA] Pasang pengaman Timeout 15 detik, dan kalau gagal coba ulang 3 kali (jeda 2 detik)
-                $response = Http::timeout(15)
-                    ->retry(3, 2000)
-                    ->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                // Timeout panjang 30 detik, TANPA retry (Anti-Dobel)
+                $response = Http::timeout(30)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                     'chat_id' => $cid,
                     'text' => $message,
                     'parse_mode' => 'Markdown',
@@ -95,9 +87,6 @@ class TelegramNotificationService
         ];
     }
 
-    /**
-     * Get recent updates from the bot.
-     */
     public function getUpdates(): array
     {
         try {
@@ -105,37 +94,26 @@ class TelegramNotificationService
                 'limit' => 10,
                 'offset' => -10
             ]);
-
             return $response->json();
         } catch (\Exception $e) {
             return ['ok' => false, 'error' => $e->getMessage()];
         }
     }
 
-    /**
-     * Send specific message to a chat id.
-     */
     public function sendMessageToId(string $chatId, string $message): array
     {
         try {
-            // [TAMBAHAN SAYA] Dikasih retry juga buat jaga-jaga
-            $response = Http::timeout(15)
-                ->retry(3, 2000)
-                ->post("{$this->apiUrl}{$this->botToken}/sendMessage", [
+            $response = Http::timeout(30)->post("{$this->apiUrl}{$this->botToken}/sendMessage", [
                 'chat_id' => $chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown'
             ]);
-
             return $response->json();
         } catch (\Exception $e) {
             return ['ok' => false, 'error' => $e->getMessage()];
         }
     }
 
-    /**
-     * Send notification to Telegram
-     */
     public function sendNotification(QuantConnectSignal $signal): bool
     {
         if (!$this->enabled) {
@@ -146,10 +124,7 @@ class TelegramNotificationService
         $message = $this->formatMessage($signal);
         
         try {
-            // [TAMBAHAN SAYA] Dikasih retry juga biar kebal
-            $response = Http::timeout(15)
-                ->retry(3, 2000)
-                ->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
+            $response = Http::timeout(30)->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
                 'chat_id' => $this->chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown',
@@ -161,42 +136,20 @@ class TelegramNotificationService
                     'telegram_sent_at' => now(),
                     'telegram_response' => $response->json(),
                 ]);
-
-                Log::info('Telegram notification sent', [
-                    'signal_id' => $signal->id,
-                    'type' => $signal->type,
-                ]);
-
+                Log::info('Telegram notification sent', ['signal_id' => $signal->id, 'type' => $signal->type]);
                 return true;
             } else {
-                Log::error('Telegram API error', [
-                    'signal_id' => $signal->id,
-                    'response' => $response->body(),
-                ]);
-
-                $signal->update([
-                    'telegram_response' => $response->body(),
-                ]);
-
+                Log::error('Telegram API error', ['signal_id' => $signal->id, 'response' => $response->body()]);
+                $signal->update(['telegram_response' => $response->body()]);
                 return false;
             }
         } catch (\Exception $e) {
-            Log::error('Telegram notification failed', [
-                'signal_id' => $signal->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            $signal->update([
-                'telegram_response' => $e->getMessage(),
-            ]);
-
+            Log::error('Telegram notification failed', ['signal_id' => $signal->id, 'error' => $e->getMessage()]);
+            $signal->update(['telegram_response' => $e->getMessage()]);
             return false;
         }
     }
 
-    /**
-     * Format message based on signal type
-     */
     private function formatMessage(QuantConnectSignal $signal): string
     {
         if ($signal->isReminder()) {
@@ -206,55 +159,26 @@ class TelegramNotificationService
         }
     }
 
-    /**
-     * Format reminder message
-     */
     private function formatReminderMessage(QuantConnectSignal $signal): string
     {
         $marketEmoji = $signal->isFutures() ? '📊' : '💰';
         $marketType = $signal->market_type;
-        
-        return "🔔 *REMINDER* {$marketEmoji}\n\n"
-            . "📌 *Market:* {$marketType}\n"
-            . "🪙 *Symbol:* `{$signal->symbol}`\n"
-            . "💬 *Message:* {$signal->message}\n\n"
-            . "⏰ " . now()->format('Y-m-d H:i:s') . " WIB\n"
-            . "🤖 QC ID: `{$signal->qc_id}`";
+        return "🔔 *REMINDER* {$marketEmoji}\n\n📌 *Market:* {$marketType}\n🪙 *Symbol:* `{$signal->symbol}`\n💬 *Message:* {$signal->message}\n\n⏰ " . now()->format('Y-m-d H:i:s') . " WIB\n🤖 QC ID: `{$signal->qc_id}`";
     }
 
-    /**
-     * Format signal message
-     */
     private function formatSignalMessage(QuantConnectSignal $signal): string
     {
         $sideEmoji = $signal->side === 'BUY' ? '📈' : '📉';
         $marketEmoji = $signal->isFutures() ? '📊' : '💰';
         $marketType = $signal->market_type;
         
-        $message = "{$sideEmoji} *{$signal->side} SIGNAL* {$marketEmoji}\n\n"
-            . "📌 *Market:* {$marketType}\n"
-            . "🪙 *Symbol:* `{$signal->symbol}`\n"
-            . "💵 *Entry Price:* `" . number_format($signal->price, 2) . "`\n"
-            . "🎯 *Take Profit:* `" . number_format($signal->tp, 2) . "`\n"
-            . "🛡️ *Stop Loss:* `" . number_format($signal->sl, 2) . "`\n";
+        $message = "{$sideEmoji} *{$signal->side} SIGNAL* {$marketEmoji}\n\n📌 *Market:* {$marketType}\n🪙 *Symbol:* `{$signal->symbol}`\n💵 *Entry Price:* `" . number_format($signal->price, 2) . "`\n🎯 *Take Profit:* `" . number_format($signal->tp, 2) . "`\n🛡️ *Stop Loss:* `" . number_format($signal->sl, 2) . "`\n";
 
-        // Add futures-specific info
-        if ($signal->isFutures() && $signal->leverage) {
-            $message .= "⚡ *Leverage:* `{$signal->leverage}x`\n";
-        }
+        if ($signal->isFutures() && $signal->leverage) $message .= "⚡ *Leverage:* `{$signal->leverage}x`\n";
+        if ($signal->margin_usd) $message .= "💼 *Margin:* `$" . number_format($signal->margin_usd, 2) . "`\n";
+        if ($signal->quantity) $message .= "📊 *Quantity:* `{$signal->quantity}`\n";
 
-        if ($signal->margin_usd) {
-            $message .= "💼 *Margin:* `$" . number_format($signal->margin_usd, 2) . "`\n";
-        }
-
-        if ($signal->quantity) {
-            $message .= "📊 *Quantity:* `{$signal->quantity}`\n";
-        }
-
-        $message .= "\n💬 *Message:* {$signal->message}\n\n"
-            . "⏰ " . now()->format('Y-m-d H:i:s') . " WIB\n"
-            . "🤖 QC ID: `{$signal->qc_id}`";
-
+        $message .= "\n💬 *Message:* {$signal->message}\n\n⏰ " . now()->format('Y-m-d H:i:s') . " WIB\n🤖 QC ID: `{$signal->qc_id}`";
         return $message;
     }
 }
