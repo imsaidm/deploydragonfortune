@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class QcMethod extends Model
 {
@@ -31,6 +32,7 @@ class QcMethod extends Model
         'api_key',
         'secret_key',
         'onactive',
+        'is_production',
     ];
     
     protected $casts = [
@@ -46,6 +48,7 @@ class QcMethod extends Model
         'total_orders' => 'decimal:6',
         'kpi_extra' => 'array',
         'onactive' => 'boolean',
+        'is_production' => 'boolean',
     ];
 
     /**
@@ -64,5 +67,18 @@ class QcMethod extends Model
         return $this->belongsToMany(TradingAccount::class, 'newera.strategy_accounts', 'strategy_id', 'account_id')
             ->withPivot('is_active')
             ->withTimestamps();
+    }
+
+    /**
+     * Get the telegram channels for this method.
+     */
+    public function telegramChannels(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            QcTelegramChannel::class,
+            'qc_method_telegram_channel',
+            'id_method',
+            'id_channel'
+        );
     }
 }

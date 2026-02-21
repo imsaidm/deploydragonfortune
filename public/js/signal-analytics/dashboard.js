@@ -906,7 +906,7 @@
         const running = resolveRunningStatus(m, extraMap).label;
         const tag = running === 'Running' ? 'RUN' : running === 'Not Running' ? 'OFF' : 'UNK';
 
-        opt.textContent = `[${tag}] ${escapeText(m.nama_metode || 'Method')} (#${m.id})`;
+        opt.textContent = `[${tag}] ${escapeText(m.nama_metode || 'Method')} (Creator: ${escapeText(m.creator || '-')})`;
         methodSelect.appendChild(opt);
       });
 
@@ -1225,7 +1225,8 @@
         const pair = meta.symbol || '-';
         const tf = meta.timeframe || '-';
         const ex = meta.exchange || '-';
-        methodMetaEl.textContent = `Pair: ${pair} | TF: ${tf} | Exchange: ${ex}`;
+        const cr = method?.creator || '-';
+        methodMetaEl.textContent = `Pair: ${pair} | TF: ${tf} | Exchange: ${ex} | Creator: ${cr}`;
       }
 
       if (methodBacktestEl) {
@@ -2024,8 +2025,10 @@
     const loadMethods = async () => {
       setMethodStatus('Loading methods...');
       try {
-        const items = await fetchJson('/methods', { limit: 200, offset: 0 });
-        state.methods = Array.isArray(items) ? items : [];
+        const rawItems = await fetchJson('/methods', { limit: 200, offset: 0 });
+        const allItems = Array.isArray(rawItems) ? rawItems : [];
+        // Filter: only show if onactive is NOT 0
+        state.methods = allItems.filter(m => m.onactive != 0);
         renderMethods();
 
         if (state.methods.length > 0) {
