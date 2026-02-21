@@ -144,6 +144,8 @@ return [
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
         'chat_id' => env('TELEGRAM_CHAT_ID'),
+        'dev_bot_token' => env('TELEGRAM_DEV_BOT_TOKEN'),
+        'dev_chat_id' => env('TELEGRAM_DEV_CHAT_ID'),
         'enabled' => env('TELEGRAM_ENABLED', false),
     ],
 
