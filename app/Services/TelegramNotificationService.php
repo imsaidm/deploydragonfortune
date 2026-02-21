@@ -23,12 +23,9 @@ class TelegramNotificationService
         $this->enabled = config('services.telegram.enabled', false);
     }
 
-
-
     /**
      * Send a generic message to Telegram
-     * 
-     * @param string $message
+     * * @param string $message
      * @param bool|array|null $ids If bool, use production/dev from config. If array/collection, use those chat IDs.
      * @return array
      */
@@ -56,7 +53,13 @@ class TelegramNotificationService
         $results = [];
         foreach ($chatIds as $cid) {
             try {
-                $response = Http::post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+                // [TAMBAHAN SAYA] Kasih jeda 0.5 detik (500ms) tiap kirim ke grup baru biar Telegram gak marah (Anti-Spam)
+                usleep(500000);
+
+                // [TAMBAHAN SAYA] Pasang pengaman Timeout 15 detik, dan kalau gagal coba ulang 3 kali (jeda 2 detik)
+                $response = Http::timeout(15)
+                    ->retry(3, 2000)
+                    ->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                     'chat_id' => $cid,
                     'text' => $message,
                     'parse_mode' => 'Markdown',
@@ -93,6 +96,44 @@ class TelegramNotificationService
     }
 
     /**
+     * Get recent updates from the bot.
+     */
+    public function getUpdates(): array
+    {
+        try {
+            $response = Http::get("{$this->apiUrl}{$this->botToken}/getUpdates", [
+                'limit' => 10,
+                'offset' => -10
+            ]);
+
+            return $response->json();
+        } catch (\Exception $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Send specific message to a chat id.
+     */
+    public function sendMessageToId(string $chatId, string $message): array
+    {
+        try {
+            // [TAMBAHAN SAYA] Dikasih retry juga buat jaga-jaga
+            $response = Http::timeout(15)
+                ->retry(3, 2000)
+                ->post("{$this->apiUrl}{$this->botToken}/sendMessage", [
+                'chat_id' => $chatId,
+                'text' => $message,
+                'parse_mode' => 'Markdown'
+            ]);
+
+            return $response->json();
+        } catch (\Exception $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Send notification to Telegram
      */
     public function sendNotification(QuantConnectSignal $signal): bool
@@ -105,7 +146,10 @@ class TelegramNotificationService
         $message = $this->formatMessage($signal);
         
         try {
-            $response = Http::post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
+            // [TAMBAHAN SAYA] Dikasih retry juga biar kebal
+            $response = Http::timeout(15)
+                ->retry(3, 2000)
+                ->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
                 'chat_id' => $this->chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown',
