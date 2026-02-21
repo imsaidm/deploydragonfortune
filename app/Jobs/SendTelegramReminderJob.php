@@ -27,6 +27,12 @@ class SendTelegramReminderJob implements ShouldQueue
      */
     public function handle(TelegramNotificationService $telegram): void
     {
+        // [LOCK SAKTI]: Mencegah bentrokan pengiriman dobel
+        if (!\Illuminate\Support\Facades\Cache::add('lock_tele_reminder_' . $this->reminder->id, true, 600)) {
+            Log::info("Job skipped: Reminder #{$this->reminder->id} already being processed.");
+            return;
+        }
+
         try {
             // Load method relationship
             $this->reminder->load('method');
@@ -102,6 +108,9 @@ class SendTelegramReminderJob implements ShouldQueue
             Log::info("✅ Reminder #{$this->reminder->id} sent to Telegram");
             
         } catch (\Exception $e) {
+            // Lepas kunci jika gagal
+            \Illuminate\Support\Facades\Cache::forget('lock_tele_reminder_' . $this->reminder->id);
+
             Log::error("❌ Reminder #{$this->reminder->id} failed: {$e->getMessage()}");
             
             if ($this->attempts() < $this->tries) {
