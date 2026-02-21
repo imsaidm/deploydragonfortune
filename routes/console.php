@@ -13,3 +13,9 @@ Schedule::command('telegram:process-pending --limit=10')
     ->everyTenSeconds()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Process pending signals (PDO) every 10 seconds
+Schedule::command('orders:process-pending --limit=10')
+    ->everyTenSeconds()
+    ->withoutOverlapping()
+    ->runInBackground();

@@ -173,18 +173,14 @@
 	                            </a>
 	                        </li>
                         <ul class="df-sidebar-menu">
-	                        {{-- <li class="df-sidebar-menu-item">
+	                        <li class="df-sidebar-menu-item">
 	                            <a href="/summary" class="df-sidebar-menu-button {{ request()->routeIs('summary.*') ? 'active' : '' }}" @click="closeSidebar()">
-	                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-	                                    <path d="M3 3v18h18"/>
-	                                    <path d="M7 14l3-3 4 4 6-6"/>
-	                                    <circle cx="7" cy="14" r="1.5"/>
-	                                    <circle cx="14" cy="15" r="1.5"/>
-	                                    <circle cx="20" cy="9" r="1.5"/>
-	                                </svg>
+	                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-files" viewBox="0 0 16 16">
+                                        <path d="M13 0H6a2 2 0 0 0-2 2 2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2 2 2 0 0 0 2-2V2a2 2 0 0 0-2-2m0 13V4a2 2 0 0 0-2-2H5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1M3 4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/>
+                                    </svg>
 	                                <span>Summary</span>
 	                            </a>
-	                        </li> --}}
+	                        </li>
                             
 	                        <!-- <li class="df-sidebar-menu-item">
 	                            <a href="/backtest-result" class="df-sidebar-menu-button {{ request()->routeIs('backtest-result.*') ? 'active' : '' }}" @click="closeSidebar()">

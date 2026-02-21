@@ -43,7 +43,7 @@
 
             lastLoadedData = res.data;
 
-            // renderSummary(res);
+            renderSummary(res);
             renderTable(res.data);
             renderPagination(res);
 
@@ -54,53 +54,55 @@
     };
 
     const renderSummary = data => {
+        const creatorSummary = data.creator_summary || [];
+        const $container = $("#summaryCards");
+        $container.empty();
 
-        let totalStrategies = data.length;
-        let totalOrders = "0";
-        let avgWinrate = "0";
+        const colorClasses = ['card-activity', 'card-profit', 'card-risk', 'card-neutral'];
 
-        $("#summaryCards").html(`
+        creatorSummary.forEach((item, index) => {
+            const creatorName = item.creator || 'SYSTEM';
+            const colorClass = colorClasses[index % colorClasses.length];
 
-            <div class="col-md-4">
-                <div class="crypto-card card-activity">
+            $container.append(`
+                <div class="col-md-3">
+                    <div class="crypto-card ${colorClass}" style="display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px 18px;">
+                        
+                        <!-- Row 1: Name -->
+                        <div class="text-slate-700 font-extrabold uppercase tracking-wider mb-2" style="font-size: 14px;">
+                            ${creatorName}
+                        </div>
+                        
+                        <!-- Row 2: Strategy & Signals (CENTERED) -->
+                        <div class="d-flex gap-5 mb-2 mt-1">
+                            <div>
+                                <span class="text-slate-800 font-black mono" style="font-size: 36px; line-height: 1;">${Number(item.total_methods)}</span>
+                                <div class="text-slate-400 font-black uppercase" style="font-size: 13px; margin-top: 2px; letter-spacing: 0.05em;">strategy</div>
+                            </div>
+                            <div>
+                                <span class="text-slate-800 font-black mono" style="font-size: 36px; line-height: 1;">${Number(item.total_signals).toLocaleString()}</span>
+                                <div class="text-slate-400 font-black uppercase" style="font-size: 13px; margin-top: 2px; letter-spacing: 0.05em;">signals</div>
+                            </div>
+                        </div>
 
-                    <div class="crypto-title">Active Strategies</div>
-                    <div class="crypto-value">${totalStrategies}</div>
-                    <div class="crypto-sub">currently running bots</div>
+                        <hr class="border-slate-100 w-75 mb-3" style="margin: 0 auto;">
 
-                    <div class="crypto-icon">
-                        <img src="https://cdn-icons-png.flaticon.com/512/2721/2721297.png">
+                        <!-- Row 3: TP & SL (CENTERED) -->
+                        <div class="d-flex gap-5">
+                            <div class="d-flex align-items-center">
+                                <span class="text-slate-800 font-black" style="font-size: 14px;">TP:</span>
+                                <span class="text-emerald-600 font-black mono ml-2" style="font-size: 18px;">${Number(item.total_tp).toLocaleString()}x</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <span class="text-slate-800 font-black" style="font-size: 14px;">SL:</span>
+                                <span class="text-rose-600 font-black mono ml-2" style="font-size: 18px;">${Number(item.total_sl).toLocaleString()}x</span>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="crypto-card card-profit">
-
-                    <div class="crypto-title">Total Orders</div>
-                    <div class="crypto-value">${totalOrders.toLocaleString()}</div>
-                    <div class="crypto-sub">executed trades</div>
-
-                    <div class="crypto-icon">
-                        <img src="#">
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-4">
-                <div class="crypto-card card-risk">
-
-                    <div class="crypto-title">Average Winrate</div>
-                    <div class="crypto-value">${avgWinrate}%</div>
-                    <div class="crypto-sub">strategy performance</div>
-
-                    <div class="crypto-icon">
-                        <img src="#">
-                    </div>
-                </div>
-            </div>
-
-        `);
+            `);
+        });
     };
 
     const renderTable = data => {
