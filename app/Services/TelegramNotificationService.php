@@ -46,11 +46,10 @@ class TelegramNotificationService
 
         $results = [];
         foreach ($chatIds as $cid) {
-            // [SLANKER]: Gunakan cache key untuk mencegah duplikasi ke chat yang sama (10 menit)
-            // Ini berguna jika job di-retry karena timeout, agar tidak kirim ulang ke grup yang sudah sukses
+            // [SLANKER]: Gunakan ATOMIC LOCK (Cache::add). Jika gagal add, berarti sudah/sedang dikirim.
             $cacheKey = "tele_sent_{$cid}_" . md5($message);
-            if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
-                Log::info("Telegram message skipped for {$cid} (already sent recently)");
+            if (!\Illuminate\Support\Facades\Cache::add($cacheKey, true, 600)) {
+                Log::info("Telegram message skipped for {$cid} (atomic lock active)");
                 $results[] = [
                     'chat_id' => $cid,
                     'success' => true,
@@ -60,12 +59,12 @@ class TelegramNotificationService
             }
 
             try {
-                // Jeda lebih singkat: 200ms (Anti-Spam lebih agresif)
+                // Jeda 200ms (Anti-Spam)
                 usleep(200000);
 
-                // [SUPER FAST]: Retry dipercepat (500ms) & Timeout disetel ke 15s
-                // 15 detik adalah jalan tengah antara kecepatan dan stabilitas
-                $response = Http::retry(2, 500)->withOptions([
+                // [NO RETRY INTERNAL]: Jangan pakai retry() di sini karena bisa bikin duplikasi kalau timeout
+                // Biarkan Laravel Job yang melakukan retry secara keseluruhan
+                $response = Http::withOptions([
                     'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
                 ])->timeout(15)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                     'chat_id' => $cid,
@@ -74,15 +73,14 @@ class TelegramNotificationService
                 ]);
 
                 if ($response->successful()) {
-                    // Tandai sudah terkirim ke chat_id ini selama 10 menit
-                    \Illuminate\Support\Facades\Cache::put($cacheKey, true, 600);
-                    
                     $results[] = [
                         'chat_id' => $cid,
                         'success' => true,
                         'response' => $response->json()
                     ];
                 } else {
+                    // Jika gagal (bukan timeout), hapus lock biar bisa dicoba lagi nanti
+                    \Illuminate\Support\Facades\Cache::forget($cacheKey);
                     $results[] = [
                         'chat_id' => $cid,
                         'success' => false,
@@ -91,6 +89,9 @@ class TelegramNotificationService
                     Log::error("Telegram API error for {$cid}: " . $response->body());
                 }
             } catch (\Exception $e) {
+                // Jika error (timeout dll), hapus lock agar Job Retry bisa mencoba lagi
+                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                
                 $results[] = [
                     'chat_id' => $cid,
                     'success' => false,
@@ -148,8 +149,8 @@ class TelegramNotificationService
         $message = $this->formatMessage($signal);
         
         try {
-            // [SUPER FAST]: Retry dipercepat (500ms) & Timeout 15s
-            $response = Http::retry(2, 500)->withOptions([
+            // [NO RETRY INTERNAL]
+            $response = Http::withOptions([
                 'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
             ])->timeout(15)->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
                 'chat_id' => $this->chatId,
