@@ -65,7 +65,7 @@ class TelegramNotificationService
                 // [NO RETRY INTERNAL]: Jangan pakai retry() di sini karena bisa bikin duplikasi kalau timeout
                 // Biarkan Laravel Job yang melakukan retry secara keseluruhan
                 $response = Http::withOptions([
-                    'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
+                    'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]
                 ])->timeout(15)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                     'chat_id' => $cid,
                     'text' => $message,
@@ -91,7 +91,7 @@ class TelegramNotificationService
             } catch (\Exception $e) {
                 // Jika error (timeout dll), hapus lock agar Job Retry bisa mencoba lagi
                 \Illuminate\Support\Facades\Cache::forget($cacheKey);
-                
+
                 $results[] = [
                     'chat_id' => $cid,
                     'success' => false,
@@ -111,7 +111,7 @@ class TelegramNotificationService
     {
         try {
             $response = Http::withOptions([
-                'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
+                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]
             ])->get("{$this->apiUrl}{$this->botToken}/getUpdates", [
                 'limit' => 10,
                 'offset' => -10
@@ -127,7 +127,7 @@ class TelegramNotificationService
         try {
             // [SUPER FAST]: Retry dipercepat (500ms) & Timeout 15s
             $response = Http::retry(2, 500)->withOptions([
-                'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
+                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]
             ])->timeout(15)->post("{$this->apiUrl}{$this->botToken}/sendMessage", [
                 'chat_id' => $chatId,
                 'text' => $message,
@@ -147,11 +147,11 @@ class TelegramNotificationService
         }
 
         $message = $this->formatMessage($signal);
-        
+
         try {
             // [NO RETRY INTERNAL]
             $response = Http::withOptions([
-                'curl' => [ CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4 ]
+                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]
             ])->timeout(15)->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
                 'chat_id' => $this->chatId,
                 'text' => $message,
@@ -199,7 +199,7 @@ class TelegramNotificationService
         $sideEmoji = $signal->side === 'BUY' ? '📈' : '📉';
         $marketEmoji = $signal->isFutures() ? '📊' : '💰';
         $marketType = $signal->market_type;
-        
+
         $message = "{$sideEmoji} *{$signal->side} SIGNAL* {$marketEmoji}\n\n📌 *Market:* {$marketType}\n🪙 *Symbol:* `{$signal->symbol}`\n💵 *Entry Price:* `" . number_format($signal->price, 2) . "`\n🎯 *Take Profit:* `" . number_format($signal->tp, 2) . "`\n🛡️ *Stop Loss:* `" . number_format($signal->sl, 2) . "`\n";
 
         if ($signal->isFutures() && $signal->leverage) $message .= "⚡ *Leverage:* `{$signal->leverage}x`\n";

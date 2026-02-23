@@ -27,6 +27,12 @@ class SendTelegramReminderJob implements ShouldQueue
      */
     public function handle(TelegramNotificationService $telegram): void
     {
+        // [ANTI-SPAM 100% MUTLAK]: Jika sudah terkirim oleh klonengan apa pun, segera batalkan.
+        if ($this->reminder->telegram_sent) {
+            Log::info("Job aborted: Reminder #{$this->reminder->id} was already marked as sent in DB.");
+            return;
+        }
+
         // [LOCK AKTIF]: Pakai nama kunci beda ('active_') biar gak bentrok sama Scheduler ('dispatch_')
         $lockKey = 'active_tele_reminder_' . $this->reminder->id;
         if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 300)) {
@@ -117,20 +123,28 @@ class SendTelegramReminderJob implements ShouldQueue
 
             Log::info("✅ Reminder #{$this->reminder->id} sent to Telegram");
         } catch (\Exception $e) {
-            // Lepas semua gembok biar bisa dicoba lagi
-            \Illuminate\Support\Facades\Cache::forget('active_tele_reminder_' . $this->reminder->id);
-            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_reminder_' . $this->reminder->id);
-
             Log::error("❌ Reminder #{$this->reminder->id} failed: {$e->getMessage()}");
+
+            // Lepas CUMA gembok aktif biar job ini bisa di-retry oleh Worker.
+            // JANGAN LEPAS gembok dispatch_!
+            try {
+                \Illuminate\Support\Facades\Cache::forget('active_tele_reminder_' . $this->reminder->id);
+            } catch (\Throwable $t) {
+            }
 
             if ($this->attempts() < $this->tries) {
                 $this->release($this->backoff[$this->attempts() - 1] ?? 60);
                 return; // [HENTIKAN DISINI]: Mencegah Laravel membuat Job Retry ganda!
             } else {
+                try {
+                    \Illuminate\Support\Facades\Cache::forget('dispatch_tele_reminder_' . $this->reminder->id);
+                } catch (\Throwable $t) {
+                }
                 $this->reminder->update([
                     'telegram_response' => 'Failed after ' . $this->tries . ' attempts: ' . $e->getMessage()
                 ]);
             }
+            throw $e;
         }
     }
 }
