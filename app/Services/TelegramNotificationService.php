@@ -24,7 +24,7 @@ class TelegramNotificationService
         $this->enabled = config('services.telegram.enabled', false);
     }
 
-    public function sendMessage(string $message, mixed $ids = true): array
+    public function sendMessage(string $message, mixed $ids = true, ?string $uniqueLockKey = null): array
     {
         if (!$this->enabled) {
             Log::info('Telegram notifications disabled');
@@ -46,8 +46,10 @@ class TelegramNotificationService
 
         $results = [];
         foreach ($chatIds as $cid) {
-            // [SLANKER]: Gunakan ATOMIC LOCK (Cache::add). Jika gagal add, berarti sudah/sedang dikirim.
-            $cacheKey = "tele_sent_{$cid}_" . md5($message);
+            // [SLANKER]: Gunakan ATOMIC LOCK (Cache::add).
+            // Pakai uniqueKey dari Database (id) daripada md5() karena `now()` di dalam teks berubah setiap detik saat Retry.
+            $lockHash = $uniqueLockKey ?: md5($message);
+            $cacheKey = "tele_sent_{$cid}_" . $lockHash;
             if (!\Illuminate\Support\Facades\Cache::add($cacheKey, true, 600)) {
                 Log::info("Telegram message skipped for {$cid} (atomic lock active)");
                 $results[] = [
