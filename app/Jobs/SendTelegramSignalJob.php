@@ -62,11 +62,13 @@ class SendTelegramSignalJob implements ShouldQueue
             }
 
             // Fallback to is_production logic if no specific channels are linked
+            $uniqueLockKey = "unique_signal_" . $this->signal->id;
+
             if (empty($chatIds)) {
                 $isProduction = $method ? (bool) $method->is_production : false;
-                $response = $telegram->sendMessage($message, $isProduction);
+                $response = $telegram->sendMessage($message, $isProduction, $uniqueLockKey);
             } else {
-                $response = $telegram->sendMessage($message, $chatIds);
+                $response = $telegram->sendMessage($message, $chatIds, $uniqueLockKey);
             }
 
             // [VITAL]: Jika ada sebagian pesan yang gagal kirim (timeout, dll)

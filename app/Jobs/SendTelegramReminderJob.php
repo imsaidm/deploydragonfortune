@@ -98,11 +98,13 @@ class SendTelegramReminderJob implements ShouldQueue
             }
 
             // Send to Telegram (selective or fallback)
+            $uniqueLockKey = "unique_reminder_" . $this->reminder->id;
+
             if (empty($chatIds)) {
                 $isProduction = $method ? (bool) $method->is_production : false;
-                $response = $telegram->sendMessage($message, $isProduction);
+                $response = $telegram->sendMessage($message, $isProduction, $uniqueLockKey);
             } else {
-                $response = $telegram->sendMessage($message, $chatIds);
+                $response = $telegram->sendMessage($message, $chatIds, $uniqueLockKey);
             }
 
             // [VITAL]: Memancing Retry Worker dari Laravel jika ada grup yang gagal
