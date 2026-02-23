@@ -91,8 +91,11 @@ class TelegramNotificationService
                     Log::error("Telegram API error for {$cid}: " . $response->body());
                 }
             } catch (\Exception $e) {
-                // Jika error (timeout dll), hapus lock agar Job Retry bisa mencoba lagi
-                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                // [SANGAT FATAL]: Jika API timeout (cURL error 28), JANGAN hapus lock. 
+                // Karena Telegram sudah MENGANTARKAN pesannya, hanya saja server kita terputus duluan saat nunggu balasan!
+                // Jika gembok ini dihapus, Worker Retry akan MENGIRIM ULANG Sinyal yang sama = DUPLIKAT SPAM!
+                // Jadi kita BEKUKAN gembok ini selama 10 menit.
+                // try { \Illuminate\Support\Facades\Cache::forget($cacheKey); } catch (\Throwable $t) {}
 
                 $results[] = [
                     'chat_id' => $cid,

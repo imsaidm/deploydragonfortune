@@ -136,9 +136,12 @@ class SendTelegramSignalJob implements ShouldQueue
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
 
         if ($method) {
+            $safeName = str_replace(['_', '*', '`', '[', ']'], ' ', $method->nama_metode);
+            $safeCreator = str_replace(['_', '*', '`', '[', ']'], ' ', $method->creator);
+
             $message .= "📊 *Strategy Info*\n";
-            $message .= "├ Name: `{$method->nama_metode}`\n";
-            $message .= "├ Creator: `{$method->creator}`\n";
+            $message .= "├ Name: `{$safeName}`\n";
+            $message .= "├ Creator: `{$safeCreator}`\n";
             $message .= "├ Exchange: `{$method->exchange}`\n";
             $message .= "├ Pair: `{$method->pair}`\n";
             $message .= "└ Timeframe: `{$method->tf}`\n\n";
@@ -209,9 +212,12 @@ class SendTelegramSignalJob implements ShouldQueue
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
 
         if ($method) {
+            $safeName = str_replace(['_', '*', '`', '[', ']'], ' ', $method->nama_metode);
+            $safeCreator = str_replace(['_', '*', '`', '[', ']'], ' ', $method->creator);
+
             $message .= "📊 *Strategy Info*\n";
-            $message .= "├ Name: `{$method->nama_metode}`\n";
-            $message .= "├ Creator: `{$method->creator}`\n";
+            $message .= "├ Name: `{$safeName}`\n";
+            $message .= "├ Creator: `{$safeCreator}`\n";
             $message .= "├ Exchange: `{$method->exchange}`\n";
             $message .= "├ Pair: `{$method->pair}`\n";
             $message .= "└ Timeframe: `{$method->tf}`\n\n";
