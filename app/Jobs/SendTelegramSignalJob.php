@@ -31,30 +31,30 @@ class SendTelegramSignalJob implements ShouldQueue
         try {
             // Tandai di DB sedang diproses
             $this->signal->update(['telegram_processing' => true]);
-            
+
             $this->signal->load('method.telegramChannels');
             $method = $this->signal->method;
-            
+
             $isEntry = strtolower($this->signal->type) === 'entry';
             $jenis = strtolower($this->signal->jenis);
             $isBuy = in_array($jenis, ['buy', 'long']);
-            
+
             // Direction styling
             $directionEmoji = $isBuy ? '🟢' : '🔴';
             $directionText = strtoupper($this->signal->jenis);
-            
+
             // Build message based on signal type
             if ($isEntry) {
                 $message = $this->buildEntryMessage($method, $directionEmoji, $directionText);
             } else {
                 $message = $this->buildExitMessage($method, $directionEmoji, $directionText, $isBuy);
             }
-            
+
             $chatIds = [];
             if ($method && $method->telegramChannels->count() > 0) {
                 $chatIds = $method->telegramChannels->where('is_active', true)->pluck('chat_id')->toArray();
             }
-            
+
             // Fallback to is_production logic if no specific channels are linked
             if (empty($chatIds)) {
                 $isProduction = $method ? (bool) $method->is_production : false;
@@ -62,28 +62,33 @@ class SendTelegramSignalJob implements ShouldQueue
             } else {
                 $response = $telegram->sendMessage($message, $chatIds);
             }
-            
+
+            // [VITAL]: Jika ada sebagian pesan yang gagal kirim (timeout, dll)
+            // Lemparkan exception supaya Job ini masuk antrean Retry.
+            if (isset($response['success']) && !$response['success']) {
+                throw new \Exception("Beberapa grup gagal menerima pesan. Cek log Telegram API error.");
+            }
+
             $this->signal->update([
                 'telegram_sent' => true,
                 'telegram_sent_at' => now(),
                 'telegram_response' => json_encode($response),
                 'telegram_processing' => false
             ]);
-            
+
             // Lepas gembok
             \Illuminate\Support\Facades\Cache::forget($lockKey);
             \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
-            
+
             Log::info("✅ Signal #{$this->signal->id} sent to Telegram");
-            
         } catch (\Exception $e) {
             // Lepas semua gembok biar bisa dicoba lagi
             \Illuminate\Support\Facades\Cache::forget('active_tele_signal_' . $this->signal->id);
             \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
             $this->signal->update(['telegram_processing' => false]);
-            
+
             Log::error("❌ Signal #{$this->signal->id} failed: {$e->getMessage()}");
-            
+
             if ($this->attempts() < $this->tries) {
                 $this->release($this->backoff[$this->attempts() - 1] ?? 60);
             } else {
@@ -91,7 +96,7 @@ class SendTelegramSignalJob implements ShouldQueue
                     'telegram_response' => 'Failed after ' . $this->tries . ' attempts: ' . $e->getMessage()
                 ]);
             }
-            
+
             throw $e;
         }
     }
@@ -101,18 +106,18 @@ class SendTelegramSignalJob implements ShouldQueue
         $entryPrice = (float) $this->signal->price_entry;
         $tpPrice = (float) $this->signal->target_tp;
         $slPrice = (float) $this->signal->target_sl;
-        
+
         $potentialProfit = abs($tpPrice - $entryPrice);
         $potentialLoss = abs($entryPrice - $slPrice);
         $rrRatio = $potentialLoss > 0 ? round($potentialProfit / $potentialLoss, 2) : 0;
-        
+
         $tpPercent = $entryPrice > 0 ? round(($potentialProfit / $entryPrice) * 100, 2) : 0;
         $slPercent = $entryPrice > 0 ? round(($potentialLoss / $entryPrice) * 100, 2) : 0;
-        
+
         $message = "━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "🐉 *DRAGONFORTUNE AI SIGNAL*\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
-        
+
         if ($method) {
             $message .= "📊 *Strategy Info*\n";
             $message .= "├ Name: `{$method->nama_metode}`\n";
@@ -120,7 +125,7 @@ class SendTelegramSignalJob implements ShouldQueue
             $message .= "├ Exchange: `{$method->exchange}`\n";
             $message .= "├ Pair: `{$method->pair}`\n";
             $message .= "└ Timeframe: `{$method->tf}`\n\n";
-            
+
             $message .= "📈 *Performance KPI*\n";
             $message .= "├ CAGR: `" . number_format($method->cagr, 2) . "%`\n";
             $message .= "├ Max DD: `" . number_format($method->drawdown, 2) . "%`\n";
@@ -129,29 +134,29 @@ class SendTelegramSignalJob implements ShouldQueue
             $message .= "├ Sortino: `" . number_format($method->sortino_ratio, 3) . "`\n";
             $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n\n";
         }
-        
+
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "📥 {$directionEmoji} *ENTRY {$directionText}* {$directionEmoji}\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
-        
+
         $message .= "💰 *Entry Price*\n";
         $message .= "└ `\$ " . number_format($entryPrice, 2) . "`\n\n";
-        
+
         $message .= "🎯 *Target Take Profit*\n";
         $message .= "├ Price: `\$ " . number_format($tpPrice, 2) . "`\n";
         $message .= "└ Gain: `+{$tpPercent}%`\n\n";
-        
+
         $message .= "🛡️ *Target Stop Loss*\n";
         $message .= "├ Price: `\$ " . number_format($slPrice, 2) . "`\n";
         $message .= "└ Risk: `-{$slPercent}%`\n\n";
-        
+
         $message .= "⚖️ *Risk/Reward Ratio*: `1:{$rrRatio}`\n\n";
-        
+
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "⏰ " . now()->setTimezone('Asia/Jakarta')->format('d M Y, H:i:s') . " WIB\n";
         $message .= "🤖 _Powered by DragonFortune AI_\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━";
-        
+
         return $message;
     }
 
@@ -161,31 +166,31 @@ class SendTelegramSignalJob implements ShouldQueue
         $exitPrice = (float) $this->signal->price_exit;
         $realTp = (float) $this->signal->real_tp;
         $realSl = (float) $this->signal->real_sl;
-        
+
         // Calculate P/L
         $jenis = strtolower($this->signal->jenis);
-        
+
         // Determine Logic based on 'jenis' label AND historical data patterns:
         // - 'short': Explicitly a Short trade -> P/L = Entry - Exit
         // - 'buy': On an Exit signal, this usually means 'Cover Short' -> P/L = Entry - Exit
         // - 'sell': On an Exit signal, this usually means 'Close Long' -> P/L = Exit - Entry
         // - 'long': Explicitly a Long trade -> P/L = Exit - Entry
-        
+
         $useShortLogic = ($jenis === 'short' || $jenis === 'buy');
-        
+
         $priceDiff = $useShortLogic ? ($entryPrice - $exitPrice) : ($exitPrice - $entryPrice);
         $plPercent = $entryPrice > 0 ? round(($priceDiff / $entryPrice) * 100, 2) : 0;
         $isProfit = $priceDiff >= 0;
-        
+
         // Determine result
         $resultEmoji = $isProfit ? '✅' : '❌';
         $resultText = $isProfit ? 'PROFIT' : 'LOSS';
         $plSign = $isProfit ? '+' : '';
-        
+
         $message = "━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "🐉 *DRAGONFORTUNE AI SIGNAL*\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
-        
+
         if ($method) {
             $message .= "📊 *Strategy Info*\n";
             $message .= "├ Name: `{$method->nama_metode}`\n";
@@ -194,25 +199,25 @@ class SendTelegramSignalJob implements ShouldQueue
             $message .= "├ Pair: `{$method->pair}`\n";
             $message .= "└ Timeframe: `{$method->tf}`\n\n";
         }
-        
+
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "📤 {$directionEmoji} *EXIT {$directionText}* {$directionEmoji}\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
-        
+
         $message .= "📊 *Trade Summary*\n";
         $message .= "├ Entry: `\$ " . number_format($entryPrice, 2) . "`\n";
         $message .= "├ Exit: `\$ " . number_format($exitPrice, 2) . "`\n";
         $message .= "└ Direction: `{$directionText}`\n\n";
-        
+
         // Show result prominently
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "{$resultEmoji} *RESULT: {$resultText}* {$resultEmoji}\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
-        
+
         $message .= "💵 *P/L Details*\n";
         $message .= "├ Amount: `{$plSign}\$ " . number_format(abs($priceDiff), 2) . "`\n";
         $message .= "└ Percentage: `{$plSign}{$plPercent}%`\n\n";
-        
+
         // Show realized TP/SL
         if ($realTp > 0) {
             $message .= "🎯 *Realisasi TP*: `\$ " . number_format($realTp, 2) . "`\n";
@@ -220,18 +225,18 @@ class SendTelegramSignalJob implements ShouldQueue
         if ($realSl > 0) {
             $message .= "🛑 *Realisasi SL*: `\$ " . number_format($realSl, 2) . "`\n";
         }
-        
+
         // if ($method) {
         //     $message .= "\n📈 *Updated KPI*\n";
         //     $message .= "├ Winrate: `" . number_format($method->winrate, 1) . "%`\n";
         //     $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n";
         // }
-        
+
         $message .= "\n━━━━━━━━━━━━━━━━━━━━━━\n";
         $message .= "⏰ " . now()->setTimezone('Asia/Jakarta')->format('d M Y, H:i:s') . " WIB\n";
         $message .= "🤖 _Powered by DragonFortune AI_\n";
         $message .= "━━━━━━━━━━━━━━━━━━━━━━";
-        
+
         return $message;
     }
 }
