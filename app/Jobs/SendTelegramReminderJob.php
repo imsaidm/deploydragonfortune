@@ -52,9 +52,13 @@ class SendTelegramReminderJob implements ShouldQueue
 
             // Method Information (if available)
             if ($method) {
+                // Bersihkan string yang mungkin ada underscore atau asterisk-nya (agar tidak crash parser Markdown Telegram)
+                $safeName = str_replace(['_', '*', '`', '[', ']'], ' ', $method->nama_metode);
+                $safeCreator = str_replace(['_', '*', '`', '[', ']'], ' ', $method->creator);
+
                 $message .= "📊 *Strategy Info*\n";
-                $message .= "├ Name: `{$method->nama_metode}`\n";
-                $message .= "├ Creator: `{$method->creator}`\n";
+                $message .= "├ Name: `{$safeName}`\n";
+                $message .= "├ Creator: `{$safeCreator}`\n";
                 $message .= "├ Exchange: `{$method->exchange}`\n";
                 $message .= "├ Pair: `{$method->pair}`\n";
                 $message .= "└ Timeframe: `{$method->tf}`\n\n";
@@ -81,7 +85,10 @@ class SendTelegramReminderJob implements ShouldQueue
             $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
             $message .= "📝 *Message*\n";
             $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            $message .= "{$this->reminder->message}\n\n";
+
+            // Bersihkan pesan dari Markdown yang menggantung (Can't parse entities error)
+            $safeMessage = str_replace(['_', '*', '`', '[', ']'], ' ', $this->reminder->message);
+            $message .= "{$safeMessage}\n\n";
 
             // Footer
             $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
