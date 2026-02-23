@@ -38,12 +38,12 @@ class SendTelegramReminderJob implements ShouldQueue
             // Load method relationship
             $this->reminder->load('method');
             $method = $this->reminder->method;
-            
+
             // Build professional reminder message
             $message = "━━━━━━━━━━━━━━━━━━━━━━\n";
             $message .= "🔔 *DRAGONFORTUNE REMINDER*\n";
             $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
-            
+
             // Method Information (if available)
             if ($method) {
                 $message .= "📊 *Strategy Info*\n";
@@ -52,7 +52,7 @@ class SendTelegramReminderJob implements ShouldQueue
                 $message .= "├ Exchange: `{$method->exchange}`\n";
                 $message .= "├ Pair: `{$method->pair}`\n";
                 $message .= "└ Timeframe: `{$method->tf}`\n\n";
-                
+
                 // Key Performance Metrics
                 $message .= "📈 *Performance Metrics*\n";
                 $message .= "├ CAGR: `" . number_format($method->cagr, 2) . "%`\n";
@@ -64,25 +64,25 @@ class SendTelegramReminderJob implements ShouldQueue
                 $message .= "├ Info Ratio: `" . number_format($method->information_ratio, 3) . "`\n";
                 $message .= "├ Prob SR: `" . number_format($method->prob_sr, 2) . "%`\n";
                 $message .= "└ Total Orders: `" . number_format($method->total_orders, 0) . "`\n\n";
-                
+
                 // Status indicator
                 $statusEmoji = $method->onactive ? '🟢' : '🔴';
                 $statusText = $method->onactive ? 'Active' : 'Inactive';
                 $message .= "⚡ *Status*: {$statusEmoji} `{$statusText}`\n\n";
             }
-            
+
             // Reminder Message
             $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
             $message .= "📝 *Message*\n";
             $message .= "━━━━━━━━━━━━━━━━━━━━━━\n\n";
             $message .= "{$this->reminder->message}\n\n";
-            
+
             // Footer
             $message .= "━━━━━━━━━━━━━━━━━━━━━━\n";
             $message .= "⏰ " . now()->setTimezone('Asia/Jakarta')->format('d M Y, H:i:s') . " WIB\n";
             $message .= "🤖 _Powered by DragonFortune AI_\n";
             $message .= "━━━━━━━━━━━━━━━━━━━━━━";
-            
+
             $this->reminder->load('method.telegramChannels');
             $method = $this->reminder->method;
 
@@ -90,7 +90,7 @@ class SendTelegramReminderJob implements ShouldQueue
             if ($method && $method->telegramChannels->count() > 0) {
                 $chatIds = $method->telegramChannels->where('is_active', true)->pluck('chat_id')->toArray();
             }
-            
+
             // Send to Telegram (selective or fallback)
             if (empty($chatIds)) {
                 $isProduction = $method ? (bool) $method->is_production : false;
@@ -98,27 +98,31 @@ class SendTelegramReminderJob implements ShouldQueue
             } else {
                 $response = $telegram->sendMessage($message, $chatIds);
             }
-            
+
+            // [VITAL]: Memancing Retry Worker dari Laravel jika ada grup yang gagal
+            if (isset($response['success']) && !$response['success']) {
+                throw new \Exception("Beberapa notifikasi reminder gagal terkirim. Cek log Telegram error.");
+            }
+
             // Update status
             $this->reminder->update([
                 'telegram_sent' => true,
                 'telegram_sent_at' => now(),
                 'telegram_response' => json_encode($response)
             ]);
-            
+
             // Lepas gembok
             \Illuminate\Support\Facades\Cache::forget($lockKey);
             \Illuminate\Support\Facades\Cache::forget('dispatch_tele_reminder_' . $this->reminder->id);
-            
+
             Log::info("✅ Reminder #{$this->reminder->id} sent to Telegram");
-            
         } catch (\Exception $e) {
             // Lepas semua gembok biar bisa dicoba lagi
             \Illuminate\Support\Facades\Cache::forget('active_tele_reminder_' . $this->reminder->id);
             \Illuminate\Support\Facades\Cache::forget('dispatch_tele_reminder_' . $this->reminder->id);
 
             Log::error("❌ Reminder #{$this->reminder->id} failed: {$e->getMessage()}");
-            
+
             if ($this->attempts() < $this->tries) {
                 $this->release($this->backoff[$this->attempts() - 1] ?? 60);
             } else {
@@ -126,7 +130,7 @@ class SendTelegramReminderJob implements ShouldQueue
                     'telegram_response' => 'Failed after ' . $this->tries . ' attempts: ' . $e->getMessage()
                 ]);
             }
-            
+
             throw $e;
         }
     }
