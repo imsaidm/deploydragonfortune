@@ -91,6 +91,7 @@ class SendTelegramSignalJob implements ShouldQueue
 
             if ($this->attempts() < $this->tries) {
                 $this->release($this->backoff[$this->attempts() - 1] ?? 60);
+                return; // [HENTIKAN DISINI]: Jangan throw $e, Laravel otomatis mengelola retry-nya!
             } else {
                 $this->signal->update([
                     'telegram_response' => 'Failed after ' . $this->tries . ' attempts: ' . $e->getMessage()
