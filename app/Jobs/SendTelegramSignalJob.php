@@ -21,6 +21,12 @@ class SendTelegramSignalJob implements ShouldQueue
 
     public function handle(TelegramNotificationService $telegram): void
     {
+        // [ANTI-SPAM 100% MUTLAK]: Jika sudah terkirim oleh klonengan apa pun, segera batalkan eksekusi ini.
+        if ($this->signal->telegram_sent) {
+            Log::info("Job aborted: Signal #{$this->signal->id} was already marked as sent in DB.");
+            return;
+        }
+
         // [LOCK AKTIF]: Pakai nama kunci beda ('active_') biar gak bentrok sama Scheduler ('dispatch_')
         $lockKey = 'active_tele_signal_' . $this->signal->id;
         if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 300)) {
@@ -82,22 +88,30 @@ class SendTelegramSignalJob implements ShouldQueue
 
             Log::info("✅ Signal #{$this->signal->id} sent to Telegram");
         } catch (\Exception $e) {
-            // Lepas semua gembok biar bisa dicoba lagi
-            \Illuminate\Support\Facades\Cache::forget('active_tele_signal_' . $this->signal->id);
-            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
-            $this->signal->update(['telegram_processing' => false]);
-
             Log::error("❌ Signal #{$this->signal->id} failed: {$e->getMessage()}");
+
+            // Lepas CUMA gembok aktif biar job ini bisa di-retry oleh Worker.
+            // [VITAL]: JANGAN UBAH telegram_processing JADI FALSE! JANGAN LEPAS gembok dispatch_!
+            // Supaya si Scheduler tidak terus-terusan melahirkan Klonengan Job baru ke dalam antrean.
+            try {
+                \Illuminate\Support\Facades\Cache::forget('active_tele_signal_' . $this->signal->id);
+            } catch (\Throwable $t) {
+            }
 
             if ($this->attempts() < $this->tries) {
                 $this->release($this->backoff[$this->attempts() - 1] ?? 60);
-                return; // [HENTIKAN DISINI]: Jangan throw $e, Laravel otomatis mengelola retry-nya!
+                return; // [HENTIKAN DISINI]: Laravel otomatis mengelola retry, jangan teruskan kode ke bawah!
             } else {
+                // Semua jatah retry (3x) HANGUS: Baru sekarang lepaskan proteksinya secara total
+                try {
+                    \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
+                } catch (\Throwable $t) {
+                }
                 $this->signal->update([
+                    'telegram_processing' => false,
                     'telegram_response' => 'Failed after ' . $this->tries . ' attempts: ' . $e->getMessage()
                 ]);
             }
-
             throw $e;
         }
     }
