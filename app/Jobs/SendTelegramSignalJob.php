@@ -16,104 +16,120 @@ class SendTelegramSignalJob implements ShouldQueue
     public $backoff = [10, 30, 60];
 
     public function __construct(
-        public QcSignal $signal
+        public QcSignal $signal,
+        public ?string $chatId = null
     ) {}
 
     public function handle(TelegramNotificationService $telegram): void
     {
-        // [ANTI-SPAM 100% MUTLAK]: Jika sudah terkirim oleh klonengan apa pun, segera batalkan eksekusi ini.
-        if ($this->signal->telegram_sent) {
-            Log::info("Job aborted: Signal #{$this->signal->id} was already marked as sent in DB.");
+        // 1. FAN-OUT MODE (Dispatcher)
+        if ($this->chatId === null) {
+            $this->fanOutToChannels($telegram);
             return;
         }
 
-        // [LOCK AKTIF]: Pakai nama kunci beda ('active_') biar gak bentrok sama Scheduler ('dispatch_')
-        $lockKey = 'active_tele_signal_' . $this->signal->id;
+        // 2. SENDER MODE (Single Target)
+        $this->processSingleTarget($telegram);
+    }
+
+    /**
+     * Dispatch separate jobs for each target channel to ensure isolation.
+     */
+    private function fanOutToChannels(TelegramNotificationService $telegram): void
+    {
+        // [ANTI-SPAM]: If already sent globally, stop.
+        if ($this->signal->telegram_sent) {
+            return;
+        }
+
+        $this->signal->load('method.telegramChannels');
+        $method = $this->signal->method;
+
+        $chatIds = [];
+        if ($method && $method->telegramChannels->count() > 0) {
+            $chatIds = $method->telegramChannels->where('is_active', true)->pluck('chat_id')->toArray();
+        }
+
+        // Fallback to default channels if no method-specific channels
+        if (empty($chatIds)) {
+            $isProduction = $method ? (bool) $method->is_production : false;
+            // Use sendMessage logic to get default chat IDs
+            $chatIds = $isProduction ? [config('services.telegram.chat_id')] : [config('services.telegram.dev_chat_id') ?: config('services.telegram.chat_id')];
+        }
+
+        $chatIds = array_filter(array_unique($chatIds));
+
+        foreach ($chatIds as $cid) {
+            // Dispatch a specific job for this channel
+            // Note: We don't use self::dispatch because we want to avoid static analysis confusion if any
+            SendTelegramSignalJob::dispatch($this->signal, $cid);
+        }
+
+        // Mark as sent globally so scheduler doesn't pick it up again
+        // Errors will be handled by the individual jobs retrying
+        $this->signal->update([
+            'telegram_sent' => true,
+            'telegram_sent_at' => now(),
+            'telegram_processing' => false
+        ]);
+
+        \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
+    }
+
+    /**
+     * Process sending to a specific chat ID.
+     */
+    private function processSingleTarget(TelegramNotificationService $telegram): void
+    {
+        $lockKey = 'active_tele_job_' . $this->signal->id . '_' . $this->chatId;
+        
+        // Prevent concurrent execution of the SAME job on the SAME target
         if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 300)) {
-            Log::info("Job skipped: Signal #{$this->signal->id} is already being executed.");
             return;
         }
 
         try {
-            // Tandai di DB sedang diproses
-            $this->signal->update(['telegram_processing' => true]);
-
-            $this->signal->load('method.telegramChannels');
+            $this->signal->load('method');
             $method = $this->signal->method;
 
             $isEntry = strtolower($this->signal->type) === 'entry';
             $jenis = strtolower($this->signal->jenis);
             $isBuy = in_array($jenis, ['buy', 'long']);
 
-            // Direction styling
             $directionEmoji = $isBuy ? '🟢' : '🔴';
             $directionText = strtoupper($this->signal->jenis);
 
-            // Build message based on signal type
             if ($isEntry) {
                 $message = $this->buildEntryMessage($method, $directionEmoji, $directionText);
             } else {
                 $message = $this->buildExitMessage($method, $directionEmoji, $directionText, $isBuy);
             }
 
-            $chatIds = [];
-            if ($method && $method->telegramChannels->count() > 0) {
-                $chatIds = $method->telegramChannels->where('is_active', true)->pluck('chat_id')->toArray();
+            $uniqueLockKey = "unique_sig_{$this->signal->id}";
+            $token = null;
+
+            // Determine token (Production vs Dev) if using defaults
+            if ($method && $this->chatId === config('services.telegram.dev_chat_id')) {
+                $token = config('services.telegram.dev_bot_token');
             }
 
-            // Fallback to is_production logic if no specific channels are linked
-            $uniqueLockKey = "unique_signal_" . $this->signal->id;
+            $response = $telegram->sendToSingleChannel($this->chatId, $message, $token, $uniqueLockKey);
 
-            if (empty($chatIds)) {
-                $isProduction = $method ? (bool) $method->is_production : false;
-                $response = $telegram->sendMessage($message, $isProduction, $uniqueLockKey);
-            } else {
-                $response = $telegram->sendMessage($message, $chatIds, $uniqueLockKey);
+            if (!$response['success'] && !isset($response['skipped'])) {
+                throw new \Exception("Telegram send failed for {$this->chatId}: " . ($response['error'] ?? 'Unknown error'));
             }
 
-            // [VITAL]: Jika ada sebagian pesan yang gagal kirim (timeout, dll)
-            // Lemparkan exception supaya Job ini masuk antrean Retry.
-            if (isset($response['success']) && !$response['success']) {
-                throw new \Exception("Beberapa grup gagal menerima pesan. Cek log Telegram API error.");
-            }
+            // Optional: Update internal status log in DB if needed
+            // (Since telegram_sent is now global, we might want to log individual successes in telegram_response)
 
-            $this->signal->update([
-                'telegram_sent' => true,
-                'telegram_sent_at' => now(),
-                'telegram_response' => json_encode($response),
-                'telegram_processing' => false
-            ]);
-
-            // Lepas gembok
             \Illuminate\Support\Facades\Cache::forget($lockKey);
-            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
 
-            Log::info("✅ Signal #{$this->signal->id} sent to Telegram");
         } catch (\Exception $e) {
-            Log::error("❌ Signal #{$this->signal->id} failed: {$e->getMessage()}");
+            Log::error("❌ Signal #{$this->signal->id} for Group {$this->chatId} failed: {$e->getMessage()}");
+            
+            \Illuminate\Support\Facades\Cache::forget($lockKey);
 
-            // Lepas CUMA gembok aktif biar job ini bisa di-retry oleh Worker.
-            // [VITAL]: JANGAN UBAH telegram_processing JADI FALSE! JANGAN LEPAS gembok dispatch_!
-            // Supaya si Scheduler tidak terus-terusan melahirkan Klonengan Job baru ke dalam antrean.
-            try {
-                \Illuminate\Support\Facades\Cache::forget('active_tele_signal_' . $this->signal->id);
-            } catch (\Throwable $t) {
-            }
-
-            if ($this->attempts() < $this->tries) {
-                $this->release($this->backoff[$this->attempts() - 1] ?? 60);
-                return; // [HENTIKAN DISINI]: Laravel otomatis mengelola retry, jangan teruskan kode ke bawah!
-            } else {
-                // Semua jatah retry (3x) HANGUS: Baru sekarang lepaskan proteksinya secara total
-                try {
-                    \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
-                } catch (\Throwable $t) {
-                }
-                $this->signal->update([
-                    'telegram_processing' => false,
-                    'telegram_response' => 'Failed after ' . $this->tries . ' attempts: ' . $e->getMessage()
-                ]);
-            }
+            // Re-throw to trigger Laravel's try/backoff
             throw $e;
         }
     }
