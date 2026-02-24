@@ -61,8 +61,8 @@ class SendTelegramReminderJob implements ShouldQueue
 
         $chatIds = array_filter(array_unique($chatIds));
 
-        foreach ($chatIds as $cid) {
-            SendTelegramReminderJob::dispatch($this->reminder, $cid);
+        foreach ($chatIds as $index => $cid) {
+            SendTelegramReminderJob::dispatch($this->reminder, $cid)->delay(now()->addSeconds($index * 2));
         }
 
         // Mark as sent globally
