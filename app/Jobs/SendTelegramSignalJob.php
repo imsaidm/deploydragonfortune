@@ -59,18 +59,25 @@ class SendTelegramSignalJob implements ShouldQueue
 
         $chatIds = array_filter(array_unique($chatIds));
 
-        foreach ($chatIds as $index => $cid) {
-            // [SLANKER]: Kasih jeda 2 detik per grup supaya tidak bebarengan hit API Telegram (Anti-Spam/Throttle)
-            SendTelegramSignalJob::dispatch($this->signal, $cid)->delay(now()->addSeconds($index * 2));
-        }
+        // 1. Mark as processing to prevent other fan-out jobs
+        $this->signal->update(['telegram_processing' => true]);
 
-        // Mark as sent globally so scheduler doesn't pick it up again
-        // Errors will be handled by the individual jobs retrying
+        // ... existing channel identification code ...
+
+        $chatIds = array_filter(array_unique($chatIds));
+
+        // 2. Mark as sent globally BEFORE dispatching to prevent scheduler race condition
         $this->signal->update([
             'telegram_sent' => true,
             'telegram_sent_at' => now(),
             'telegram_processing' => false
         ]);
+
+        foreach ($chatIds as $index => $cid) {
+            // [SLANKER]: Delay bertahap (+ jitter) supaya tidak barengan hit API
+            $delaySeconds = ($index * 3) + rand(0, 2); 
+            SendTelegramSignalJob::dispatch($this->signal, $cid)->delay(now()->addSeconds($delaySeconds));
+        }
 
         \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
     }

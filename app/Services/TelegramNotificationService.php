@@ -89,16 +89,19 @@ class TelegramNotificationService
 
         try {
             // [JITTER]: Small delay to spread out burst requests to Telegram API
-            usleep(rand(100000, 300000)); // 100-300ms
+            usleep(rand(200000, 500000)); // 200-500ms
 
             // [DIRECT SEND]: No internal retry. Let Laravel Job handle retries with backoff.
-            // Timeout 12s (standard for Telegram API latency)
+            // Timeout 15s. ConnectTimeout 10s.
             $response = Http::withOptions([
                 'curl' => [
                     CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                    CURLOPT_DNS_CACHE_TIMEOUT => 300
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                    CURLOPT_TIMEOUT => 15,
+                    CURLOPT_TCP_KEEPALIVE => 1,
+                    CURLOPT_DNS_CACHE_TIMEOUT => 600
                 ]
-            ])->timeout(12)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+            ])->timeout(15)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                 'chat_id' => $chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown',
