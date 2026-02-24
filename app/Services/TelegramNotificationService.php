@@ -56,36 +56,59 @@ class TelegramNotificationService
     }
 
     /**
-     * Send message to a single Telegram channel with retry and locking logic.
+     * Send message to a single Telegram channel with robust locking logic.
      */
     public function sendToSingleChannel(string $chatId, string $message, ?string $token = null, ?string $uniqueLockKey = null): array
     {
         $botToken = $token ?: $this->botToken;
         
-        // [ATOMIC LOCK]: Prevent duplicate sends to the same group for the same signal
+        // [UNIQUE KEY]: Use fixed key from DB ID to stay consistent across Job retries
         $lockHash = $uniqueLockKey ?: md5($message);
-        $cacheKey = "tele_sent_{$chatId}_" . $lockHash;
-        
-        if (!\Illuminate\Support\Facades\Cache::add($cacheKey, true, 300)) { // 5 menit gembok
-            Log::info("Telegram message skipped for {$chatId} (already sent or lock active)");
+        $sentKey = "tele_sent_{$chatId}_{$lockHash}";
+        $procKey = "tele_proc_{$chatId}_{$lockHash}";
+
+        // 1. [ALREADY SENT]: If this group already received this signal, stop (Permanent-ish lock)
+        if (\Illuminate\Support\Facades\Cache::has($sentKey)) {
             return [
                 'chat_id' => $chatId,
-                'success' => true, // Treat as success to not trigger outer job retry
+                'success' => true,
                 'skipped' => true
             ];
         }
 
+        // 2. [ATOMIC PROCESSING LOCK]: Avoid 2 workers sending same message at once
+        // Durasi pendek (2 menit) biar kalau Job macet, gemboknya lepas sendiri.
+        if (!\Illuminate\Support\Facades\Cache::add($procKey, true, 120)) {
+            Log::info("Telegram send skipped: Processing lock active for {$chatId}");
+            return [
+                'chat_id' => $chatId,
+                'success' => false,
+                'error' => 'Processing lock active'
+            ];
+        }
+
         try {
-            // [ROBUST]: Use Laravel's HTTP retry for transient network errors (DNS, temp connection loss)
-            $response = Http::retry(3, 100)->withOptions([
-                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]
-            ])->timeout(10)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
+            // [JITTER]: Small delay to spread out burst requests to Telegram API
+            usleep(rand(100000, 300000)); // 100-300ms
+
+            // [DIRECT SEND]: No internal retry. Let Laravel Job handle retries with backoff.
+            // Timeout 12s (standard for Telegram API latency)
+            $response = Http::withOptions([
+                'curl' => [
+                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                    CURLOPT_DNS_CACHE_TIMEOUT => 300
+                ]
+            ])->timeout(12)->post("https://api.telegram.org/bot{$botToken}/sendMessage", [
                 'chat_id' => $chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown',
             ]);
 
             if ($response->successful()) {
+                // [SUCCESS]: Mark as SENT for 1 hour (long enough for any Job retries to finish)
+                \Illuminate\Support\Facades\Cache::put($sentKey, true, 3600);
+                \Illuminate\Support\Facades\Cache::forget($procKey);
+
                 return [
                     'chat_id' => $chatId,
                     'success' => true,
@@ -93,10 +116,8 @@ class TelegramNotificationService
                 ];
             }
 
-            // [API ERROR]: If Telegram rejected it (e.g. 403 Forbidden, 404 Bot Not in Group)
-            // We release the lock so it can be fixed/tried again later if needed, 
-            // but we log the error clearly.
-            \Illuminate\Support\Facades\Cache::forget($cacheKey);
+            // [API ERROR]: e.g. 429 Too Many Requests, 403 Forbidden
+            \Illuminate\Support\Facades\Cache::forget($procKey);
             Log::error("Telegram API error for {$chatId}: " . $response->body());
             
             return [
@@ -106,11 +127,10 @@ class TelegramNotificationService
             ];
 
         } catch (\Exception $e) {
-            // [TIMEOUT / NETWORK]: 
-            // In case of a timeout, we keep the lock for a short duration (e.g. 2 minutes) 
-            // to avoid spamming if the message actually reached Telegram but the response timed out.
-            // But we don't keep it for 10 minutes like before.
-            \Illuminate\Support\Facades\Cache::put($cacheKey, true, 120); 
+            // [TIMEOUT / NETWORK]:
+            // SANGAT PENTING: Jangan tandai sebagai 'sent'! Lepas gembok 'proc'
+            // agar Laravel Job Retry bisa mencoba lagi di iterasi berikutnya.
+            \Illuminate\Support\Facades\Cache::forget($procKey);
 
             Log::error("Telegram send exception for {$chatId}: " . $e->getMessage());
             

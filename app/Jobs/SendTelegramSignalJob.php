@@ -59,10 +59,9 @@ class SendTelegramSignalJob implements ShouldQueue
 
         $chatIds = array_filter(array_unique($chatIds));
 
-        foreach ($chatIds as $cid) {
-            // Dispatch a specific job for this channel
-            // Note: We don't use self::dispatch because we want to avoid static analysis confusion if any
-            SendTelegramSignalJob::dispatch($this->signal, $cid);
+        foreach ($chatIds as $index => $cid) {
+            // [SLANKER]: Kasih jeda 2 detik per grup supaya tidak bebarengan hit API Telegram (Anti-Spam/Throttle)
+            SendTelegramSignalJob::dispatch($this->signal, $cid)->delay(now()->addSeconds($index * 2));
         }
 
         // Mark as sent globally so scheduler doesn't pick it up again
