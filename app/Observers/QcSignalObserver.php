@@ -15,7 +15,11 @@ class QcSignalObserver
         \App\Jobs\ProcessSignalJob::dispatch($qcSignal->id);
         
         // Dispatch job to send Telegram notification (if enabled)
-        \App\Jobs\SendTelegramSignalJob::dispatch($qcSignal);
+        // [LOCK]: Gunakan lock yang sama dengan Command biar gak double dispatch
+        $dLock = 'dispatch_tele_signal_' . $qcSignal->id;
+        if (\Illuminate\Support\Facades\Cache::add($dLock, true, 300)) {
+            \App\Jobs\SendTelegramSignalJob::dispatch($qcSignal);
+        }
     }
 
     /**

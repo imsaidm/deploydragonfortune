@@ -59,17 +59,23 @@ class SendTelegramReminderJob implements ShouldQueue
             $chatIds = $isProduction ? [config('services.telegram.chat_id')] : [config('services.telegram.dev_chat_id') ?: config('services.telegram.chat_id')];
         }
 
+        // 1. Mark as processing
+        $this->reminder->update(['telegram_processing' => true]);
+
         $chatIds = array_filter(array_unique($chatIds));
 
-        foreach ($chatIds as $index => $cid) {
-            SendTelegramReminderJob::dispatch($this->reminder, $cid)->delay(now()->addSeconds($index * 2));
-        }
-
-        // Mark as sent globally
+        // 2. Mark as sent globally BEFORE dispatching
         $this->reminder->update([
             'telegram_sent' => true,
             'telegram_sent_at' => now(),
+            'telegram_processing' => false
         ]);
+
+        foreach ($chatIds as $index => $cid) {
+            // Delay bertahap + jitter
+            $delaySeconds = ($index * 3) + rand(0, 2);
+            SendTelegramReminderJob::dispatch($this->reminder, $cid)->delay(now()->addSeconds($delaySeconds));
+        }
 
         \Illuminate\Support\Facades\Cache::forget('dispatch_tele_reminder_' . $this->reminder->id);
     }
