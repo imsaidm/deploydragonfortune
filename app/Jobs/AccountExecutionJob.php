@@ -86,7 +86,7 @@ class AccountExecutionJob implements ShouldQueue
         $leverage = (int) ($signal->leverage ?: 1);
         $masterQuantity = (float) ($signal->quantity ?: 0);
 
-        // executions.status ENUM: pending, success, failed, retrying
+        // executions.status ENUM: pending, success, failed, retrying, skipped
         $execution = Execution::create([
             'qc_signal_id' => $signal->id,
             'strategy_id' => $this->strategyId,
@@ -154,14 +154,29 @@ class AccountExecutionJob implements ShouldQueue
                 }
 
                 // 2. Execute Market Entry Order
-                // Fetch proportional sizing based on $105 base capital
+                // Calculate investor order sizing using signal ratio (Method 2) or fallback
                 $sizing = $exchange->calculateProportionalQuantity(
-                    $masterQuantity, $this->account, $symbol, $isFutures, $this->signalId
+                    $masterQuantity, $this->account, $symbol, $isFutures, $this->signalId, $signal
                 );
                 
                 $quantity = $sizing['quantity'];
                 $usdtBalance = $sizing['balance'];
+                $investorOrderValueUsdt = $sizing['usdt_value'] ?? 0;
+                $sizingMethod = $sizing['method'] ?? 'unknown';
                 
+                \Log::info("Order Sizing Result: Signal ID {$this->signalId} | Method: {$sizingMethod} | Qty: {$quantity} | USDT Value: {$investorOrderValueUsdt} | Balance: {$usdtBalance}");
+
+                // If sizing returned 'skip' (e.g. ratio = 0 for Method 2), gracefully skip this order
+                if ($sizingMethod === 'skip') {
+                    \Log::info("⏭️ Signal ID {$this->signalId}: Order SKIPPED for account [{$this->account->id}] {$this->account->account_name} — ratio is 0, nothing to mirror.");
+                    $execution->update([
+                        'status' => 'skipped',
+                        'error_message' => 'Ratio is 0 — signal skipped (Method 2)',
+                        'executed_at' => now(),
+                    ]);
+                    return;
+                }
+
                 // Fetch real mark price for accurate notion validation
                 $realMarkPrice = $exchange->getMarkPrice($symbol, $isFutures);
                 $effectivePrice = $realMarkPrice ?: $price;
@@ -193,11 +208,15 @@ class AccountExecutionJob implements ShouldQueue
 
                 $actualQty = $quantity;
                 if (in_array($this->account->exchange, ['bybit', 'binance']) && !$isFutures && $orderSide === 'BUY') {
-                    // For Spot Market BUY, qty passed to wrapper can be treated as USDT if >= 5
-                    $actualQty = $quantity * $price;
-                    // Note: Floor for USDT common safety
-                    $actualQty = floor($actualQty * 100) / 100;
-                    \Log::info("Spot Market Buy Adjustment: Signal ID {$this->signalId} | Using USDT Amount: $actualQty");
+                    // For Spot Market BUY, use the USDT order value from sizing directly
+                    // If ratio-based sizing was used, investorOrderValueUsdt already has the correct USDT amount
+                    if ($investorOrderValueUsdt > 5) {
+                        $actualQty = floor($investorOrderValueUsdt * 100) / 100;
+                    } else {
+                        // Fallback: calculate from quantity × price
+                        $actualQty = floor(($quantity * $effectivePrice) * 100) / 100;
+                    }
+                    \Log::info("Spot Market Buy Adjustment: Signal ID {$this->signalId} | Using USDT Amount: {$actualQty} (Sizing Method: {$sizingMethod})");
                 }
 
                 $response = $exchange->placeMarketOrder($symbol, $orderSide, $actualQty, $this->account, $this->signalId, $isFutures);
