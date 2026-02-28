@@ -53,53 +53,154 @@ class CcxtExchangeService implements ExchangeInterface
     }
 
     /**
-     * Calculate quantity proportional to account balance.
-     * Scale: Signal_Qty * (Current_Balance / 105)
+     * Calculate order quantity proportional to investor account balance.
+     * 
+     * Supports two methods:
+     * 
+     * METHOD 1 (Percentage-based): [COMMENTED OUT]
+     *   orderValue = entryPrice × signalQuantity
+     *   percentage = orderValue / saldoQC (SIGNAL_BASE_CAPITAL)
+     *   investorOrderValue = investorBalance × percentage
+     *   realQuantity = investorOrderValue / currentPrice
+     * 
+     * METHOD 2 (Ratio-based): [ACTIVE]
+     *   investorOrderValue = investorBalance × ratio (from signal column)
+     *   realQuantity = investorOrderValue / currentPrice
+     * 
+     * @param float $signalQuantity  The quantity from the QC signal
+     * @param TradingAccount $account The investor's trading account
+     * @param string $symbol  Trading pair symbol (e.g. ETHUSDT)
+     * @param bool $isFutures  Whether this is a futures or spot trade
+     * @param mixed $signalId  Signal ID for logging
+     * @param \App\Models\QcSignal|null $signal  The full signal object (for ratio & price_entry)
      */
     public function calculateProportionalQuantity(
         float $signalQuantity,
         TradingAccount $account,
         string $symbol,
         bool $isFutures = true,
-        $signalId = null
+        $signalId = null,
+        ?\App\Models\QcSignal $signal = null
     ): array {
         try {
-            // 1. Fetch current balance
+            // 1. Fetch investor's current balance
             $balance = $this->getBalance($account, $signalId);
-            $currentBalance = $isFutures ? ($balance['available_balance'] ?? 0) : ($balance['spot'] ?? 0);
+            $investorBalance = $isFutures ? ($balance['available_balance'] ?? 0) : ($balance['spot'] ?? 0);
 
-            // 2. Calculate multiplier
-            $multiplier = 1.0;
-            if (self::SIGNAL_BASE_CAPITAL > 0) {
-                $multiplier = $currentBalance / self::SIGNAL_BASE_CAPITAL;
+            // 2. Fetch current market price for quantity conversion
+            $currentPrice = $this->getMarkPrice($symbol, $isFutures);
+            if (!$currentPrice || $currentPrice <= 0) {
+                throw new \Exception("Cannot fetch current price for {$symbol}. Order sizing aborted.");
             }
 
-            // 3. Scale quantity
-            $finalQuantity = $signalQuantity * $multiplier;
+            // =====================================================================
+            // METHOD 1: Percentage-based sizing (COMMENTED OUT - activate if needed)
+            // =====================================================================
+            // Rumus:
+            //   orderValue = entryPrice × signalQuantity
+            //   percentage = orderValue / saldoQC (105)
+            //   investorOrderValue = investorBalance × percentage
+            //   realQuantity = investorOrderValue / currentPrice
+            //
+            // Contoh: entryPrice=1920.94, signalQty=0.036, saldoQC=105
+            //   orderValue = 1920.94 × 0.036 = 69.15
+            //   percentage = 69.15 / 105 = 0.658
+            //   investorOrderValue = 200 × 0.658 = 131.60
+            //   realQuantity = 131.60 / 1920.94 = 0.0685 ETH
+            // =====================================================================
+            /*
+            $entryPrice = ($signal) ? (float) $signal->price_entry : 0;
+            if ($entryPrice <= 0) {
+                throw new \Exception("Method 1 requires price_entry but it is 0 or missing for Signal ID {$signalId}.");
+            }
 
-            // 4. Trace the calculation for logging
-            $this->logTrade($account, 'info/calculateProportionalQuantity', [
+            $orderValue = $entryPrice * $signalQuantity;
+            $percentage = (self::SIGNAL_BASE_CAPITAL > 0) ? ($orderValue / self::SIGNAL_BASE_CAPITAL) : 0;
+            $investorOrderValue = $investorBalance * $percentage;
+            $finalQuantity = $investorOrderValue / $currentPrice;
+
+            $this->logTrade($account, 'info/calculateProportionalQuantity_Method1', [
                 'symbol' => $symbol,
                 'isFutures' => $isFutures,
                 'signalQty' => $signalQuantity,
-                'currentBalance' => $currentBalance,
-                'baseCapital' => self::SIGNAL_BASE_CAPITAL,
-                'multiplier' => round($multiplier, 4),
-                'proportionalQty' => $finalQuantity,
-            ], ['success' => true], $signalId);
+                'entryPrice' => $entryPrice,
+                'orderValue' => round($orderValue, 4),
+                'saldoQC' => self::SIGNAL_BASE_CAPITAL,
+                'percentage' => round($percentage, 6),
+                'investorBalance' => $investorBalance,
+                'investorOrderValue_USDT' => round($investorOrderValue, 4),
+                'currentPrice' => $currentPrice,
+                'finalQuantity' => $finalQuantity,
+            ], ['success' => true, 'method' => 'percentage'], $signalId);
 
             return [
                 'quantity' => (float) $finalQuantity,
-                'multiplier' => $multiplier,
-                'balance' => $currentBalance,
+                'usdt_value' => $investorOrderValue,
+                'balance' => $investorBalance,
+                'method' => 'percentage',
+            ];
+            */
+
+            // =====================================================================
+            // METHOD 2: Ratio-based sizing (ACTIVE)
+            // =====================================================================
+            // Rumus:
+            //   investorOrderValue = investorBalance × ratio (dari kolom ratio di signal)
+            //   realQuantity = investorOrderValue / currentPrice
+            //
+            // Contoh: investorBalance=200, ratio=0.889
+            //   investorOrderValue = 200 × 0.889 = 177.80 USDT
+            //   realQuantity = 177.80 / 1920.94 = 0.0925 ETH
+            // =====================================================================
+            $ratio = ($signal) ? (float) $signal->ratio : 0;
+            if ($ratio <= 0) {
+                Log::info("Signal ID {$signalId}: ratio is 0 or missing. Method 2 requires ratio — SKIPPING order.");
+                
+                $this->logTrade($account, 'info/calculateProportionalQuantity_SKIP', [
+                    'symbol' => $symbol,
+                    'isFutures' => $isFutures,
+                    'signalQty' => $signalQuantity,
+                    'investorBalance' => $investorBalance,
+                    'ratio' => $ratio,
+                    'reason' => 'ratio is 0 or missing, Method 2 cannot proceed',
+                ], ['success' => true, 'method' => 'skip'], $signalId);
+
+                return [
+                    'quantity' => 0,
+                    'usdt_value' => 0,
+                    'balance' => $investorBalance,
+                    'method' => 'skip',
+                ];
+            }
+
+            $investorOrderValue = $investorBalance * $ratio;
+            $finalQuantity = $investorOrderValue / $currentPrice;
+
+            $this->logTrade($account, 'info/calculateProportionalQuantity_Method2', [
+                'symbol' => $symbol,
+                'isFutures' => $isFutures,
+                'signalQty' => $signalQuantity,
+                'ratio' => $ratio,
+                'investorBalance' => $investorBalance,
+                'investorOrderValue_USDT' => round($investorOrderValue, 4),
+                'currentPrice' => $currentPrice,
+                'finalQuantity' => $finalQuantity,
+            ], ['success' => true, 'method' => 'ratio'], $signalId);
+
+            return [
+                'quantity' => (float) $finalQuantity,
+                'usdt_value' => $investorOrderValue,
+                'balance' => $investorBalance,
+                'method' => 'ratio',
             ];
 
         } catch (\Exception $e) {
             Log::error("Proportional sizing failed for account {$account->id}: " . $e->getMessage());
             return [
                 'quantity' => $signalQuantity,
-                'multiplier' => 1.0,
+                'usdt_value' => 0,
                 'balance' => 0,
+                'method' => 'error_fallback',
             ];
         }
     }
