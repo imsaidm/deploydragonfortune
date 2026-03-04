@@ -64,6 +64,15 @@
             const creatorName = item.creator || 'SYSTEM';
             const colorClass = colorClasses[index % colorClasses.length];
 
+            const o = Number(item.total_opening_balance || 0);
+            const c = Number(item.total_closing_balance || 0);
+            let percentage = 0;
+            if (o > 0) {
+                percentage = ((c - o) / o) * 100;
+            }
+            const percentageColor = percentage >= 0 ? 'text-emerald-600' : 'text-rose-600';
+            const percentageSymbol = percentage >= 0 ? '+' : '';
+
             $container.append(`
                 <div class="col-md-3">
                     <div class="crypto-card ${colorClass}" style="display: flex; flex-direction: column; align-items: center; text-align: center; padding: 14px 18px;">
@@ -88,7 +97,7 @@
                         <hr class="border-slate-100 w-75 mb-3" style="margin: 0 auto;">
 
                         <!-- Row 3: TP & SL (CENTERED) -->
-                        <div class="d-flex gap-5">
+                        <div class="d-flex gap-5 mb-2">
                             <div class="d-flex align-items-center">
                                 <span class="text-slate-800 font-black" style="font-size: 14px;">TP:</span>
                                 <span class="text-emerald-600 font-black mono ml-2" style="font-size: 18px;">${Number(item.total_tp).toLocaleString()}x</span>
@@ -96,6 +105,24 @@
                             <div class="d-flex align-items-center">
                                 <span class="text-slate-800 font-black" style="font-size: 14px;">SL:</span>
                                 <span class="text-rose-600 font-black mono ml-2" style="font-size: 18px;">${Number(item.total_sl).toLocaleString()}x</span>
+                            </div>
+                        </div>
+
+                        <!-- Row 4: Balances & PNL -->
+                        <div class="w-100 px-3 py-2 rounded mt-2" style="background-color: #f8fafc; border: 1px solid #f1f5f9;">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="text-slate-500 font-bold" style="font-size: 12px;">Open:</span>
+                                <span class="text-slate-800 font-black mono" style="font-size: 13px;">$${o.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})}</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-slate-500 font-bold" style="font-size: 12px;">Close:</span>
+                                <span class="text-slate-800 font-black mono" style="font-size: 13px;">$${c.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 1})}</span>
+                            </div>
+                            <div class="w-100 text-center border-top pt-2" style="border-color: #e2e8f0 !important;">
+                                <div class="text-slate-500 font-bold" style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;">Total PNL</div>
+                                <div class="${percentageColor} font-black mono mt-1" style="font-size: 16px;">
+                                    ${percentageSymbol}${percentage.toFixed(2)}%
+                                </div>
                             </div>
                         </div>
 
