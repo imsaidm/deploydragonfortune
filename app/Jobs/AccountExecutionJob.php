@@ -53,7 +53,7 @@ class AccountExecutionJob implements ShouldQueue
     
     // Detection Logic: Default to Spot if field is missing for safety
     $marketType = strtolower($signal->market_type ?: 'spot'); 
-    $isFutures = ($marketType === 'futures');
+    $isFutures = ($marketType === 'future');
 
     \Log::info("Trade Detection: Signal ID {$this->signalId} | MarketType: " . ($signal->market_type ?: 'FIELD_MISSING') . " | Determined: " . ($isFutures ? 'FUTURES' : 'SPOT'));
 

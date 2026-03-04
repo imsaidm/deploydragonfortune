@@ -34,7 +34,7 @@ $defaults = [
     'target_sl'   => 2580.00,
     'quantity'    => 0.036,
     'ratio'       => 0.886,
-    'market_type' => 'futures',
+    'market_type' => 'future',
     'message'     => '',
 ];
 
