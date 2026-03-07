@@ -50,11 +50,15 @@ class SendTelegramSignalJob implements ShouldQueue
             $chatIds = $method->telegramChannels->where('is_active', true)->pluck('chat_id')->toArray();
         }
 
-        // Fallback to default channels if no method-specific channels
+        // Jika tidak ada group yang aktif, berhentikan pengiriman (jangan kirim ke default)
         if (empty($chatIds)) {
-            $isProduction = $method ? (bool) $method->is_production : false;
-            // Use sendMessage logic to get default chat IDs
-            $chatIds = $isProduction ? [config('services.telegram.chat_id')] : [config('services.telegram.dev_chat_id') ?: config('services.telegram.chat_id')];
+            $this->signal->update([
+                'telegram_sent' => true,
+                'telegram_sent_at' => now(),
+                'telegram_processing' => false
+            ]);
+            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_signal_' . $this->signal->id);
+            return;
         }
 
         $chatIds = array_filter(array_unique($chatIds));
@@ -75,7 +79,7 @@ class SendTelegramSignalJob implements ShouldQueue
 
         foreach ($chatIds as $index => $cid) {
             // [SLANKER]: Delay bertahap (+ jitter) supaya tidak barengan hit API
-            $delaySeconds = ($index * 3) + rand(0, 2); 
+            $delaySeconds = ($index * 3) + rand(0, 2);
             SendTelegramSignalJob::dispatch($this->signal, $cid)->delay(now()->addSeconds($delaySeconds));
         }
 
@@ -88,7 +92,7 @@ class SendTelegramSignalJob implements ShouldQueue
     private function processSingleTarget(TelegramNotificationService $telegram): void
     {
         $lockKey = 'active_tele_job_' . $this->signal->id . '_' . $this->chatId;
-        
+
         // Prevent concurrent execution of the SAME job on the SAME target
         if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 300)) {
             return;
@@ -129,10 +133,9 @@ class SendTelegramSignalJob implements ShouldQueue
             // (Since telegram_sent is now global, we might want to log individual successes in telegram_response)
 
             \Illuminate\Support\Facades\Cache::forget($lockKey);
-
         } catch (\Exception $e) {
             Log::error("❌ Signal #{$this->signal->id} for Group {$this->chatId} failed: {$e->getMessage()}");
-            
+
             \Illuminate\Support\Facades\Cache::forget($lockKey);
 
             // Re-throw to trigger Laravel's try/backoff
