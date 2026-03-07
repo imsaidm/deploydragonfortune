@@ -53,10 +53,15 @@ class SendTelegramReminderJob implements ShouldQueue
             $chatIds = $method->telegramChannels->where('is_active', true)->pluck('chat_id')->toArray();
         }
 
-        // Fallback
+        // Jika tidak ada group yang aktif, berhentikan pengiriman (jangan kirim ke default)
         if (empty($chatIds)) {
-            $isProduction = $method ? (bool) $method->is_production : false;
-            $chatIds = $isProduction ? [config('services.telegram.chat_id')] : [config('services.telegram.dev_chat_id') ?: config('services.telegram.chat_id')];
+            $this->reminder->update([
+                'telegram_sent' => true,
+                'telegram_sent_at' => now(),
+                'telegram_processing' => false
+            ]);
+            \Illuminate\Support\Facades\Cache::forget('dispatch_tele_reminder_' . $this->reminder->id);
+            return;
         }
 
         // 1. Mark as processing
@@ -86,7 +91,7 @@ class SendTelegramReminderJob implements ShouldQueue
     private function processSingleTarget(TelegramNotificationService $telegram): void
     {
         $lockKey = 'active_tele_rem_job_' . $this->reminder->id . '_' . $this->chatId;
-        
+
         if (!\Illuminate\Support\Facades\Cache::add($lockKey, true, 300)) {
             return;
         }
@@ -149,7 +154,6 @@ class SendTelegramReminderJob implements ShouldQueue
             }
 
             \Illuminate\Support\Facades\Cache::forget($lockKey);
-
         } catch (\Exception $e) {
             Log::error("❌ Reminder #{$this->reminder->id} for Group {$this->chatId} failed: {$e->getMessage()}");
             \Illuminate\Support\Facades\Cache::forget($lockKey);
