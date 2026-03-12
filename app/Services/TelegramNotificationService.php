@@ -61,7 +61,7 @@ class TelegramNotificationService
     public function sendToSingleChannel(string $chatId, string $message, ?string $token = null, ?string $uniqueLockKey = null): array
     {
         $botToken = $token ?: $this->botToken;
-        
+
         // [UNIQUE KEY]: Use fixed key from DB ID to stay consistent across Job retries
         $lockHash = $uniqueLockKey ?: md5($message);
         $sentKey = "tele_sent_{$chatId}_{$lockHash}";
@@ -91,12 +91,16 @@ class TelegramNotificationService
             // [JITTER]: Small delay to spread out burst requests to Telegram API
             usleep(rand(200000, 500000)); // 200-500ms
 
-            // [DIRECT SEND]: No internal retry. Let Laravel Job handle retries with backoff.
-            // Timeout 15s. ConnectTimeout 10s.
-            $response = Http::withOptions([
+            // [BULLETPROOF RETRY]: Instead of waiting to fail and relying on Laravel Job's 10-second delay,
+            // we do a fast internal retry up to 3 times (with 200ms delay) ONLY explicitly for connection issues
+            // like cURL 28 / timeout. We drop the timeout back down to 15s so it fails faster to immediately retry.
+            $response = Http::retry(3, 200, function ($exception, $request) {
+                return $exception instanceof \Illuminate\Http\Client\ConnectionException ||
+                    ($exception instanceof \Exception && str_contains($exception->getMessage(), 'cURL error'));
+            })->withOptions([
                 'curl' => [
                     CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                    CURLOPT_CONNECTTIMEOUT => 10,
+                    CURLOPT_CONNECTTIMEOUT => 5,
                     CURLOPT_TIMEOUT => 15,
                     CURLOPT_TCP_KEEPALIVE => 1,
                     CURLOPT_DNS_CACHE_TIMEOUT => 600
@@ -122,13 +126,12 @@ class TelegramNotificationService
             // [API ERROR]: e.g. 429 Too Many Requests, 403 Forbidden
             \Illuminate\Support\Facades\Cache::forget($procKey);
             Log::error("Telegram API error for {$chatId}: " . $response->body());
-            
+
             return [
                 'chat_id' => $chatId,
                 'success' => false,
                 'error' => 'Telegram API error: ' . $response->body()
             ];
-
         } catch (\Exception $e) {
             // [TIMEOUT / NETWORK]:
             // SANGAT PENTING: Jangan tandai sebagai 'sent'! Lepas gembok 'proc'
@@ -136,7 +139,7 @@ class TelegramNotificationService
             \Illuminate\Support\Facades\Cache::forget($procKey);
 
             Log::error("Telegram send exception for {$chatId}: " . $e->getMessage());
-            
+
             return [
                 'chat_id' => $chatId,
                 'success' => false,
@@ -163,10 +166,10 @@ class TelegramNotificationService
     public function sendMessageToId(string $chatId, string $message): array
     {
         try {
-            // [SUPER FAST]: Retry dipercepat (500ms) & Timeout 15s
+            // [SUPER FAST]: Retry dipercepat (500ms) & Timeout 30s
             $response = Http::retry(2, 500)->withOptions([
                 'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]
-            ])->timeout(15)->post("{$this->apiUrl}{$this->botToken}/sendMessage", [
+            ])->timeout(30)->post("{$this->apiUrl}{$this->botToken}/sendMessage", [
                 'chat_id' => $chatId,
                 'text' => $message,
                 'parse_mode' => 'Markdown'
@@ -187,9 +190,16 @@ class TelegramNotificationService
         $message = $this->formatMessage($signal);
 
         try {
-            // [NO RETRY INTERNAL]
-            $response = Http::withOptions([
-                'curl' => [CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]
+            // [FAST INTERNAL RETRY FOR NOTIFICATION]
+            $response = Http::retry(3, 200, function ($exception, $request) {
+                return $exception instanceof \Illuminate\Http\Client\ConnectionException ||
+                    ($exception instanceof \Exception && str_contains($exception->getMessage(), 'cURL error'));
+            })->withOptions([
+                'curl' => [
+                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                    CURLOPT_CONNECTTIMEOUT => 5,
+                    CURLOPT_TIMEOUT => 15,
+                ]
             ])->timeout(15)->post("https://api.telegram.org/bot{$this->botToken}/sendMessage", [
                 'chat_id' => $this->chatId,
                 'text' => $message,
