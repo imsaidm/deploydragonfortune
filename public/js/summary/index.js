@@ -146,7 +146,7 @@
             let symbol = row.pair.replace('USDT','').toLowerCase();
             let exchange = row.exchange.toLowerCase();
 
-            imgCoin = ( symbol == "eth" ? imgCoin= "https://cryptologos.cc/logos/ethereum-eth-logo.png?v=040" : imgCoin="https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=040");
+            imgCoin = ( symbol == "eth" ? imgCoin= "https://dragonfortune.ai/images/ethereum-eth-logo.png?v=040" : imgCoin="https://dragonfortune.ai/images/bitcoin-btc-logo.png?v=040");
             imgExchange = ( exchange == "bybit" ? bybitLogo : binanceLogo);
             $("#tableBody").append(`
                 <tr class="action-btn detail-btn" data-id="${row.id}">
