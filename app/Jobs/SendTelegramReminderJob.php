@@ -122,6 +122,7 @@ class SendTelegramReminderJob implements ShouldQueue
                 $message .= "├ Winrate: `" . number_format($method->winrate, 1) . "%`\n";
                 $message .= "├ Sharpe: `" . number_format($method->sharpen_ratio, 3) . "`\n";
                 $message .= "├ Sortino: `" . number_format($method->sortino_ratio, 3) . "`\n";
+                $message .= "├ Probabilistic: `" . number_format($method->prob_sr, 2) . "%`\n";
                 $message .= "└ Total Trades: `" . number_format($method->total_orders, 0) . "`\n\n";
 
                 $statusEmoji = $method->onactive ? '🟢' : '🔴';
