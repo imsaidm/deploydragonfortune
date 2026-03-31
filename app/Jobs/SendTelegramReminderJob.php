@@ -25,6 +25,8 @@ class SendTelegramReminderJob implements ShouldQueue
 
     public function handle(TelegramNotificationService $telegram): void
     {
+        return; // matikan sementara, nanti kita buat configurasinya
+
         // 1. FAN-OUT MODE (Dispatcher)
         if ($this->chatId === null) {
             $this->fanOutToChannels($telegram);
