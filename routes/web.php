@@ -8,6 +8,7 @@ use App\Http\Controllers\TradingAccountController;
 use App\Http\Controllers\QuantConnectController;
 use App\Http\Controllers\SummaryController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\SentimentController;
 
 Route::view('/', 'workspace')->name('workspace');
 Route::view('/login', 'auth.login')->name('login');
@@ -290,14 +291,14 @@ Route::prefix('api/spot-microstructure')->group(function () {
     Route::get('/coins-markets', [App\Http\Controllers\SpotMicrostructureController::class, 'getCoinsMarkets']);
     Route::get('/pairs-markets', [App\Http\Controllers\SpotMicrostructureController::class, 'getPairsMarkets']);
     Route::get('/price-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getPriceHistory']);
-    
+
     // Orderbook endpoints
     Route::get('/orderbook/ask-bids-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getOrderbookAskBidsHistory']);
     Route::get('/orderbook/aggregated-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getAggregatedOrderbookHistory']);
     Route::get('/orderbook/history', [App\Http\Controllers\SpotMicrostructureController::class, 'getOrderbookHistory']);
     Route::get('/orderbook/large-limit-order', [App\Http\Controllers\SpotMicrostructureController::class, 'getLargeLimitOrder']);
     Route::get('/orderbook/large-limit-order-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getLargeLimitOrderHistory']);
-    
+
     // Taker volume endpoints
     Route::get('/taker-volume/history', [App\Http\Controllers\SpotMicrostructureController::class, 'getTakerBuySellVolumeHistory']);
     Route::get('/taker-volume/aggregated-history', [App\Http\Controllers\SpotMicrostructureController::class, 'getAggregatedTakerVolumeHistory']);
@@ -308,16 +309,16 @@ Route::prefix('api/spot-microstructure')->group(function () {
 Route::prefix('api/coinglass/etf-flows')->group(function () {
     // Daily Flows (Aggregated)
     Route::get('/history', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'flowHistory']);
-    
+
     // ETF List (Real-time comparison data)
     Route::get('/list', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'etfList']);
-    
+
     // Premium/Discount History (Per ETF)
     Route::get('/premium-discount', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'premiumDiscountHistory']);
-    
+
     // Flow Breakdown (Per ETF from aggregated data)
     Route::get('/breakdown', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'flowBreakdown']);
-    
+
     // CME Futures Open Interest
     Route::get('/cme-oi', [App\Http\Controllers\Coinglass\EtfFlowsController::class, 'cmeOpenInterest']);
 });
@@ -326,7 +327,7 @@ Route::prefix('api/coinglass/etf-flows')->group(function () {
 Route::prefix('api/coinglass/volatility')->group(function () {
     // Spot Price History (OHLC)
     Route::get('/price-history', [App\Http\Controllers\Coinglass\VolatilityRegimeController::class, 'priceHistory']);
-    
+
     // End-of-Day data (for ATR/HV/RV calculations)
     Route::get('/eod', [App\Http\Controllers\Coinglass\VolatilityRegimeController::class, 'eod']);
 });
@@ -338,10 +339,10 @@ Route::prefix('api/coinglass/sentiment')->group(function () {
 
     // Funding Rate Dominance (Exchange List)
     Route::get('/funding-dominance', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'fundingDominance']);
-    
+
     // Whale Alerts (Hyperliquid)
     Route::get('/whale-alerts', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'whaleAlerts']);
-    
+
     // Whale Transfers (On-Chain)
     Route::get('/whale-transfers', [App\Http\Controllers\Coinglass\SentimentFlowController::class, 'whaleTransfers']);
 });
@@ -350,13 +351,13 @@ Route::prefix('api/coinglass/sentiment')->group(function () {
 Route::prefix('api/coinglass/macro-overlay')->group(function () {
     // FRED Multiple Series
     Route::get('/fred', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'fredMultiSeries']);
-    
+
     // FRED Latest Values (must be before {seriesId} route to avoid conflict)
     Route::get('/fred-latest', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'fredLatest']);
-    
+
     // FRED Single Series
     Route::get('/fred/{seriesId}', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'fredSingleSeries']);
-    
+
     // Bitcoin vs Global M2
     Route::get('/bitcoin-m2', [App\Http\Controllers\Coinglass\MacroOverlayController::class, 'bitcoinVsM2']);
 });
@@ -366,7 +367,7 @@ Route::view('/examples/chart-components', 'examples.chart-components-demo')->nam
 
 if (app()->isLocal()) {
     // Test Funding Rates API
-    Route::get('/test/funding-rates-debug', function() {
+    Route::get('/test/funding-rates-debug', function () {
         try {
             $controller = new App\Http\Controllers\CryptoQuantController();
             $request = new Illuminate\Http\Request([
@@ -374,7 +375,7 @@ if (app()->isLocal()) {
                 'end_date' => now()->format('Y-m-d'),
                 'exchange' => 'binance'
             ]);
-            
+
             return $controller->getFundingRates($request);
         } catch (\Exception $e) {
             return response()->json([
@@ -387,7 +388,7 @@ if (app()->isLocal()) {
     })->name('test.funding-rates-debug');
 
     // Test Open Interest API
-    Route::get('/test/open-interest-debug', function() {
+    Route::get('/test/open-interest-debug', function () {
         try {
             $controller = new App\Http\Controllers\CryptoQuantController();
             $request = new Illuminate\Http\Request([
@@ -395,7 +396,7 @@ if (app()->isLocal()) {
                 'end_date' => now()->format('Y-m-d'),
                 'exchange' => 'binance'
             ]);
-            
+
             return $controller->getOpenInterest($request);
         } catch (\Exception $e) {
             return response()->json([
@@ -408,7 +409,7 @@ if (app()->isLocal()) {
     })->name('test.open-interest-debug');
 
     // Test CDD API
-    Route::get('/test/cdd-debug', function() {
+    Route::get('/test/cdd-debug', function () {
         try {
             $controller = new App\Http\Controllers\CryptoQuantController();
             $request = new Illuminate\Http\Request([
@@ -416,7 +417,7 @@ if (app()->isLocal()) {
                 'end_date' => now()->format('Y-m-d'),
                 'exchange' => 'binance'
             ]);
-            
+
             return $controller->getExchangeInflowCDD($request);
         } catch (\Exception $e) {
             return response()->json([
@@ -429,26 +430,26 @@ if (app()->isLocal()) {
     })->name('test.cdd-debug');
 
     // Test CoinGlass API Integration
-    Route::get('/test/coinglass-integration', function() {
+    Route::get('/test/coinglass-integration', function () {
         try {
             $controller = new App\Http\Controllers\SpotMicrostructureController();
             $results = [];
-            
+
             // Test large trades
             $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5]);
             $largeTrades = $controller->getCoinglassLargeTrades($request);
             $results['large_trades'] = $largeTrades->getData(true);
-            
+
             // Test spot flow
             $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5]);
             $spotFlow = $controller->getCoinglassSpotFlow($request);
             $results['spot_flow'] = $spotFlow->getData(true);
-            
+
             // Test hybrid large orders
             $request = new Illuminate\Http\Request(['symbol' => 'BTCUSDT', 'limit' => 5, 'min_notional' => 100000]);
             $hybridOrders = $controller->getLargeOrders($request);
             $results['hybrid_orders'] = $hybridOrders->getData(true);
-            
+
             return response()->json([
                 'success' => true,
                 'test_results' => $results,
@@ -471,23 +472,23 @@ if (app()->isLocal()) {
     })->name('test.coinglass-integration');
 
     // Test CDD API with different exchanges
-    Route::get('/test/cdd-all-exchanges', function() {
+    Route::get('/test/cdd-all-exchanges', function () {
         try {
             $controller = new App\Http\Controllers\CryptoQuantController();
             $exchanges = ['binance', 'coinbase', 'kraken', 'bitfinex', 'huobi', 'okex', 'bybit', 'bitstamp', 'gemini'];
             $results = [];
-            
+
             foreach ($exchanges as $exchange) {
                 $request = new Illuminate\Http\Request([
                     'start_date' => '2025-10-22',
                     'end_date' => '2025-10-23',
                     'exchange' => $exchange
                 ]);
-                
+
                 try {
                     $response = $controller->getExchangeInflowCDD($request);
                     $data = $response->getData(true);
-                    
+
                     if ($data['success'] && !empty($data['data'])) {
                         $oct22Data = collect($data['data'])->firstWhere('date', '2025-10-22');
                         $results[$exchange] = [
@@ -508,7 +509,7 @@ if (app()->isLocal()) {
                     ];
                 }
             }
-            
+
             return response()->json([
                 'success' => true,
                 'comparison_date' => '2025-10-22',
@@ -544,3 +545,17 @@ Route::get('/market-data/price-checker', [App\Http\Controllers\MarketDataControl
     ->name('market-data.price-checker');
 Route::post('/market-data/price-checker', [App\Http\Controllers\MarketDataController::class, 'priceCheck'])
     ->name('market-data.price-check');
+
+// api for alternative.me
+Route::get('/fetch-sentiment', [SentimentController::class, 'fetchHistoricalData']);
+Route::get('/alternative-me', [SentimentController::class, 'index'])->name('sentiment.index');
+
+// api for santiment
+Route::get('/santiment', [SentimentController::class, 'santimentIndex'])->name('sentiment.santiment');
+Route::get('/fetch-santiment-history', [SentimentController::class, 'santimentFetchhistory']);
+
+// API Endpoints for Data Sharing
+Route::prefix('api/v1')->group(function () {
+    Route::get('/sentiment/alternative', [SentimentController::class, 'apiAlternative']);
+    Route::get('/sentiment/santiment', [SentimentController::class, 'apiSantiment']);
+});
