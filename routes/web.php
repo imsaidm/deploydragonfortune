@@ -554,6 +554,10 @@ Route::get('/alternative-me', [SentimentController::class, 'index'])->name('sent
 Route::get('/santiment', [SentimentController::class, 'santimentIndex'])->name('sentiment.santiment');
 Route::get('/fetch-santiment-history', [SentimentController::class, 'santimentFetchhistory']);
 
+// api for cryptopanic
+Route::get('/crypto-panic', [SentimentController::class, 'cryptoPanicIndex'])->name('sentiment.crypto-panic');
+Route::get('/fetch-crypto-panic', [SentimentController::class, 'cryptoPanicFetchHistoryResume']);
+
 // API Endpoints for Data Sharing
 Route::prefix('api/v1')->group(function () {
     Route::get('/sentiment/alternative', [SentimentController::class, 'apiAlternative']);
