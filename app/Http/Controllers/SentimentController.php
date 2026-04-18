@@ -225,4 +225,162 @@ class SentimentController extends Controller
             'data' => $data
         ]);
     }
+
+    public function cryptoPanicFetchTest()
+    {
+        // Waktu eksekusi pendek karena hanya 1 request
+        ini_set('max_execution_time', 60); 
+        
+        $apiKey = 'e4c21ef5477d4afd3ac7809b1eb4cfcb528c5309';
+        // Parameter panic_score=true DITAMBAHKAN di sini!
+        $baseUrl = "https://cryptopanic.com/api/enterprise/v2/posts/?auth_token={$apiKey}&currencies=BTC,ETH&filter=important&regions=en&panic_score=true";
+        
+        $requestCount = 0;
+        $maxRequests = 70; // Tetap 1 request dulu biar aman
+        $totalSaved = 0;
+        $currentUrl = $baseUrl;
+
+        while ($currentUrl && $requestCount < $maxRequests) {
+            $response = Http::timeout(30)->get($currentUrl);
+            $requestCount++; 
+            
+            if (!$response->successful()) {
+                return redirect()->back()->with('error', "Gagal menghubungi API. Status: " . $response->status());
+            }
+
+            $data = $response->json();
+            $posts = $data['results'] ?? [];
+
+            foreach ($posts as $post) {
+                // 1. Ambil koin dari array "instruments", bukan "currencies"
+                $currencies = isset($post['instruments']) ? collect($post['instruments'])->pluck('code')->join(',') : null;
+                $publishedAt = \Carbon\Carbon::parse($post['published_at']);
+
+                \App\Models\MarketCryptoPanic::updateOrCreate(
+                    ['panic_id' => $post['id']],
+                    [
+                        'title'           => $post['title'],
+                        // 2. Ambil domain dari dalam object "source"
+                        'domain'          => $post['source']['domain'] ?? 'Unknown', 
+                        'url'             => $post['url'] ?? null,
+                        'panic_score'     => $post['panic_score'] ?? null,
+                        'votes_positive'  => $post['votes']['positive'] ?? 0,
+                        'votes_negative'  => $post['votes']['negative'] ?? 0,
+                        'votes_important' => $post['votes']['important'] ?? 0,
+                        'votes_liked'     => $post['votes']['liked'] ?? 0,
+                        'votes_disliked'  => $post['votes']['disliked'] ?? 0,
+                        'votes_lol'       => $post['votes']['lol'] ?? 0,
+                        'votes_toxic'     => $post['votes']['toxic'] ?? 0,
+                        // 3. Nama dari API adalah "saved"
+                        'votes_save'      => $post['votes']['saved'] ?? 0, 
+                        'currencies'      => $currencies,
+                        'published_at'    => $publishedAt,
+                    ]
+                );
+                $totalSaved++;
+            }
+
+            $currentUrl = $data['next'] ?? null; 
+            
+            // 2. Kasih jeda agar aman dari rate limit
+            usleep(500000); 
+        } // penutup while
+
+        return redirect()->back()->with('success', "Uji Coba Sukses! Menggunakan {$requestCount} request. Berhasil mengamankan {$totalSaved} berita BTC & ETH lengkap dengan Panic Score!");
+    }
+
+    public function cryptoPanicFetchHistoryResume()
+    {
+        // Waktu kita panjangkan karena ini proses tarik history
+        ini_set('max_execution_time', 1200); 
+        
+        $apiKey = 'e4c21ef5477d4afd3ac7809b1eb4cfcb528c5309';
+        
+        // KUNCI PENGHEMATAN REQUEST HISTORIS ADA DI SINI:
+        // Karena kamu bilang mati di request ke-15, kita langsung tembak halaman 16.
+        // Dengan begini, 15 request awal tidak terbuang sia-sia!
+        $startPage = 58; 
+        $baseUrl = "https://cryptopanic.com/api/enterprise/v2/posts/?auth_token={$apiKey}&currencies=BTC,ETH&filter=important&regions=en&panic_score=true&page={$startPage}";
+        
+        $currentUrl = $baseUrl;
+        $requestCount = 0;
+        
+        // Alokasikan berapa request lagi yang mau kamu pakai sekarang
+        $maxRequests = 50; 
+        
+        $totalSaved = 0;
+        $skipped = 0;
+
+        while ($currentUrl && $requestCount < $maxRequests) {
+            // Fitur Retry: Kalau Bad Gateway lagi, dia akan coba ulang 3x sebelum nyerah
+            $response = Http::timeout(30)->retry(3, 2000)->get($currentUrl);
+            $requestCount++; 
+            
+            if (!$response->successful()) {
+                // Kalau mati lagi, error-nya akan ngasih tau kamu mati di halaman berapa
+                $failedPage = $startPage + $requestCount - 1;
+                return redirect()->back()->with('error', "API Error di halaman ke-{$failedPage}. Nanti jalankan ulang dan ubah \$startPage menjadi {$failedPage}.");
+            }
+
+            $data = $response->json();
+            $posts = $data['results'] ?? [];
+
+            foreach ($posts as $post) {
+                
+                // Cek apakah data sudah ada. 
+                // Kalau sudah ada, kita LEWATI (continue), BUKAN BERHENTI (break).
+                // Karena di halaman historis, bisa jadi ada irisan data.
+                $exists = \App\Models\MarketCryptoPanic::where('panic_id', $post['id'])->exists();
+
+                if ($exists) {
+                    $skipped++;
+                    continue; // Lanjut cek berita bawahnya
+                }
+
+                $currencies = isset($post['instruments']) ? collect($post['instruments'])->pluck('code')->join(',') : null;
+                $publishedAt = \Carbon\Carbon::parse($post['published_at']);
+
+                \App\Models\MarketCryptoPanic::create([
+                    'panic_id'        => $post['id'],
+                    'title'           => $post['title'],
+                    'domain'          => $post['source']['domain'] ?? 'Unknown', 
+                    'url'             => $post['url'] ?? null,
+                    'panic_score'     => $post['panic_score'] ?? null,
+                    'votes_positive'  => $post['votes']['positive'] ?? 0,
+                    'votes_negative'  => $post['votes']['negative'] ?? 0,
+                    'votes_important' => $post['votes']['important'] ?? 0,
+                    'votes_liked'     => $post['votes']['liked'] ?? 0,
+                    'votes_disliked'  => $post['votes']['disliked'] ?? 0,
+                    'votes_lol'       => $post['votes']['lol'] ?? 0,
+                    'votes_toxic'     => $post['votes']['toxic'] ?? 0,
+                    'votes_save'      => $post['votes']['saved'] ?? 0, 
+                    'currencies'      => $currencies,
+                    'published_at'    => $publishedAt,
+                ]);
+                
+                $totalSaved++;
+            }
+
+            $currentUrl = $data['next'] ?? null; 
+            usleep(500000); // Jeda 0.5 detik agar server CryptoPanic tidak marah
+        }
+
+        return redirect()->back()->with('success', "Resume History Selesai! Mulai dari Halaman {$startPage}. Menggunakan {$requestCount} request. Berhasil mengamankan {$totalSaved} berita masa lalu (Melewati {$skipped} data lama).");
+    }
+
+    public function cryptoPanicIndex(Request $request)
+    {
+        $query = \App\Models\MarketCryptoPanic::orderBy('published_at', 'desc');
+
+        if ($request->filled('start_date')) {
+            $query->whereDate('published_at', '>=', $request->start_date);
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate('published_at', '<=', $request->end_date);
+        }
+
+        $sentiments = $query->paginate(20)->withQueryString();
+
+        return view('sentiment.index_cryptopanic', compact('sentiments'));
+    }
 }
