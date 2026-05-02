@@ -246,7 +246,7 @@
         <!-- Header Section -->
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-5 gap-3">
             <div>
-                <h1 class="iq-title-main">Welcome, {{ ucfirst($creator) }} 👋</h1>
+                <h1 class="iq-title-main">Creator Strategy</h1>
                 <p class="iq-subtitle">Monitor your active strategies and PnL intuitively.</p>
             </div>
 
