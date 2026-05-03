@@ -10,9 +10,7 @@ class CreatorStrategyController extends Controller
 {
     public function show($creator, Request $request)
     {
-        // Support creators: said, wisnu, romin, tsaqif
         $creator = strtolower($creator);
-
         $methods = QcMethod::where('creator', $creator)->where('onactive', 1)->get();
 
         if ($methods->isEmpty()) {
@@ -20,99 +18,125 @@ class CreatorStrategyController extends Controller
         }
 
         $strategyId = $request->query('strategy_id');
-        if ($strategyId) {
-            $selectedStrategy = $methods->firstWhere('id', $strategyId);
-        } else {
-            $selectedStrategy = $methods->first();
-        }
+        $selectedStrategy = $strategyId ? $methods->firstWhere('id', $strategyId) : $methods->first();
+        if (!$selectedStrategy) $selectedStrategy = $methods->first();
 
-        // If an invalid strategy_id was provided, fallback to the first one
-        if (!$selectedStrategy) {
-            $selectedStrategy = $methods->first();
-        }
-
-        // Signals history (fetch all signals for datatable)
-        $signals = DB::connection('methods')->table('qc_signal')
-            ->where('id_method', $selectedStrategy->id)
-            ->orderBy('datetime', 'desc')
-            ->paginate(10);
-
-        // Orders history (to build equity curve / balance chart)
+        // 1. Orders for Equity Curve
         $orders = DB::connection('methods')->table('qc_orders')
             ->where('id_method', $selectedStrategy->id)
             ->orderBy('datetime', 'asc')
             ->get();
 
-        // Extract chart data
         $chartData = $orders->map(function ($order) {
             return [
-                'x' => \Carbon\Carbon::parse($order->datetime)->getTimestamp() * 1000,
-                'y' => (float) $order->balance
+                'time'  => \Carbon\Carbon::parse($order->datetime)->getTimestamp(),
+                'value' => (float) $order->balance,
             ];
         });
 
-        // PnL analysis over time if needed...
-        // Fetch all exit signals to evaluate exactly how it exited
-        $exits = DB::connection('methods')->table('qc_signal')
-            ->where('id_method', $selectedStrategy->id)
-            ->where('type', 'exit')
+        // 2. All Trades → used for dots on overview chart + drilldown data
+        $allTrades = DB::connection('methods')->table('qc_signal as s_entry')
+            ->select(
+                's_entry.id',
+                's_entry.datetime',
+                's_entry.jenis',
+                's_entry.price_entry',
+                's_entry.target_tp',
+                's_entry.target_sl',
+                's_entry.leverage',
+                's_exit.datetime as exit_datetime',
+                's_exit.price_exit as actual_price_exit'
+            )
+            ->leftJoin('qc_signal as s_exit', function ($join) {
+                $join->on('s_exit.id', '=', DB::raw(
+                    "(SELECT id FROM qc_signal WHERE id_method = s_entry.id_method AND type = 'exit' AND datetime > s_entry.datetime ORDER BY datetime ASC LIMIT 1)"
+                ));
+            })
+            ->where('s_entry.id_method', $selectedStrategy->id)
+            ->where('s_entry.type', 'entry')
+            ->orderBy('s_entry.datetime', 'asc')
             ->get();
 
-        $tpCount = 0;
-        $slCount = 0;
+        $tpMarkers  = [];
+        $slMarkers  = [];
+        $tradesList = []; // full data for JS drilldown
+        $tpCount = $slCount = 0;
 
-        $tpPoints = [];
-        $slPoints = [];
+        foreach ($allTrades as $trade) {
+            $entry    = (float)$trade->price_entry;
+            $exit     = (float)$trade->actual_price_exit;
+            $isLong   = in_array(strtolower($trade->jenis), ['long', 'buy']);
+            $isExited = $trade->actual_price_exit > 0;
 
-        foreach ($exits as $exit) {
-            $isLong = in_array(strtolower($exit->jenis), ['long', 'buy']);
-            $isTp = false;
-            $isSl = false;
+            if ($isExited) {
+                $pnl        = $isLong ? ($exit - $entry) : ($entry - $exit);
+                $pnlPct     = $entry > 0 ? ($pnl / $entry) * 100 : 0;
+                $pnlFinal   = $pnlPct * ($trade->leverage ?: 1);
+                $isTpResult = $pnl >= 0;
 
-            // Check if real_tp and real_sl are already set clearly by system
-            if ($exit->real_tp > 0) {
-                $isTp = true;
-            } elseif ($exit->real_sl > 0) {
-                $isSl = true;
-            } else {
-                // Fallback manual calculation based on user instruction
-                if ($isLong) {
-                    if ($exit->target_tp > 0 && $exit->price_exit >= $exit->target_tp) $isTp = true;
-                    elseif ($exit->price_exit > $exit->price_entry) $isTp = true;
-                    else $isSl = true;
-                } else {
-                    if ($exit->target_tp > 0 && $exit->price_exit <= $exit->target_tp) $isTp = true;
-                    elseif ($exit->price_exit > 0 && $exit->price_exit < $exit->price_entry) $isTp = true;
-                    else $isSl = true;
-                }
-            }
+                if ($isTpResult) $tpCount++;
+                else $slCount++;
 
-            if ($isTp) $tpCount++;
-            if ($isSl) $slCount++;
-
-            // Find nearest balance for dot annotation on chart
-            if ($isTp || $isSl) {
-                $exitTime = \Carbon\Carbon::parse($exit->datetime)->getTimestamp();
+                // Find nearest equity balance for dot Y position
+                $exitTime       = \Carbon\Carbon::parse($trade->exit_datetime)->getTimestamp();
                 $nearestBalance = $selectedStrategy->opening_balance ?? 0;
-                $smallestDiff = PHP_INT_MAX;
-
+                $smallestDiff   = PHP_INT_MAX;
                 foreach ($orders as $order) {
-                    $orderTime = \Carbon\Carbon::parse($order->datetime)->getTimestamp();
-                    $diff = abs($orderTime - $exitTime);
+                    $ot   = \Carbon\Carbon::parse($order->datetime)->getTimestamp();
+                    $diff = abs($ot - $exitTime);
                     if ($diff < $smallestDiff) {
                         $smallestDiff = $diff;
                         $nearestBalance = (float)$order->balance;
                     }
                 }
 
-                $point = ['x' => $exitTime * 1000, 'y' => $nearestBalance];
-                if ($isTp) {
-                    $tpPoints[] = $point;
-                } else {
-                    $slPoints[] = $point;
-                }
+                $marker = [
+                    'time'     => $exitTime,
+                    'position' => $isTpResult ? 'aboveBar' : 'belowBar',
+                    'color'    => $isTpResult ? '#00c853' : '#ff5252',
+                    'shape'    => $isTpResult ? 'arrowUp' : 'arrowDown',
+                    'text'     => $isTpResult ? ('TP ' . number_format($pnlFinal, 1) . '%') : ('SL ' . number_format($pnlFinal, 1) . '%'),
+                    'balance'  => $nearestBalance,
+                    'trade_id' => $trade->id,
+                ];
+
+                if ($isTpResult) $tpMarkers[] = $marker;
+                else             $slMarkers[] = $marker;
             }
+
+            // Build complete trade data for JS drilldown
+            $tradesList[] = [
+                'id'           => $trade->id,
+                'pair'         => $selectedStrategy->pair ?? 'BTCUSDT',
+                'side'         => strtolower($trade->jenis),
+                'entry_price'  => $entry,
+                'target_tp'    => (float)$trade->target_tp,
+                'target_sl'    => (float)$trade->target_sl,
+                'exit_price'   => $exit,
+                'entry_time'   => \Carbon\Carbon::parse($trade->datetime)->getTimestamp(),
+                'exit_time'    => $isExited ? \Carbon\Carbon::parse($trade->exit_datetime)->getTimestamp() : null,
+                'is_exited'    => $isExited,
+                'is_profit'    => $isExited ? ($isLong ? ($exit >= $entry) : ($entry >= $exit)) : null,
+                'leverage'     => $trade->leverage ?: 1,
+            ];
         }
+
+        // Merge all markers sorted by time for Lightweight Charts
+        $allMarkers = array_merge($tpMarkers, $slMarkers);
+        usort($allMarkers, fn($a, $b) => $a['time'] - $b['time']);
+
+        // 3. Paginated signals for the table
+        $signals = DB::connection('methods')->table('qc_signal as s_entry')
+            ->select('s_entry.*', 's_exit.datetime as exit_datetime', 's_exit.price_exit as actual_price_exit')
+            ->leftJoin('qc_signal as s_exit', function ($join) {
+                $join->on('s_exit.id', '=', DB::raw(
+                    "(SELECT id FROM qc_signal WHERE id_method = s_entry.id_method AND type = 'exit' AND datetime > s_entry.datetime ORDER BY datetime ASC LIMIT 1)"
+                ));
+            })
+            ->where('s_entry.id_method', $selectedStrategy->id)
+            ->where('s_entry.type', 'entry')
+            ->orderBy('s_entry.datetime', 'desc')
+            ->paginate(10);
 
         return view('strategies.creator', compact(
             'creator',
@@ -123,8 +147,8 @@ class CreatorStrategyController extends Controller
             'chartData',
             'tpCount',
             'slCount',
-            'tpPoints',
-            'slPoints'
+            'allMarkers',
+            'tradesList'
         ));
     }
 }
