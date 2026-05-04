@@ -61,6 +61,9 @@ Route::view('/macro-overlay/dashboard-legacy', 'macro-overlay.dashboard-legacy')
 // Sentiment & Flow Routes
 Route::view('/sentiment-flow/dashboard', 'sentiment-flow.dashboard')->name('sentiment-flow.dashboard');
 
+// Strategy Creator Routes
+Route::get('/strategies/{creator}', [App\Http\Controllers\CreatorStrategyController::class, 'show'])->name('strategies.creator');
+
 // Backtest & Signal Placeholder Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');
 Route::get('/backtest-result', [BacktestResultController::class, 'index'])->name('backtest-result.index');
