@@ -197,7 +197,7 @@
                          </ul>
                  </div>
 
-                 <div class="df-sidebar-group">
+                 {{-- <div class="df-sidebar-group">
                      <div class="df-sidebar-group-label" x-show="!sidebarCollapsed" style="margin-bottom: 5px;">Strategies</div>
                      <ul class="df-sidebar-menu" style="gap: 0px !important;">
                          <li class="df-sidebar-menu-item" style="margin-bottom: 2px;">
@@ -240,7 +240,7 @@
                              </a>
                          </li>
                      </ul>
-                 </div>
+                 </div> --}}
 
                  <div class="df-sidebar-group">
                      <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Markets</div>
