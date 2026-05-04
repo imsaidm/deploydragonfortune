@@ -288,49 +288,6 @@
                          </li>
                      </ul>
                  </div>
-
-                 <div class="df-sidebar-group">
-                     <div class="df-sidebar-group-label" x-show="!sidebarCollapsed">Watchlist</div>
-                     <ul class="df-sidebar-menu">
-                         <li class="df-sidebar-menu-item">
-                             <a href="#" class="df-sidebar-menu-button">
-                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                     <path d="M3 3v18h18" />
-                                     <path d="M7 12l3-3 3 3 5-5" />
-                                 </svg>
-                                 <span>BTC · Binance</span>
-                             </a>
-                         </li>
-                         <li class="df-sidebar-menu-item">
-                             <a href="#" class="df-sidebar-menu-button">
-                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                     <path d="M3 3v18h18" />
-                                     <path d="M7 12l3-3 3 3 5-5" />
-                                 </svg>
-                                 <span>ETH · Coinbase</span>
-                             </a>
-                         </li>
-                         <li class="df-sidebar-menu-item">
-                             <a href="#" class="df-sidebar-menu-button">
-                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                     <path d="M3 3v18h18" />
-                                     <path d="M7 12l3-3 3 3 5-5" />
-                                 </svg>
-                                 <span>NASDAQ Futures</span>
-                             </a>
-                         </li>
-                         <li class="df-sidebar-menu-item">
-                             <button class="df-sidebar-menu-button text-muted">
-                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                     <circle cx="12" cy="12" r="1" />
-                                     <circle cx="19" cy="12" r="1" />
-                                     <circle cx="5" cy="12" r="1" />
-                                 </svg>
-                                 <span>Manage lists</span>
-                             </button>
-                         </li>
-                     </ul>
-                 </div> --}}
              </div>
          </aside>
 
