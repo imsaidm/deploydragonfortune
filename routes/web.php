@@ -63,6 +63,8 @@ Route::view('/sentiment-flow/dashboard', 'sentiment-flow.dashboard')->name('sent
 
 // Strategy Creator Routes
 Route::get('/strategies/{creator}', [App\Http\Controllers\CreatorStrategyController::class, 'show'])->name('strategies.creator');
+Route::get('/api/strategies/{strategy}/candles', [App\Http\Controllers\CreatorStrategyController::class, 'candles'])
+    ->name('api.strategies.candles');
 
 // Backtest & Signal Placeholder Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');
