@@ -19,3 +19,9 @@ Schedule::command('orders:process-pending --limit=10')
     ->everyTenSeconds()
     ->withoutOverlapping()
     ->runInBackground();
+
+// Keep chart candles warm for all active strategies. Run a queue worker for the actual fetch jobs.
+Schedule::command('market-candles:sync --active --timeframe=auto --days=3')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->runInBackground();

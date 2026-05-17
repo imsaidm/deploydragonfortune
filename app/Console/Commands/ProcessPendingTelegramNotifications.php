@@ -2,9 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\SendTelegramReminderJob;
 use App\Jobs\SendTelegramSignalJob;
-use App\Models\QcReminder;
 use App\Models\QcSignal;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
@@ -13,7 +11,7 @@ use Illuminate\Support\Facades\Cache; // <-- Wajib dipanggil
 class ProcessPendingTelegramNotifications extends Command
 {
     protected $signature = 'telegram:process-pending {--limit=10 : Maximum records to process per run}';
-    protected $description = 'Process pending Telegram notifications for QC signals and reminders';
+    protected $description = 'Process pending Telegram notifications for QC signals';
 
     public function handle(): int
     {
@@ -50,39 +48,8 @@ class ProcessPendingTelegramNotifications extends Command
             }
         }
 
-        // Process pending reminders
-        $reminders = QcReminder::where(function ($q) {
-            $q->where('telegram_sent', false)->orWhereNull('telegram_sent');
-        })
-            ->orderBy('created_at', 'asc')
-            ->limit($limit)
-            ->get();
-
-        foreach ($reminders as $reminder) {
-            // [GEMBOK DISPATCH]
-            $rLock = 'dispatch_tele_reminder_' . $reminder->id;
-            if (!Cache::add($rLock, true, 300)) {
-                continue;
-            }
-
-            try {
-                SendTelegramReminderJob::dispatch($reminder);
-                $this->info("Dispatched job for reminder ID: {$reminder->id}");
-                Log::info('Telegram job dispatched for reminder', ['id' => $reminder->id]);
-            } catch (\Exception $e) {
-                Cache::forget($rLock);
-
-                $this->error("Failed to dispatch job for reminder ID: {$reminder->id} - {$e->getMessage()}");
-                Log::error('Failed to dispatch telegram job for reminder', [
-                    'id' => $reminder->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        $total = $signals->count() + $reminders->count();
-        if ($total > 0) {
-            $this->info("Processed {$total} pending notifications.");
+        if ($signals->count() > 0) {
+            $this->info("Processed {$signals->count()} pending signal notifications.");
         }
 
         return Command::SUCCESS;
