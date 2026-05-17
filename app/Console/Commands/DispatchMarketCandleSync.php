@@ -17,6 +17,8 @@ class DispatchMarketCandleSync extends Command
         {--timeframe=auto : Candle timeframe to sync. Use "auto" for strategy-aware sync or "base" to use qc_method.tf}
         {--days=3 : Backfill window in days when no local candle exists}
         {--backfill : Always use the full --days window instead of only today/recent gap}
+        {--repair-gaps : Dispatch extra jobs for internal candle gaps inside the recent --days window}
+        {--max-gaps=3 : Maximum gap repair windows to dispatch per market}
         {--limit-pairs=0 : Optional max number of unique markets to dispatch}';
 
     protected $description = 'Dispatch queued jobs to keep market_candles warm for strategy charts.';
@@ -36,6 +38,18 @@ class DispatchMarketCandleSync extends Command
         $markets = $methods
             ->flatMap(fn($method) => $this->marketsFromMethod($method, $timeframe, $days))
             ->filter()
+            ->values();
+
+        if ($this->option('repair-gaps')) {
+            $maxGaps = max(1, (int) $this->option('max-gaps'));
+            $gapMarkets = $markets
+                ->flatMap(fn($market) => $this->gapRepairMarkets($market, $days, $maxGaps))
+                ->values();
+
+            $markets = $markets->merge($gapMarkets);
+        }
+
+        $markets = $markets
             ->unique(fn($market) => implode('|', [
                 $market['exchange'],
                 $market['type'],
@@ -236,6 +250,57 @@ class DispatchMarketCandleSync extends Command
         return Carbon::createFromTimestampMs((int) $latestTimestamp)
             ->subHours(3)
             ->startOfDay();
+    }
+
+    private function gapRepairMarkets(array $market, int $days, int $maxGaps)
+    {
+        $durationMs = MarketCandle::timeframeDurationMs($market['timeframe']);
+        $fromMs = Carbon::today()->subDays($days)->getTimestampMs();
+        $toMs = Carbon::today()->endOfDay()->getTimestampMs();
+
+        $timestamps = MarketCandle::query()
+            ->where('exchange', $market['exchange'])
+            ->where('type', $market['type'])
+            ->where('symbol', $market['symbol'])
+            ->where('timeframe', $market['timeframe'])
+            ->whereBetween('timestamp', [$fromMs, $toMs])
+            ->orderBy('timestamp')
+            ->pluck('timestamp')
+            ->map(fn($timestamp) => (int) $timestamp)
+            ->values();
+
+        if ($timestamps->count() < 2) {
+            return collect();
+        }
+
+        $repairs = collect();
+        $previous = $timestamps->first();
+
+        foreach ($timestamps->skip(1) as $timestamp) {
+            $gapMs = $timestamp - $previous;
+
+            if ($gapMs > ($durationMs * 2)) {
+                $gapStart = Carbon::createFromTimestampMs($previous + $durationMs)->startOfDay();
+                $gapEnd = Carbon::createFromTimestampMs($timestamp - $durationMs)->endOfDay();
+
+                $repairs->push([
+                    'exchange' => $market['exchange'],
+                    'type' => $market['type'],
+                    'symbol' => $market['symbol'],
+                    'timeframe' => $market['timeframe'],
+                    'start_date' => $gapStart->toDateString(),
+                    'end_date' => $gapEnd->toDateString(),
+                ]);
+
+                if ($repairs->count() >= $maxGaps) {
+                    break;
+                }
+            }
+
+            $previous = $timestamp;
+        }
+
+        return $repairs;
     }
 
     private function normalizeTimeframeOption(string $timeframe): string
