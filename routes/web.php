@@ -6,6 +6,7 @@ use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\BinanceFuturesController;
 use App\Http\Controllers\TradingAccountController;
 use App\Http\Controllers\QuantConnectController;
+use App\Http\Controllers\QcSignalApiController;
 use App\Http\Controllers\SummaryController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SentimentController;
@@ -67,6 +68,9 @@ Route::get('/api/strategies/{strategy}/candles', [App\Http\Controllers\CreatorSt
     ->name('api.strategies.candles');
 Route::get('/api/strategies/{strategy}/ticker', [App\Http\Controllers\CreatorStrategyController::class, 'ticker'])
     ->name('api.strategies.ticker');
+Route::post('/api/strategies/{strategy}/force-exit', [App\Http\Controllers\CreatorStrategyController::class, 'forceExit'])
+    ->middleware('throttle:10,1')
+    ->name('api.strategies.force-exit');
 
 // Backtest & Signal Placeholder Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');
@@ -571,4 +575,7 @@ Route::get('/fetch-crypto-panic', [SentimentController::class, 'cryptoPanicFetch
 Route::prefix('api/v1')->group(function () {
     Route::get('/sentiment/alternative', [SentimentController::class, 'apiAlternative']);
     Route::get('/sentiment/santiment', [SentimentController::class, 'apiSantiment']);
+    Route::get('/qc-signals/force-exit', [QcSignalApiController::class, 'forceExit'])
+        ->middleware('throttle:60,1')
+        ->name('api.v1.qc-signals.force-exit');
 });

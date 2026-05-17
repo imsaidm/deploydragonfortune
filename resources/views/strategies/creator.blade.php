@@ -241,6 +241,17 @@
         color: #fff;
     }
 
+    .chart-action.force-exit-action {
+        background: #e11d48;
+        border-color: #e11d48;
+        color: #fff;
+    }
+
+    .chart-action.force-exit-action:disabled {
+        cursor: wait;
+        opacity: .72;
+    }
+
     .tf-button {
         background: transparent;
         border: 0;
@@ -663,6 +674,7 @@
             </div>
             <div class="chart-controls">
                 <button type="button" class="chart-action" id="resetLiveChart">Live chart</button>
+                <button type="button" class="chart-action force-exit-action" id="forceExitButton">Force exit</button>
                 <div class="trade-focus-controls" id="tradeFocusControls" aria-label="Trade focus window">
                     <button type="button" class="chart-action active" data-trade-focus="entry">Entry</button>
                     <button type="button" class="chart-action" data-trade-focus="exit">Exit</button>
@@ -790,6 +802,7 @@
     window.strategyDashboard = {
         candleEndpoint: @json(route('api.strategies.candles', ['strategy' => $selectedStrategy->id])),
         tickerEndpoint: @json(route('api.strategies.ticker', ['strategy' => $selectedStrategy->id])),
+        forceExitEndpoint: @json(route('api.strategies.force-exit', ['strategy' => $selectedStrategy->id])),
         strategy: @json($strategyMeta),
         timeframes: @json($timeframeOptions),
         defaultTf: @json(in_array($strategyMeta['base_tf'], $timeframeOptions, true) ? $strategyMeta['base_tf'] : end($timeframeOptions)),
