@@ -18,10 +18,16 @@
         tf: cfg.defaultTf || '1h',
         candles: [],
         socket: null,
+        tickerPoll: null,
+        streamRetry: null,
         priceLineSeries: null,
         tpSeries: null,
         slSeries: null,
         entrySeries: null,
+        activeLevelSeries: [],
+        longSignalSeries: null,
+        shortSignalSeries: null,
+        exitSignalSeries: null,
         selectedTrade: null,
     };
 
@@ -38,7 +44,7 @@
         },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         rightPriceScale: { borderColor: colors.grid },
-        leftPriceScale: { visible: true, borderColor: colors.grid },
+        leftPriceScale: { visible: false, borderColor: colors.grid },
         timeScale: {
             borderColor: colors.grid,
             timeVisible: true,
@@ -69,22 +75,7 @@
         scaleMargins: { top: 0.82, bottom: 0 },
     });
 
-    const equitySeries = chart.addLineSeries({
-        color: '#22c55e',
-        lineWidth: 2,
-        priceScaleId: 'left',
-        lastValueVisible: true,
-        priceLineVisible: false,
-        title: 'Equity',
-    });
-
-    equitySeries.priceScale().applyOptions({
-        scaleMargins: { top: 0.08, bottom: 0.72 },
-    });
-
-    if (Array.isArray(cfg.equity) && cfg.equity.length) {
-        equitySeries.setData(cfg.equity);
-    }
+    createSignalPointSeries();
 
     wireTimeframeButtons();
     wireTableRows();
@@ -109,6 +100,7 @@
                 drawTradeLevels(options.trade);
                 setLiveStatus('Historical trade window');
             } else {
+                renderActiveTradeLevels();
                 openStream();
             }
         } catch (error) {
@@ -148,14 +140,20 @@
             color: c.close >= c.open ? 'rgba(22,163,74,.24)' : 'rgba(225,29,72,.24)',
         })));
 
+        const activeTradeIds = new Set((cfg.trades || [])
+            .filter((trade) => !trade.is_exited)
+            .map((trade) => String(trade.id)));
+
         candleSeries.setMarkers((cfg.markers || []).map((marker) => ({
             time: marker.time,
             position: marker.position,
             color: marker.color,
             shape: marker.shape,
-            text: marker.text,
+            text: '',
             id: String(marker.trade_id),
-        })));
+        })).map(alignMarkerToCandle).filter(Boolean));
+
+        renderSignalPriceDots();
     }
 
     function buildRange(tf) {
@@ -198,6 +196,7 @@
                 const socket = new WebSocket(`wss://stream.bybit.com/v5/public/${channelType}`);
                 state.socket = socket;
                 socket.addEventListener('open', () => {
+                    closeTickerPoll();
                     setLiveStatus('Live stream connected');
                     socket.send(JSON.stringify({ op: 'subscribe', args: [`publicTrade.${symbol.toUpperCase()}`] }));
                 });
@@ -211,7 +210,10 @@
                 const host = market === 'future' ? 'wss://fstream.binance.com/ws' : 'wss://stream.binance.com:9443/ws';
                 const socket = new WebSocket(`${host}/${symbol}@trade`);
                 state.socket = socket;
-                socket.addEventListener('open', () => setLiveStatus('Live stream connected'));
+                socket.addEventListener('open', () => {
+                    closeTickerPoll();
+                    setLiveStatus('Live stream connected');
+                });
                 socket.addEventListener('message', (event) => {
                     const tick = safeJson(event.data);
                     const price = parseFloat(tick.p);
@@ -220,18 +222,25 @@
                 });
             }
 
-            const activeSocket = state.socket;
-            activeSocket.addEventListener('close', () => {
-                if (state.socket === activeSocket) setLiveStatus('Live stream closed');
-            });
-            activeSocket.addEventListener('error', () => {
-                if (state.socket === activeSocket) setLiveStatus('Live stream error');
-            });
-        } catch (error) {
-            console.error('[Strategy chart] stream failed', error);
-            setLiveStatus('Live stream unavailable');
-        }
+        const activeSocket = state.socket;
+        activeSocket.addEventListener('close', () => {
+            if (state.socket === activeSocket) {
+                setLiveStatus('Live stream closed, polling price');
+                openTickerPoll();
+            }
+        });
+        activeSocket.addEventListener('error', () => {
+            if (state.socket === activeSocket) {
+                setLiveStatus('Live stream error, polling price');
+                openTickerPoll();
+            }
+        });
+    } catch (error) {
+        console.error('[Strategy chart] stream failed', error);
+        setLiveStatus('Live stream unavailable, polling price');
+        openTickerPoll();
     }
+}
 
     async function fetchBrowserCandles(tf, range) {
         const exchange = (cfg.strategy.exchange || 'binance').toLowerCase();
@@ -320,13 +329,153 @@
     }
 
     function closeStream() {
+        closeTickerPoll();
+        if (state.streamRetry) {
+            window.clearTimeout(state.streamRetry);
+            state.streamRetry = null;
+        }
         if (state.socket) {
             state.socket.close();
             state.socket = null;
         }
     }
 
-    function applyTick(price, eventMs) {
+    function openTickerPoll() {
+        if (state.tickerPoll || !cfg.tickerEndpoint) return;
+
+        const poll = async () => {
+            try {
+                const response = await fetch(cfg.tickerEndpoint, { headers: { Accept: 'application/json' } });
+                const payload = await response.json();
+                const price = Number(payload.price);
+                const time = Number(payload.time || Date.now());
+                if (Number.isFinite(price) && price > 0) {
+                    applyTick(price, time, { source: 'poll' });
+                    setLiveStatus('Live price polling');
+                }
+            } catch (error) {
+                console.warn('[Strategy chart] ticker polling failed', error);
+                setLiveStatus('Live price waiting');
+            }
+        };
+
+        poll();
+        state.tickerPoll = window.setInterval(poll, 3000);
+        state.streamRetry = window.setTimeout(() => {
+            closeTickerPoll();
+            if (!state.selectedTrade) openStream();
+        }, 30000);
+    }
+
+    function closeTickerPoll() {
+        if (state.tickerPoll) {
+            window.clearInterval(state.tickerPoll);
+            state.tickerPoll = null;
+        }
+    }
+
+    function createSignalPointSeries() {
+        const baseOptions = {
+            lineVisible: false,
+            pointMarkersVisible: true,
+            pointMarkersRadius: 5,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: true,
+            priceFormat: { type: 'price', precision: pricePrecision(cfg.strategy.symbol), minMove: minMove(cfg.strategy.symbol) },
+        };
+
+        state.longSignalSeries = chart.addLineSeries({
+            ...baseOptions,
+            color: colors.green,
+            title: '',
+        });
+
+        state.shortSignalSeries = chart.addLineSeries({
+            ...baseOptions,
+            color: colors.red,
+            title: '',
+        });
+
+        state.exitSignalSeries = chart.addLineSeries({
+            ...baseOptions,
+            color: colors.amber,
+            pointMarkersRadius: 4,
+            title: '',
+        });
+    }
+
+    function renderSignalPriceDots() {
+        if (!state.candles.length) return;
+
+        const longPoints = [];
+        const shortPoints = [];
+        const exitPoints = [];
+
+        (cfg.trades || []).forEach((trade) => {
+            const entryTime = alignTimeToCandle(trade.entry_time);
+            const entryPrice = Number(trade.entry_price);
+            if (entryTime && Number.isFinite(entryPrice) && entryPrice > 0) {
+                const isLong = /long|buy/i.test(trade.side || '');
+                const point = { time: entryTime, value: entryPrice };
+                if (isLong) longPoints.push(point);
+                else shortPoints.push(point);
+            }
+
+            const exitTime = trade.exit_time ? alignTimeToCandle(trade.exit_time) : null;
+            const exitPrice = Number(trade.exit_price);
+            if (exitTime && Number.isFinite(exitPrice) && exitPrice > 0) {
+                exitPoints.push({ time: exitTime, value: exitPrice });
+            }
+        });
+
+        state.longSignalSeries.setData(uniquePricePoints(longPoints));
+        state.shortSignalSeries.setData(uniquePricePoints(shortPoints));
+        state.exitSignalSeries.setData(uniquePricePoints(exitPoints));
+    }
+
+    function alignMarkerToCandle(marker) {
+        const time = alignTimeToCandle(marker.time);
+        return time ? { ...marker, time } : null;
+    }
+
+    function alignTimeToCandle(rawTime) {
+        const signalTime = Number(rawTime);
+        if (!Number.isFinite(signalTime) || !state.candles.length) return null;
+
+        const bucket = Math.floor(signalTime / intervalSeconds(state.tf)) * intervalSeconds(state.tf);
+        if (state.candles.some((candle) => candle.time === bucket)) return bucket;
+
+        let nearest = null;
+        let smallestDistance = Infinity;
+        state.candles.forEach((candle) => {
+            const distance = Math.abs(candle.time - signalTime);
+            if (distance < smallestDistance) {
+                smallestDistance = distance;
+                nearest = candle.time;
+            }
+        });
+
+        return smallestDistance <= intervalSeconds(state.tf) * 2 ? nearest : null;
+    }
+
+    function uniquePricePoints(points) {
+        const merged = new Map();
+        points
+            .filter((point) => point.time && Number.isFinite(point.value))
+            .sort((a, b) => a.time - b.time)
+            .forEach((point) => {
+                merged.set(point.time, point);
+            });
+
+        return Array.from(merged.values());
+    }
+
+    function applyTick(price, eventMs, options = {}) {
+        if (!isSaneTick(price)) {
+            return;
+        }
+
         const bucket = Math.floor(eventMs / 1000 / intervalSeconds(state.tf)) * intervalSeconds(state.tf);
         const last = state.candles[state.candles.length - 1];
 
@@ -346,6 +495,14 @@
         }
 
         updateLivePrice(price);
+    }
+
+    function isSaneTick(price) {
+        if (!Number.isFinite(price) || price <= 0) return false;
+        const last = state.candles[state.candles.length - 1];
+        if (!last || !last.close) return true;
+        const distance = Math.abs(price - last.close) / last.close;
+        return distance <= 0.2;
     }
 
     function handleChartClick(param) {
@@ -384,30 +541,58 @@
 
         const first = state.candles[0].time;
         const last = state.candles[state.candles.length - 1].time;
-        const makeLine = (color, title, value, style) => {
-            const series = chart.addLineSeries({
-                color,
-                title,
-                lineWidth: 1,
-                lineStyle: style,
-                lastValueVisible: true,
-                priceLineVisible: false,
-            });
-            series.setData([{ time: first, value }, { time: last, value }]);
-            return series;
-        };
-
-        state.entrySeries = makeLine(colors.blue, 'Entry', Number(trade.entry_price), LightweightCharts.LineStyle.Dotted);
+        state.entrySeries = makeLevelLine(colors.blue, 'Entry', Number(trade.entry_price), LightweightCharts.LineStyle.Dotted, first, last, 2);
         if (Number(trade.target_tp) > 0) {
-            state.tpSeries = makeLine('#22c55e', 'TP', Number(trade.target_tp), LightweightCharts.LineStyle.Dashed);
+            state.tpSeries = makeLevelLine('#22c55e', 'TP', Number(trade.target_tp), LightweightCharts.LineStyle.Dashed, first, last, 2);
         }
         if (Number(trade.target_sl) > 0) {
-            state.slSeries = makeLine('#f43f5e', 'SL', Number(trade.target_sl), LightweightCharts.LineStyle.Dashed);
+            state.slSeries = makeLevelLine('#f43f5e', 'SL', Number(trade.target_sl), LightweightCharts.LineStyle.Dashed, first, last, 2);
         }
 
         const from = Math.max(first, trade.entry_time - intervalSeconds(state.tf) * 8);
         const to = Math.min(last, (trade.exit_time || trade.entry_time + intervalSeconds(state.tf) * 80) + intervalSeconds(state.tf) * 8);
         chart.timeScale().setVisibleRange({ from, to });
+    }
+
+    function renderActiveTradeLevels() {
+        clearActiveTradeLevels();
+        if (!state.candles.length) return;
+
+        const activeTrades = (cfg.trades || []).filter((trade) => !trade.is_exited);
+        if (!activeTrades.length) return;
+
+        const first = state.candles[0].time;
+        const last = state.candles[state.candles.length - 1].time;
+
+        activeTrades.forEach((trade) => {
+            const isLong = /long|buy/i.test(trade.side || '');
+            const sideLabel = isLong ? 'Long' : 'Short';
+            const sideColor = isLong ? colors.green : colors.red;
+
+            if (Number(trade.entry_price) > 0) {
+                state.activeLevelSeries.push(makeLevelLine(sideColor, 'Entry', Number(trade.entry_price), LightweightCharts.LineStyle.Dotted, first, last, 2));
+            }
+            if (Number(trade.target_tp) > 0) {
+                state.activeLevelSeries.push(makeLevelLine('#22c55e', 'TP', Number(trade.target_tp), LightweightCharts.LineStyle.Dashed, first, last, 2));
+            }
+            if (Number(trade.target_sl) > 0) {
+                state.activeLevelSeries.push(makeLevelLine('#f43f5e', 'SL', Number(trade.target_sl), LightweightCharts.LineStyle.Dashed, first, last, 2));
+            }
+        });
+    }
+
+    function makeLevelLine(color, title, value, style, first, last, width = 1) {
+        const series = chart.addLineSeries({
+            color,
+            title: '',
+            lineWidth: width,
+            lineStyle: style,
+            lastValueVisible: true,
+            priceLineVisible: false,
+            priceFormat: { type: 'price', precision: pricePrecision(cfg.strategy.symbol), minMove: minMove(cfg.strategy.symbol) },
+        });
+        series.setData([{ time: first, value }, { time: last, value }]);
+        return series;
     }
 
     function clearTradeLevels() {
@@ -417,6 +602,12 @@
                 state[key] = null;
             }
         });
+        clearActiveTradeLevels();
+    }
+
+    function clearActiveTradeLevels() {
+        state.activeLevelSeries.forEach((series) => chart.removeSeries(series));
+        state.activeLevelSeries = [];
     }
 
     function renderInspector(trade) {
@@ -453,9 +644,44 @@
                 <div class="inspector-value">${trade.leverage || 1}x</div>
             </div>
         `;
+
+        renderTradeModal(trade);
+    }
+
+    function renderTradeModal(trade) {
+        const modal = document.getElementById('tradeModal');
+        const body = document.getElementById('tradeModalBody');
+        if (!modal || !body) return;
+
+        const isLong = /long|buy/i.test(trade.side || '');
+        const pnl = trade.is_exited ? pnlPct(trade) : null;
+        const status = trade.is_exited ? (trade.is_profit ? 'Profit' : 'Loss') : 'Running';
+
+        body.innerHTML = `
+            <div class="modal-trade-grid">
+                <div class="modal-stat"><span>Status</span><strong class="${trade.is_exited ? (trade.is_profit ? 'metric-positive' : 'metric-negative') : ''}">${status}${pnl !== null ? ` ${pnl.toFixed(2)}%` : ''}</strong></div>
+                <div class="modal-stat"><span>Side</span><strong>${isLong ? 'LONG' : 'SHORT'} ${trade.leverage || 1}x</strong></div>
+                <div class="modal-stat"><span>Entry</span><strong>$${formatNumber(trade.entry_price)}</strong><small>${formatDate(trade.entry_time)}</small></div>
+                <div class="modal-stat"><span>Exit</span><strong>${trade.is_exited ? `$${formatNumber(trade.exit_price)}` : 'Still active'}</strong><small>${trade.exit_time ? formatDate(trade.exit_time) : 'Waiting for exit signal'}</small></div>
+                <div class="modal-stat"><span>Take Profit</span><strong class="metric-positive">$${formatNumber(trade.target_tp)}</strong></div>
+                <div class="modal-stat"><span>Stop Loss</span><strong class="metric-negative">$${formatNumber(trade.target_sl)}</strong></div>
+            </div>
+            <div class="modal-note">The main chart is focused to this trade window, so you can switch to 1m/5m/10m and inspect whether price came close to TP or SL.</div>
+        `;
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
     }
 
     function wireTimeframeButtons() {
+        const resetButton = document.getElementById('resetLiveChart');
+        if (resetButton) {
+            resetButton.addEventListener('click', () => {
+                state.selectedTrade = null;
+                closeTradeModal();
+                loadChart(state.tf);
+            });
+        }
+
         document.querySelectorAll('.tf-button').forEach((button) => {
             button.addEventListener('click', () => {
                 document.querySelectorAll('.tf-button').forEach((item) => item.classList.remove('active'));
@@ -476,6 +702,24 @@
                 if (trade) inspectTrade(trade);
             });
         });
+
+        document.querySelectorAll('[data-close-trade-modal]').forEach((button) => {
+            button.addEventListener('click', closeTradeModal);
+        });
+
+        const modal = document.getElementById('tradeModal');
+        if (modal) {
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) closeTradeModal();
+            });
+        }
+    }
+
+    function closeTradeModal() {
+        const modal = document.getElementById('tradeModal');
+        if (!modal) return;
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
     }
 
     function findTrade(id) {
@@ -514,7 +758,7 @@
     }
 
     function normalizeCandles(candles) {
-        return candles
+        const normalized = candles
             .map((c) => ({
                 time: Number(c.time),
                 open: Number(c.open),
@@ -525,6 +769,25 @@
             }))
             .filter((c) => Number.isFinite(c.time) && Number.isFinite(c.close))
             .sort((a, b) => a.time - b.time);
+
+        return normalized.filter((candle, index, all) => {
+            if (!isSaneCandle(candle)) return false;
+            const previous = all[index - 1];
+            if (!previous || !previous.close) return true;
+            const gap = Math.abs(candle.close - previous.close) / previous.close;
+            return gap <= 0.35;
+        });
+    }
+
+    function isSaneCandle(candle) {
+        if (!candle || candle.open <= 0 || candle.high <= 0 || candle.low <= 0 || candle.close <= 0) return false;
+        if (candle.high < Math.max(candle.open, candle.close)) return false;
+        if (candle.low > Math.min(candle.open, candle.close)) return false;
+
+        const bodyAnchor = Math.max(candle.open, candle.close);
+        const wickRange = (candle.high - candle.low) / bodyAnchor;
+
+        return wickRange <= 0.4;
     }
 
     function intervalSeconds(tf) {

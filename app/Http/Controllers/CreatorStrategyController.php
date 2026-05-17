@@ -217,7 +217,7 @@ class CreatorStrategyController extends Controller
         $limit = $validated['limit'] ?? 700;
         $endMs = $validated['end'] ?? now()->valueOf();
         $startMs = $validated['start'] ?? ($endMs - ($this->timeframeMs($interval) * $limit));
-        $meta = $this->buildStrategyMeta($strategy, []);
+        $meta = $this->buildStrategyMeta($strategy, $this->latestSignalContext($strategy->id));
 
         $candles = $this->localCandles($meta['exchange'], $meta['market_type'], $meta['db_symbol'], $interval, $startMs, $endMs, $limit);
         $source = 'database';
@@ -227,6 +227,7 @@ class CreatorStrategyController extends Controller
 
         if ($candles->count() < 20) {
             $candles = collect($this->exchangeCandles($meta['exchange'], $meta['market_type'], $meta['symbol'], $interval, $startMs, $endMs, $limit));
+            $this->persistCandles($meta['exchange'], $meta['market_type'], $meta['db_symbol'], $interval, $candles);
             $source = $candles->isEmpty() ? 'unavailable' : $meta['exchange'] . '_api';
         } elseif ($isStale && $candles->count() < $limit) {
             $remoteStart = ($lastLocalTime * 1000) + $this->timeframeMs($interval);
@@ -234,6 +235,7 @@ class CreatorStrategyController extends Controller
             $remoteCandles = collect($this->exchangeCandles($meta['exchange'], $meta['market_type'], $meta['symbol'], $interval, $remoteStart, $endMs, $remoteLimit));
 
             if ($remoteCandles->isNotEmpty()) {
+                $this->persistCandles($meta['exchange'], $meta['market_type'], $meta['db_symbol'], $interval, $remoteCandles);
                 $candles = $candles
                     ->concat($remoteCandles)
                     ->unique('time')
@@ -252,6 +254,35 @@ class CreatorStrategyController extends Controller
             'source' => $source,
             'candles' => $candles->values(),
         ]);
+    }
+
+    public function ticker(QcMethod $strategy)
+    {
+        $meta = $this->buildStrategyMeta($strategy, $this->latestSignalContext($strategy->id));
+        $price = $meta['exchange'] === 'bybit'
+            ? $this->bybitTicker($meta['market_type'], $meta['symbol'])
+            : $this->binanceTicker($meta['market_type'], $meta['symbol']);
+
+        return response()->json([
+            'strategy_id' => $strategy->id,
+            'symbol' => $meta['symbol'],
+            'exchange' => $meta['exchange'],
+            'market_type' => $meta['market_type'],
+            'price' => $price,
+            'time' => now()->valueOf(),
+        ]);
+    }
+
+    private function latestSignalContext(int $strategyId): array
+    {
+        $signal = DB::connection('methods')->table('qc_signal')
+            ->where('id_method', $strategyId)
+            ->whereNotNull('market_type')
+            ->where('market_type', '<>', '')
+            ->orderByDesc('datetime')
+            ->first(['market_type']);
+
+        return $signal ? [['market_type' => strtolower($signal->market_type)]] : [];
     }
 
     private function buildStrategyMeta(QcMethod $strategy, array $tradesList): array
@@ -287,8 +318,8 @@ class CreatorStrategyController extends Controller
 
     private function localCandles(string $exchange, string $marketType, string $dbSymbol, string $interval, int $startMs, int $endMs, int $limit)
     {
-        if ($interval === '10m') {
-            return $this->aggregateTenMinuteCandles($exchange, $marketType, $dbSymbol, $startMs, $endMs, $limit);
+        if (in_array($interval, ['5m', '10m', '30m', '1h'], true)) {
+            return $this->directOrAggregatedCandles($exchange, $marketType, $dbSymbol, $interval, $startMs, $endMs, $limit);
         }
 
         return MarketCandle::query()
@@ -303,8 +334,63 @@ class CreatorStrategyController extends Controller
             ->map(fn($row) => $this->formatCandle($row));
     }
 
-    private function aggregateTenMinuteCandles(string $exchange, string $marketType, string $dbSymbol, int $startMs, int $endMs, int $limit)
+    private function directOrAggregatedCandles(string $exchange, string $marketType, string $dbSymbol, string $interval, int $startMs, int $endMs, int $limit)
     {
+        $directCandles = MarketCandle::query()
+            ->where('exchange', $exchange)
+            ->where('type', $marketType)
+            ->where('symbol', $dbSymbol)
+            ->where('timeframe', $interval)
+            ->whereBetween('timestamp', [$startMs, $endMs])
+            ->orderBy('timestamp')
+            ->limit($limit)
+            ->get(['timestamp', 'open', 'high', 'low', 'close', 'volume']);
+
+        if ($this->hasUsableCandleCoverage($directCandles, $interval, $startMs, $endMs, $limit)) {
+            return $directCandles->map(fn($row) => $this->formatCandle($row));
+        }
+
+        return $this->aggregateCandlesFromOneMinute($exchange, $marketType, $dbSymbol, $interval, $startMs, $endMs, $limit);
+    }
+
+    private function hasUsableCandleCoverage($candles, string $interval, int $startMs, int $endMs, int $limit): bool
+    {
+        $minimum = min($limit, 20);
+        if ($candles->count() < $minimum) {
+            return false;
+        }
+
+        $intervalMs = $this->timeframeMs($interval);
+        $firstTimestamp = (int) $candles->first()->timestamp;
+        $lastTimestamp = (int) $candles->last()->timestamp;
+        $requestedSpan = $endMs - $startMs;
+
+        if ($requestedSpan > ($intervalMs * $minimum) && $firstTimestamp > ($startMs + ($intervalMs * 2))) {
+            return false;
+        }
+
+        if ($lastTimestamp < ($endMs - ($intervalMs * 2))) {
+            return false;
+        }
+
+        $previousTimestamp = null;
+        foreach ($candles as $candle) {
+            $timestamp = (int) $candle->timestamp;
+            if ($previousTimestamp !== null && ($timestamp - $previousTimestamp) > ($intervalMs * 2)) {
+                return false;
+            }
+
+            $previousTimestamp = $timestamp;
+        }
+
+        return true;
+    }
+
+    private function aggregateCandlesFromOneMinute(string $exchange, string $marketType, string $dbSymbol, string $interval, int $startMs, int $endMs, int $limit)
+    {
+        $bucketMs = $this->timeframeMs($interval);
+        $oneMinuteLimit = max($limit, (int) ceil(($endMs - $startMs) / 60_000) + 5);
+
         return MarketCandle::query()
             ->where('exchange', $exchange)
             ->where('type', $marketType)
@@ -312,9 +398,9 @@ class CreatorStrategyController extends Controller
             ->where('timeframe', '1m')
             ->whereBetween('timestamp', [$startMs, $endMs])
             ->orderBy('timestamp')
-            ->limit($limit * 10)
+            ->limit($oneMinuteLimit)
             ->get(['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            ->groupBy(fn($row) => (int) floor($row->timestamp / 600000) * 600000)
+            ->groupBy(fn($row) => (int) floor($row->timestamp / $bucketMs) * $bucketMs)
             ->map(function ($group, $bucket) {
                 $sorted = $group->sortBy('timestamp')->values();
 
@@ -451,6 +537,48 @@ class CreatorStrategyController extends Controller
         return collect($rows)->unique('time')->sortBy('time')->values()->all();
     }
 
+    private function binanceTicker(string $marketType, string $symbol): ?float
+    {
+        $baseUrl = $marketType === 'future'
+            ? 'https://fapi.binance.com/fapi/v1/ticker/price'
+            : 'https://api.binance.com/api/v3/ticker/price';
+
+        try {
+            $response = Http::timeout(5)->get($baseUrl, ['symbol' => $symbol]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (!$response->ok()) {
+            return null;
+        }
+
+        $price = (float) $response->json('price');
+
+        return $price > 0 ? $price : null;
+    }
+
+    private function bybitTicker(string $marketType, string $symbol): ?float
+    {
+        try {
+            $response = Http::timeout(5)->get('https://api.bybit.com/v5/market/tickers', [
+                'category' => $marketType === 'spot' ? 'spot' : 'linear',
+                'symbol' => $symbol,
+            ]);
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (!$response->ok()) {
+            return null;
+        }
+
+        $ticker = collect($response->json('result.list'))->first();
+        $price = (float) ($ticker['lastPrice'] ?? 0);
+
+        return $price > 0 ? $price : null;
+    }
+
     private function formatCandle(MarketCandle $row): array
     {
         return [
@@ -461,6 +589,50 @@ class CreatorStrategyController extends Controller
             'close' => (float) $row->close,
             'volume' => (float) $row->volume,
         ];
+    }
+
+    private function persistCandles(string $exchange, string $marketType, string $dbSymbol, string $interval, $candles): void
+    {
+        $rows = collect($candles)
+            ->filter(fn($row) => isset($row['time'], $row['open'], $row['high'], $row['low'], $row['close']))
+            ->take(1500);
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        $builder = (new MarketCandle())->getConnection()->getSchemaBuilder();
+        $hasCreatedAt = $builder->hasColumn((new MarketCandle())->getTable(), 'created_at');
+        $hasUpdatedAt = $builder->hasColumn((new MarketCandle())->getTable(), 'updated_at');
+        $now = now();
+
+        foreach ($rows as $row) {
+            $keys = [
+                'exchange' => $exchange,
+                'type' => $marketType,
+                'symbol' => $dbSymbol,
+                'timeframe' => $interval,
+                'timestamp' => (int) $row['time'] * 1000,
+            ];
+
+            $values = [
+                'open' => (float) $row['open'],
+                'high' => (float) $row['high'],
+                'low' => (float) $row['low'],
+                'close' => (float) $row['close'],
+                'volume' => (float) ($row['volume'] ?? 0),
+            ];
+
+            if ($hasCreatedAt) {
+                $values['created_at'] = $now;
+            }
+
+            if ($hasUpdatedAt) {
+                $values['updated_at'] = $now;
+            }
+
+            MarketCandle::query()->updateOrInsert($keys, $values);
+        }
     }
 
     private function timeframeOptions(string $baseTf): array

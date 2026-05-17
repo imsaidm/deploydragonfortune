@@ -46,6 +46,38 @@
         margin-bottom: 18px;
     }
 
+    .strategy-pulse {
+        align-items: stretch;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        margin-bottom: 14px;
+    }
+
+    .pulse-item {
+        background: var(--sd-surface);
+        border: 1px solid var(--sd-border);
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
+
+    .pulse-label {
+        color: var(--sd-muted);
+        font-size: .7rem;
+        font-weight: 800;
+        letter-spacing: .07em;
+        text-transform: uppercase;
+    }
+
+    .pulse-value {
+        font-size: .92rem;
+        font-weight: 850;
+        margin-top: 5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
     .strategy-title {
         font-size: 1.85rem;
         font-weight: 850;
@@ -174,6 +206,24 @@
         display: inline-flex;
         gap: 4px;
         padding: 4px;
+    }
+
+    .chart-controls {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    .chart-action {
+        background: var(--sd-surface);
+        border: 1px solid var(--sd-border);
+        border-radius: 8px;
+        color: var(--sd-text);
+        font-size: .82rem;
+        font-weight: 800;
+        padding: 9px 11px;
     }
 
     .tf-button {
@@ -355,12 +405,123 @@
     }
 
     .pagination-wrap {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
         margin-top: 12px;
+    }
+
+    .pagination-buttons {
+        display: inline-flex;
+        gap: 8px;
+    }
+
+    .page-button {
+        border: 1px solid var(--sd-border);
+        border-radius: 8px;
+        color: var(--sd-text);
+        font-size: .82rem;
+        font-weight: 800;
+        padding: 8px 12px;
+        text-decoration: none;
+    }
+
+    .page-button.disabled {
+        color: var(--sd-muted);
+        opacity: .55;
+        pointer-events: none;
     }
 
     .page-note {
         color: var(--sd-muted);
         font-size: .83rem;
+        margin-top: 12px;
+    }
+
+    .trade-modal {
+        align-items: center;
+        background: rgba(15, 23, 42, .48);
+        display: none;
+        inset: 0;
+        justify-content: center;
+        padding: 18px;
+        position: fixed;
+        z-index: 60;
+    }
+
+    .trade-modal.open {
+        display: flex;
+    }
+
+    .trade-modal-panel {
+        background: var(--sd-surface);
+        border: 1px solid var(--sd-border);
+        border-radius: 8px;
+        box-shadow: 0 28px 80px rgba(15, 23, 42, .24);
+        max-width: 760px;
+        width: min(760px, 100%);
+    }
+
+    .trade-modal-head {
+        align-items: center;
+        border-bottom: 1px solid var(--sd-border);
+        display: flex;
+        justify-content: space-between;
+        padding: 16px 18px;
+    }
+
+    .trade-modal-title {
+        font-size: 1rem;
+        font-weight: 850;
+    }
+
+    .trade-modal-close {
+        background: var(--sd-soft);
+        border: 1px solid var(--sd-border);
+        border-radius: 8px;
+        color: var(--sd-text);
+        cursor: pointer;
+        font-size: 1.1rem;
+        height: 34px;
+        line-height: 1;
+        width: 34px;
+    }
+
+    .trade-modal-body {
+        padding: 18px;
+    }
+
+    .modal-trade-grid {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .modal-stat {
+        background: var(--sd-soft);
+        border: 1px solid var(--sd-border);
+        border-radius: 8px;
+        padding: 12px;
+    }
+
+    .modal-stat span,
+    .modal-stat small {
+        color: var(--sd-muted);
+        display: block;
+        font-size: .76rem;
+        font-weight: 750;
+    }
+
+    .modal-stat strong {
+        display: block;
+        font-size: 1rem;
+        margin-top: 5px;
+    }
+
+    .modal-note {
+        color: var(--sd-muted);
+        font-size: .88rem;
         margin-top: 12px;
     }
 
@@ -383,6 +544,7 @@
         }
 
         .strategy-select,
+        .strategy-pulse,
         .metric-grid,
         .below-chart {
             grid-template-columns: 1fr;
@@ -403,7 +565,7 @@
         <div>
             <h1 class="strategy-title">{{ ucfirst($creator) }} Strategy Desk</h1>
             <p class="strategy-subtitle">
-                Live {{ $strategyMeta['symbol'] }} chart with QuantConnect signals, exchange candles, TP/SL exits, and account equity.
+                Live {{ $strategyMeta['symbol'] }} chart with QuantConnect signals, exchange candles, TP/SL exits, and exact entry points.
             </p>
         </div>
 
@@ -419,6 +581,31 @@
     </div>
 
     @if($selectedStrategy)
+    <div class="strategy-pulse">
+        <div class="pulse-item">
+            <div class="pulse-label">Market route</div>
+            <div class="pulse-value">{{ strtoupper($strategyMeta['exchange']) }} {{ strtoupper($strategyMeta['market_type']) }} / {{ $strategyMeta['symbol'] }}</div>
+        </div>
+        <div class="pulse-item">
+            <div class="pulse-label">Allowed chart TF</div>
+            <div class="pulse-value">{{ implode(' / ', $timeframeOptions) }}</div>
+        </div>
+        <div class="pulse-item">
+            <div class="pulse-label">Latest entry</div>
+            <div class="pulse-value">
+                @if($latestTrade)
+                    {{ strtoupper($latestTrade['side']) }} ${{ number_format($latestTrade['entry_price'], 2) }}
+                @else
+                    Waiting for signal
+                @endif
+            </div>
+        </div>
+        <div class="pulse-item">
+            <div class="pulse-label">Signal overlay</div>
+            <div class="pulse-value">{{ count($tradesList) }} historical point{{ count($tradesList) === 1 ? '' : 's' }}</div>
+        </div>
+    </div>
+
     <div class="metric-grid">
         <div class="strategy-card metric-card">
             <div class="metric-label">Equity balance</div>
@@ -454,20 +641,23 @@
                 <span class="market-chip"><span class="live-dot"></span><span id="streamLabel">Connecting stream</span></span>
                 <span class="source-chip" id="dataSource">Candles: loading</span>
             </div>
-            <div class="tf-group" aria-label="Timeframes">
-                @foreach($timeframeOptions as $tf)
-                <button type="button" class="tf-button {{ $tf === $strategyMeta['base_tf'] ? 'active' : '' }}" data-tf="{{ $tf }}">{{ $tf }}</button>
-                @endforeach
+            <div class="chart-controls">
+                <button type="button" class="chart-action" id="resetLiveChart">Live chart</button>
+                <div class="tf-group" aria-label="Timeframes">
+                    @foreach($timeframeOptions as $tf)
+                    <button type="button" class="tf-button {{ $tf === $strategyMeta['base_tf'] ? 'active' : '' }}" data-tf="{{ $tf }}">{{ $tf }}</button>
+                    @endforeach
+                </div>
             </div>
         </div>
 
         <div class="chart-legend">
-            <span class="legend-item"><span class="legend-dot" style="background:#16a34a"></span>Entry long dot</span>
-            <span class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Entry short dot</span>
-            <span class="legend-item"><span class="legend-line" style="background:#22c55e"></span>Equity curve</span>
-            <span class="legend-item"><span class="legend-line" style="background:#2563eb"></span>Entry price</span>
-            <span class="legend-item"><span class="legend-line" style="background:#22c55e"></span>TP target</span>
-            <span class="legend-item"><span class="legend-line" style="background:#f43f5e"></span>SL target</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#16a34a"></span>Long entry</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Short entry</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>Exit</span>
+            <span class="legend-item"><span class="legend-line" style="background:#2563eb"></span>Selected entry</span>
+            <span class="legend-item"><span class="legend-line" style="background:#22c55e"></span>Active TP</span>
+            <span class="legend-item"><span class="legend-line" style="background:#f43f5e"></span>Active SL</span>
         </div>
 
         <div id="marketChart"></div>
@@ -525,7 +715,16 @@
                     </tbody>
                 </table>
             </div>
-            <div class="pagination-wrap">{{ $signals->appends(request()->query())->links() }}</div>
+            @php $signals->appends(request()->query()); @endphp
+            <div class="pagination-wrap">
+                <div class="page-note">
+                    Showing {{ $signals->firstItem() }} to {{ $signals->lastItem() }} of {{ $signals->total() }} signals
+                </div>
+                <div class="pagination-buttons">
+                    <a class="page-button {{ $signals->onFirstPage() ? 'disabled' : '' }}" href="{{ $signals->previousPageUrl() ?: '#' }}">Previous</a>
+                    <a class="page-button {{ $signals->hasMorePages() ? '' : 'disabled' }}" href="{{ $signals->nextPageUrl() ?: '#' }}">Next</a>
+                </div>
+            </div>
             @else
             <div class="inspector-empty">No entry signals found for this strategy yet.</div>
             @endif
@@ -548,16 +747,26 @@
     </div>
     @endif
 </div>
+
+<div id="tradeModal" class="trade-modal" aria-hidden="true">
+    <div class="trade-modal-panel" role="dialog" aria-modal="true" aria-labelledby="tradeModalTitle">
+        <div class="trade-modal-head">
+            <div class="trade-modal-title" id="tradeModalTitle">Signal Detail</div>
+            <button type="button" class="trade-modal-close" data-close-trade-modal aria-label="Close signal detail">&times;</button>
+        </div>
+        <div id="tradeModalBody" class="trade-modal-body"></div>
+    </div>
+</div>
 @endsection
 
 @section('scripts')
 <script>
     window.strategyDashboard = {
         candleEndpoint: @json(route('api.strategies.candles', ['strategy' => $selectedStrategy->id])),
+        tickerEndpoint: @json(route('api.strategies.ticker', ['strategy' => $selectedStrategy->id])),
         strategy: @json($strategyMeta),
         timeframes: @json($timeframeOptions),
         defaultTf: @json(in_array($strategyMeta['base_tf'], $timeframeOptions, true) ? $strategyMeta['base_tf'] : end($timeframeOptions)),
-        equity: @json($chartData),
         markers: @json($signalMarkers ?? []),
         trades: @json($tradesList ?? []),
     };
