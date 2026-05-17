@@ -91,6 +91,10 @@ return [
         'timeout' => (int) env('QC_TIMEOUT', 15),
     ],
 
+    'df_qc_signal_api' => [
+        'token' => env('DF_QC_SIGNAL_API_KEY', ''),
+    ],
+
     // Binance Spot API
     'binance' => [
         'spot' => [

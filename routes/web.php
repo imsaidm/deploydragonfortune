@@ -6,6 +6,7 @@ use App\Http\Controllers\BinanceSpotController;
 use App\Http\Controllers\BinanceFuturesController;
 use App\Http\Controllers\TradingAccountController;
 use App\Http\Controllers\QuantConnectController;
+use App\Http\Controllers\QcSignalApiController;
 use App\Http\Controllers\SummaryController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SentimentController;
@@ -574,4 +575,7 @@ Route::get('/fetch-crypto-panic', [SentimentController::class, 'cryptoPanicFetch
 Route::prefix('api/v1')->group(function () {
     Route::get('/sentiment/alternative', [SentimentController::class, 'apiAlternative']);
     Route::get('/sentiment/santiment', [SentimentController::class, 'apiSantiment']);
+    Route::get('/qc-signals/force-exit', [QcSignalApiController::class, 'forceExit'])
+        ->middleware('throttle:60,1')
+        ->name('api.v1.qc-signals.force-exit');
 });
