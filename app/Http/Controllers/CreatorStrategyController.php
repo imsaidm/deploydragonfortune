@@ -43,6 +43,7 @@ class CreatorStrategyController extends Controller
             ->select(
                 's_entry.id',
                 's_entry.datetime',
+                's_entry.created_at as entry_created_at',
                 's_entry.jenis',
                 's_entry.price_entry',
                 's_entry.target_tp',
@@ -50,11 +51,12 @@ class CreatorStrategyController extends Controller
                 's_entry.leverage',
                 's_entry.market_type',
                 's_exit.datetime as exit_datetime',
+                's_exit.created_at as exit_created_at',
                 's_exit.price_exit as actual_price_exit'
             )
             ->leftJoin('qc_signal as s_exit', function ($join) {
                 $join->on('s_exit.id', '=', DB::raw(
-                    "(SELECT id FROM qc_signal WHERE id_method = s_entry.id_method AND type = 'exit' AND datetime > s_entry.datetime ORDER BY datetime ASC LIMIT 1)"
+                    "(SELECT id FROM qc_signal WHERE id_method = s_entry.id_method AND type = 'exit' AND created_at > s_entry.created_at ORDER BY created_at ASC LIMIT 1)"
                 ));
             })
             ->where('s_entry.id_method', $selectedStrategy->id)
@@ -83,7 +85,7 @@ class CreatorStrategyController extends Controller
                 else $slCount++;
 
                 // Find nearest equity balance for dot Y position
-                $exitTime       = Carbon::parse($trade->exit_datetime)->getTimestamp();
+                $exitTime       = $this->signalEventTimestamp($trade->exit_created_at, $trade->exit_datetime);
                 $nearestBalance = $selectedStrategy->opening_balance ?? 0;
                 $smallestDiff   = PHP_INT_MAX;
                 foreach ($orders as $order) {
@@ -118,8 +120,10 @@ class CreatorStrategyController extends Controller
                 'target_tp'    => (float)$trade->target_tp,
                 'target_sl'    => (float)$trade->target_sl,
                 'exit_price'   => $exit,
-                'entry_time'   => Carbon::parse($trade->datetime)->getTimestamp(),
-                'exit_time'    => $isExited ? Carbon::parse($trade->exit_datetime)->getTimestamp() : null,
+                'entry_time'   => $this->signalEventTimestamp($trade->entry_created_at, $trade->datetime),
+                'exit_time'    => $isExited ? $this->signalEventTimestamp($trade->exit_created_at, $trade->exit_datetime) : null,
+                'qc_entry_time' => Carbon::parse($trade->datetime)->getTimestamp(),
+                'qc_exit_time'  => $isExited ? Carbon::parse($trade->exit_datetime)->getTimestamp() : null,
                 'is_exited'    => $isExited,
                 'is_profit'    => $isExited ? ($isLong ? ($exit >= $entry) : ($entry >= $exit)) : null,
                 'leverage'     => $trade->leverage ?: 1,
@@ -169,10 +173,10 @@ class CreatorStrategyController extends Controller
 
         // 3. Paginated signals for the table
         $signals = DB::connection('methods')->table('qc_signal as s_entry')
-            ->select('s_entry.*', 's_exit.datetime as exit_datetime', 's_exit.price_exit as actual_price_exit')
+            ->select('s_entry.*', 's_exit.datetime as exit_datetime', 's_exit.created_at as exit_created_at', 's_exit.price_exit as actual_price_exit')
             ->leftJoin('qc_signal as s_exit', function ($join) {
                 $join->on('s_exit.id', '=', DB::raw(
-                    "(SELECT id FROM qc_signal WHERE id_method = s_entry.id_method AND type = 'exit' AND datetime > s_entry.datetime ORDER BY datetime ASC LIMIT 1)"
+                    "(SELECT id FROM qc_signal WHERE id_method = s_entry.id_method AND type = 'exit' AND created_at > s_entry.created_at ORDER BY created_at ASC LIMIT 1)"
                 ));
             })
             ->where('s_entry.id_method', $selectedStrategy->id)
@@ -197,6 +201,11 @@ class CreatorStrategyController extends Controller
             'latestTrade',
             'activeTrades'
         ));
+    }
+
+    private function signalEventTimestamp(?string $createdAt, ?string $fallbackDatetime): int
+    {
+        return Carbon::parse($createdAt ?: $fallbackDatetime)->getTimestamp();
     }
 
     public function candles(QcMethod $strategy, Request $request)

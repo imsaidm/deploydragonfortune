@@ -226,6 +226,21 @@
         padding: 9px 11px;
     }
 
+    .trade-focus-controls {
+        display: none;
+        gap: 6px;
+    }
+
+    .trade-focus-controls.visible {
+        display: inline-flex;
+    }
+
+    .trade-focus-controls .chart-action.active {
+        background: var(--sd-blue);
+        border-color: var(--sd-blue);
+        color: #fff;
+    }
+
     .tf-button {
         background: transparent;
         border: 0;
@@ -648,6 +663,12 @@
             </div>
             <div class="chart-controls">
                 <button type="button" class="chart-action" id="resetLiveChart">Live chart</button>
+                <div class="trade-focus-controls" id="tradeFocusControls" aria-label="Trade focus window">
+                    <button type="button" class="chart-action active" data-trade-focus="entry">Entry</button>
+                    <button type="button" class="chart-action" data-trade-focus="exit">Exit</button>
+                    <button type="button" class="chart-action" data-trade-focus="prev">Prev</button>
+                    <button type="button" class="chart-action" data-trade-focus="next">Next</button>
+                </div>
                 <div class="tf-group" aria-label="Timeframes">
                     @foreach($timeframeOptions as $tf)
                     <button type="button" class="tf-button {{ $tf === $strategyMeta['base_tf'] ? 'active' : '' }}" data-tf="{{ $tf }}">{{ $tf }}</button>
@@ -698,7 +719,7 @@
                             $isWin = $pnl >= 0;
                         @endphp
                         <tr data-trade-id="{{ $sig->id }}">
-                            <td><strong>{{ \Carbon\Carbon::parse($sig->datetime)->format('M d, H:i') }}</strong></td>
+                            <td><strong>{{ \Carbon\Carbon::parse($sig->created_at ?: $sig->datetime)->format('M d, H:i') }}</strong></td>
                             <td>${{ number_format($entry, 2) }} <span style="color:var(--sd-muted)">({{ $sig->leverage ?: 1 }}x)</span></td>
                             <td>
                                 <span class="side-badge {{ $isLong ? 'side-long' : 'side-short' }}">{{ $isLong ? 'LONG' : 'SHORT' }}</span>
