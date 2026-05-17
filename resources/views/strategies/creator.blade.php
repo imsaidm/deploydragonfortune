@@ -331,6 +331,11 @@
         cursor: pointer;
     }
 
+    .strategy-table tbody tr.selected {
+        background: rgba(37, 99, 235, .08);
+        box-shadow: inset 3px 0 0 var(--sd-blue);
+    }
+
     .side-badge,
     .result-badge {
         border-radius: 999px;
@@ -652,10 +657,10 @@
         </div>
 
         <div class="chart-legend">
-            <span class="legend-item"><span class="legend-dot" style="background:#16a34a"></span>Long entry</span>
-            <span class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Short entry</span>
-            <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>Exit</span>
-            <span class="legend-item"><span class="legend-line" style="background:#2563eb"></span>Selected entry</span>
+            <span class="legend-item"><span class="legend-dot" style="background:rgba(22,163,74,.72)"></span>Long history</span>
+            <span class="legend-item"><span class="legend-dot" style="background:rgba(225,29,72,.72)"></span>Short history</span>
+            <span class="legend-item"><span class="legend-dot" style="background:rgba(245,158,11,.78)"></span>Exit history</span>
+            <span class="legend-item"><span class="legend-dot" style="background:#2563eb;width:13px;height:13px"></span>Selected entry</span>
             <span class="legend-item"><span class="legend-line" style="background:#22c55e"></span>Active TP</span>
             <span class="legend-item"><span class="legend-line" style="background:#f43f5e"></span>Active SL</span>
         </div>

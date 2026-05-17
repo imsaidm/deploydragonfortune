@@ -28,6 +28,8 @@
         longSignalSeries: null,
         shortSignalSeries: null,
         exitSignalSeries: null,
+        selectedEntryPointSeries: null,
+        selectedExitPointSeries: null,
         selectedTrade: null,
     };
 
@@ -140,20 +142,9 @@
             color: c.close >= c.open ? 'rgba(22,163,74,.24)' : 'rgba(225,29,72,.24)',
         })));
 
-        const activeTradeIds = new Set((cfg.trades || [])
-            .filter((trade) => !trade.is_exited)
-            .map((trade) => String(trade.id)));
-
-        candleSeries.setMarkers((cfg.markers || []).map((marker) => ({
-            time: marker.time,
-            position: marker.position,
-            color: marker.color,
-            shape: marker.shape,
-            text: '',
-            id: String(marker.trade_id),
-        })).map(alignMarkerToCandle).filter(Boolean));
-
+        candleSeries.setMarkers([]);
         renderSignalPriceDots();
+        renderSelectedTradePoints();
     }
 
     function buildRange(tf) {
@@ -378,7 +369,7 @@
         const baseOptions = {
             lineVisible: false,
             pointMarkersVisible: true,
-            pointMarkersRadius: 5,
+            pointMarkersRadius: 3,
             lastValueVisible: false,
             priceLineVisible: false,
             crosshairMarkerVisible: true,
@@ -387,20 +378,36 @@
 
         state.longSignalSeries = chart.addLineSeries({
             ...baseOptions,
-            color: colors.green,
+            color: 'rgba(22,163,74,.72)',
             title: '',
         });
 
         state.shortSignalSeries = chart.addLineSeries({
             ...baseOptions,
-            color: colors.red,
+            color: 'rgba(225,29,72,.72)',
             title: '',
         });
 
         state.exitSignalSeries = chart.addLineSeries({
             ...baseOptions,
+            color: 'rgba(245,158,11,.78)',
+            pointMarkersRadius: 3,
+            title: '',
+        });
+
+        state.selectedEntryPointSeries = chart.addLineSeries({
+            ...baseOptions,
+            color: colors.blue,
+            pointMarkersRadius: 7,
+            crosshairMarkerVisible: true,
+            title: '',
+        });
+
+        state.selectedExitPointSeries = chart.addLineSeries({
+            ...baseOptions,
             color: colors.amber,
-            pointMarkersRadius: 4,
+            pointMarkersRadius: 7,
+            crosshairMarkerVisible: true,
             title: '',
         });
     }
@@ -434,9 +441,25 @@
         state.exitSignalSeries.setData(uniquePricePoints(exitPoints));
     }
 
-    function alignMarkerToCandle(marker) {
-        const time = alignTimeToCandle(marker.time);
-        return time ? { ...marker, time } : null;
+    function renderSelectedTradePoints() {
+        if (!state.selectedTrade) {
+            state.selectedEntryPointSeries.setData([]);
+            state.selectedExitPointSeries.setData([]);
+            return;
+        }
+
+        const trade = state.selectedTrade;
+        const entryTime = alignTimeToCandle(trade.entry_time);
+        const entryPrice = Number(trade.entry_price);
+        state.selectedEntryPointSeries.setData(entryTime && Number.isFinite(entryPrice) && entryPrice > 0
+            ? [{ time: entryTime, value: entryPrice }]
+            : []);
+
+        const exitTime = trade.exit_time ? alignTimeToCandle(trade.exit_time) : null;
+        const exitPrice = Number(trade.exit_price);
+        state.selectedExitPointSeries.setData(exitTime && Number.isFinite(exitPrice) && exitPrice > 0
+            ? [{ time: exitTime, value: exitPrice }]
+            : []);
     }
 
     function alignTimeToCandle(rawTime) {
@@ -528,10 +551,12 @@
     async function inspectTrade(trade) {
         state.selectedTrade = trade;
         renderInspector(trade);
+        highlightSelectedHistoryRow(trade);
         if (!tradeIsInLoadedRange(trade)) {
             await loadChart(state.tf, buildTradeRange(trade, state.tf), { trade });
             return;
         }
+        renderSelectedTradePoints();
         drawTradeLevels(trade);
     }
 
@@ -677,6 +702,7 @@
         if (resetButton) {
             resetButton.addEventListener('click', () => {
                 state.selectedTrade = null;
+                highlightSelectedHistoryRow(null);
                 closeTradeModal();
                 loadChart(state.tf);
             });
@@ -722,6 +748,12 @@
         modal.setAttribute('aria-hidden', 'true');
     }
 
+    function highlightSelectedHistoryRow(trade) {
+        document.querySelectorAll('[data-trade-id]').forEach((row) => {
+            row.classList.toggle('selected', !!trade && String(row.dataset.tradeId) === String(trade.id));
+        });
+    }
+
     function findTrade(id) {
         return (cfg.trades || []).find((trade) => String(trade.id) === String(id));
     }
@@ -740,21 +772,45 @@
         const entry = Number(trade.entry_time);
         const exit = Number(trade.exit_time || 0);
         const padding = Math.max(seconds * 80, 3600 * 6);
+        const maxCandles = maxTradeWindowCandles(tf);
+        let startSeconds = entry - padding;
         let endSeconds = exit || entry + Math.max(seconds * 220, 86400);
 
         if (!exit) {
             endSeconds = Math.min(Math.floor(Date.now() / 1000), endSeconds);
         }
 
-        const start = Math.max(0, (entry - padding) * 1000);
-        const end = (endSeconds + padding) * 1000;
+        endSeconds += padding;
+
+        const requestedCandles = Math.ceil((endSeconds - startSeconds) / seconds);
+        if (requestedCandles > maxCandles) {
+            const entryPaddingCandles = Math.min(120, Math.floor(maxCandles * 0.18));
+            startSeconds = entry - (entryPaddingCandles * seconds);
+            endSeconds = startSeconds + (maxCandles * seconds);
+        }
+
+        const start = Math.max(0, startSeconds * 1000);
+        const end = endSeconds * 1000;
         const span = Math.max(1, Math.ceil((end - start) / 1000 / seconds));
 
         return {
             start,
             end,
-            limit: Math.min(Math.max(span + 20, 300), 5000),
+            limit: Math.min(Math.max(span + 20, 300), maxCandles),
         };
+    }
+
+    function maxTradeWindowCandles(tf) {
+        return {
+            '1m': 2400,
+            '5m': 2400,
+            '10m': 2400,
+            '30m': 2200,
+            '1h': 3600,
+            '4h': 2400,
+            '1d': 1000,
+            '1w': 700,
+        }[tf] || 2000;
     }
 
     function normalizeCandles(candles) {
