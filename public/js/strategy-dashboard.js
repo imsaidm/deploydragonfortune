@@ -31,6 +31,8 @@
         selectedEntryPointSeries: null,
         selectedExitPointSeries: null,
         selectedTrade: null,
+        tradeFocus: 'entry',
+        tradeWindowStart: null,
     };
 
     const chart = LightweightCharts.createChart(chartEl, {
@@ -39,6 +41,9 @@
             background: { color: 'transparent' },
             textColor: colors.muted,
             fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif',
+        },
+        localization: {
+            timeFormatter: formatChartDateTime,
         },
         grid: {
             vertLines: { color: colors.grid },
@@ -51,6 +56,7 @@
             borderColor: colors.grid,
             timeVisible: true,
             secondsVisible: false,
+            tickMarkFormatter: formatChartTick,
         },
         handleScale: true,
         handleScroll: true,
@@ -550,10 +556,13 @@
 
     async function inspectTrade(trade) {
         state.selectedTrade = trade;
+        state.tradeFocus = 'entry';
+        state.tradeWindowStart = null;
         renderInspector(trade);
         highlightSelectedHistoryRow(trade);
+        updateTradeFocusControls();
         if (!tradeIsInLoadedRange(trade)) {
-            await loadChart(state.tf, buildTradeRange(trade, state.tf), { trade });
+            await loadChart(state.tf, buildTradeRange(trade, state.tf, 'entry'), { trade });
             return;
         }
         renderSelectedTradePoints();
@@ -563,6 +572,7 @@
     function drawTradeLevels(trade) {
         clearTradeLevels();
         if (!state.candles.length) return;
+        renderSignalConsistency(trade);
 
         const first = state.candles[0].time;
         const last = state.candles[state.candles.length - 1].time;
@@ -668,9 +678,76 @@
                 <div class="inspector-label">Leverage</div>
                 <div class="inspector-value">${trade.leverage || 1}x</div>
             </div>
+            <div class="inspector-row" id="signalConsistencyCheck">
+                <div class="inspector-label">Market check</div>
+                <div class="inspector-value">Load a trade window to compare signal price with candles.</div>
+            </div>
         `;
 
         renderTradeModal(trade);
+        renderSignalConsistency(trade);
+    }
+
+    function renderSignalConsistency(trade) {
+        const target = document.getElementById('signalConsistencyCheck');
+        if (!target || !trade || !state.candles.length) return;
+
+        const exitPrice = Number(trade.exit_price);
+        if (!trade.is_exited || !trade.exit_time || !Number.isFinite(exitPrice) || exitPrice <= 0) {
+            target.innerHTML = `
+                <div class="inspector-label">Market check</div>
+                <div class="inspector-value">Active trade, no exit candle to validate yet.</div>
+            `;
+            return;
+        }
+
+        const candle = nearestCandleByTime(trade.exit_time);
+        if (!candle) {
+            target.innerHTML = `
+                <div class="inspector-label">Market check</div>
+                <div class="inspector-value">Exit candle is outside the loaded ${state.tf} window.</div>
+            `;
+            return;
+        }
+
+        const tolerance = Math.max(minMove(cfg.strategy.symbol) * 2, exitPrice * 0.00001);
+        const touchedAtExit = exitPrice >= (candle.low - tolerance) && exitPrice <= (candle.high + tolerance);
+        const firstTouch = !touchedAtExit ? firstCandleTouchingPrice(exitPrice) : candle;
+        const statusClass = touchedAtExit ? 'metric-positive' : 'metric-negative';
+        const statusText = touchedAtExit ? 'matches candle' : 'does not match exit candle';
+        const extra = !touchedAtExit && firstTouch
+            ? `<div style="color:var(--sd-muted);font-size:.82rem;margin-top:4px">First loaded touch: ${formatDate(firstTouch.time)} with range $${formatNumber(firstTouch.low)} - $${formatNumber(firstTouch.high)}</div>`
+            : '';
+
+        target.innerHTML = `
+            <div class="inspector-label">Market check</div>
+            <div class="inspector-value ${statusClass}">Exit ${statusText}</div>
+            <div style="color:var(--sd-muted);font-size:.82rem;margin-top:4px">
+                Signal exit $${formatNumber(exitPrice)} vs ${state.tf} candle $${formatNumber(candle.low)} - $${formatNumber(candle.high)} at ${formatDate(candle.time)}
+            </div>
+            ${extra}
+        `;
+    }
+
+    function nearestCandleByTime(rawTime) {
+        const time = Number(rawTime);
+        if (!Number.isFinite(time) || !state.candles.length) return null;
+
+        let nearest = null;
+        let smallestDistance = Infinity;
+        state.candles.forEach((candle) => {
+            const distance = Math.abs(candle.time - time);
+            if (distance < smallestDistance) {
+                nearest = candle;
+                smallestDistance = distance;
+            }
+        });
+
+        return smallestDistance <= intervalSeconds(state.tf) * 2 ? nearest : null;
+    }
+
+    function firstCandleTouchingPrice(price) {
+        return state.candles.find((candle) => price >= candle.low && price <= candle.high) || null;
     }
 
     function renderTradeModal(trade) {
@@ -702,7 +779,10 @@
         if (resetButton) {
             resetButton.addEventListener('click', () => {
                 state.selectedTrade = null;
+                state.tradeFocus = 'entry';
+                state.tradeWindowStart = null;
                 highlightSelectedHistoryRow(null);
+                updateTradeFocusControls();
                 closeTradeModal();
                 loadChart(state.tf);
             });
@@ -713,10 +793,20 @@
                 document.querySelectorAll('.tf-button').forEach((item) => item.classList.remove('active'));
                 button.classList.add('active');
                 if (state.selectedTrade) {
-                    loadChart(button.dataset.tf, buildTradeRange(state.selectedTrade, button.dataset.tf), { trade: state.selectedTrade });
+                    state.tradeWindowStart = null;
+                    loadChart(button.dataset.tf, buildTradeRange(state.selectedTrade, button.dataset.tf, state.tradeFocus), { trade: state.selectedTrade });
                     return;
                 }
                 loadChart(button.dataset.tf);
+            });
+        });
+
+        document.querySelectorAll('[data-trade-focus]').forEach((button) => {
+            button.addEventListener('click', () => {
+                if (!state.selectedTrade) return;
+                const action = button.dataset.tradeFocus;
+                const focus = action === 'prev' || action === 'next' ? action : action || 'entry';
+                loadChart(state.tf, buildTradeRange(state.selectedTrade, state.tf, focus), { trade: state.selectedTrade });
             });
         });
     }
@@ -754,6 +844,16 @@
         });
     }
 
+    function updateTradeFocusControls() {
+        const controls = document.getElementById('tradeFocusControls');
+        if (!controls) return;
+        controls.classList.toggle('visible', !!state.selectedTrade);
+        controls.querySelectorAll('[data-trade-focus]').forEach((button) => {
+            const focus = button.dataset.tradeFocus;
+            button.classList.toggle('active', focus === state.tradeFocus && focus !== 'prev' && focus !== 'next');
+        });
+    }
+
     function findTrade(id) {
         return (cfg.trades || []).find((trade) => String(trade.id) === String(id));
     }
@@ -767,27 +867,46 @@
         return trade.entry_time >= first && exitTime <= last;
     }
 
-    function buildTradeRange(trade, tf) {
+    function buildTradeRange(trade, tf, focus = 'entry') {
         const seconds = intervalSeconds(tf);
         const entry = Number(trade.entry_time);
         const exit = Number(trade.exit_time || 0);
-        const padding = Math.max(seconds * 80, 3600 * 6);
         const maxCandles = maxTradeWindowCandles(tf);
-        let startSeconds = entry - padding;
-        let endSeconds = exit || entry + Math.max(seconds * 220, 86400);
+        const windowSeconds = maxCandles * seconds;
+        const stepSeconds = Math.floor(windowSeconds * 0.75);
+        const entryPadding = Math.min(120, Math.floor(maxCandles * 0.18)) * seconds;
+        const exitPadding = Math.min(180, Math.floor(maxCandles * 0.25)) * seconds;
+        let startSeconds;
 
-        if (!exit) {
-            endSeconds = Math.min(Math.floor(Date.now() / 1000), endSeconds);
+        if (focus === 'exit' && exit) {
+            state.tradeFocus = 'exit';
+            startSeconds = Math.max(entry - entryPadding, exit - windowSeconds + exitPadding);
+        } else if (focus === 'next') {
+            startSeconds = (state.tradeWindowStart ?? (entry - entryPadding)) + stepSeconds;
+        } else if (focus === 'prev') {
+            startSeconds = (state.tradeWindowStart ?? (entry - entryPadding)) - stepSeconds;
+        } else {
+            state.tradeFocus = 'entry';
+            startSeconds = entry - entryPadding;
         }
 
-        endSeconds += padding;
+        const tradeEnd = exit || Math.floor(Date.now() / 1000);
+        const minStart = Math.max(0, entry - entryPadding);
+        const maxStart = Math.max(minStart, tradeEnd - windowSeconds + exitPadding);
 
-        const requestedCandles = Math.ceil((endSeconds - startSeconds) / seconds);
-        if (requestedCandles > maxCandles) {
-            const entryPaddingCandles = Math.min(120, Math.floor(maxCandles * 0.18));
-            startSeconds = entry - (entryPaddingCandles * seconds);
-            endSeconds = startSeconds + (maxCandles * seconds);
+        startSeconds = Math.min(Math.max(startSeconds, minStart), maxStart);
+        if (focus === 'next' || focus === 'prev') {
+            state.tradeFocus = 'custom';
         }
+
+        let endSeconds = startSeconds + windowSeconds;
+        if (endSeconds > tradeEnd + exitPadding) {
+            endSeconds = tradeEnd + exitPadding;
+            startSeconds = Math.max(minStart, endSeconds - windowSeconds);
+        }
+
+        state.tradeWindowStart = startSeconds;
+        updateTradeFocusControls();
 
         const start = Math.max(0, startSeconds * 1000);
         const end = endSeconds * 1000;
@@ -914,6 +1033,48 @@
             hour: '2-digit',
             minute: '2-digit',
         });
+    }
+
+    function formatChartDateTime(time) {
+        const date = chartTimeToDate(time);
+        if (!date) return '';
+
+        return date.toLocaleString(undefined, {
+            month: 'short',
+            day: '2-digit',
+            year: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    }
+
+    function formatChartTick(time) {
+        const date = chartTimeToDate(time);
+        if (!date) return '';
+
+        return date.toLocaleString(undefined, {
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    }
+
+    function chartTimeToDate(time) {
+        if (typeof time === 'number') {
+            return new Date(time * 1000);
+        }
+
+        if (typeof time === 'string') {
+            const parsed = new Date(time);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+        }
+
+        if (time && typeof time === 'object' && 'year' in time && 'month' in time && 'day' in time) {
+            return new Date(time.year, time.month - 1, time.day);
+        }
+
+        return null;
     }
 
     function pricePrecision(symbol) {
