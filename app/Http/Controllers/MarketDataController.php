@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\CrawlMarketDataJob;
+use App\Models\MarketCandle;
+use App\Models\QcMethod;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 
 class MarketDataController extends Controller
@@ -16,6 +20,72 @@ class MarketDataController extends Controller
             ->get();
 
         return view('market-data.crawler', compact('datasets'));
+    }
+
+    public function candleSyncStatus()
+    {
+        $datasets = MarketCandle::query()
+            ->selectRaw('exchange, type, symbol, timeframe, COUNT(*) as total_candles, MIN(timestamp) as oldest_ts, MAX(timestamp) as newest_ts, MAX(updated_at) as last_updated_at')
+            ->groupBy('exchange', 'type', 'symbol', 'timeframe')
+            ->orderBy('exchange')
+            ->orderBy('type')
+            ->orderBy('symbol')
+            ->orderByRaw("FIELD(timeframe, '1m', '3m', '5m', '10m', '15m', '30m', '1h', '4h', '1d')")
+            ->get()
+            ->map(function ($dataset) {
+                $durationMs = MarketCandle::timeframeDurationMs($dataset->timeframe);
+                $newest = Carbon::createFromTimestampMs((int) $dataset->newest_ts);
+                $oldest = Carbon::createFromTimestampMs((int) $dataset->oldest_ts);
+                $lagSeconds = $newest->diffInSeconds(now(), false);
+                $isStale = $lagSeconds > max(600, ($durationMs / 1000) * 3);
+                $gap = $this->largestRecentGap($dataset->exchange, $dataset->type, $dataset->symbol, $dataset->timeframe, $durationMs);
+
+                return (object) [
+                    'exchange' => $dataset->exchange,
+                    'type' => $dataset->type,
+                    'symbol' => $dataset->symbol,
+                    'timeframe' => $dataset->timeframe,
+                    'total_candles' => (int) $dataset->total_candles,
+                    'oldest' => $oldest,
+                    'newest' => $newest,
+                    'last_updated_at' => $dataset->last_updated_at ? Carbon::parse($dataset->last_updated_at) : null,
+                    'lag_seconds' => $lagSeconds,
+                    'is_stale' => $isStale,
+                    'largest_gap_ms' => $gap,
+                    'has_gap' => $gap > ($durationMs * 2),
+                    'expected_gap_ms' => $durationMs,
+                    'is_active_strategy_market' => false,
+                ];
+            });
+
+        $activeMarkets = $this->activeStrategyMarkets();
+        $activeKeys = $activeMarkets->pluck('key')->flip();
+
+        $datasets = $datasets->map(function ($dataset) use ($activeKeys) {
+            $key = $this->marketKey($dataset->exchange, $dataset->type, $dataset->symbol, $dataset->timeframe);
+            $dataset->is_active_strategy_market = $activeKeys->has($key);
+
+            return $dataset;
+        });
+
+        $datasetKeys = $datasets
+            ->map(fn($dataset) => $this->marketKey($dataset->exchange, $dataset->type, $dataset->symbol, $dataset->timeframe))
+            ->flip();
+
+        $missingActiveMarkets = $activeMarkets
+            ->reject(fn($market) => $datasetKeys->has($market['key']))
+            ->values();
+
+        $summary = [
+            'datasets' => $datasets->count(),
+            'active_markets' => $activeMarkets->count(),
+            'missing_active_markets' => $missingActiveMarkets->count(),
+            'stale' => $datasets->where('is_stale', true)->count(),
+            'with_gaps' => $datasets->where('has_gap', true)->count(),
+            'total_candles' => $datasets->sum('total_candles'),
+        ];
+
+        return view('market-data.candle-sync-status', compact('datasets', 'activeMarkets', 'missingActiveMarkets', 'summary'));
     }
 
     public function store(Request $request)
@@ -41,7 +111,7 @@ class MarketDataController extends Controller
             $validated['timeframe'],
             $validated['start_date'],
             $validated['end_date'],
-        )->onQueue('crawler');
+        );
 
         return back()->with('success',
             "✅ Job dispatched! Crawling {$symbol} ({$validated['exchange']} {$validated['type']}) "
@@ -166,5 +236,95 @@ class MarketDataController extends Controller
             'firstTp', 'firstSl', 'outcome', 'timeline',
             'entry', 'tp', 'sl', 'dir'
         ));
+    }
+
+    private function largestRecentGap(string $exchange, string $type, string $symbol, string $timeframe, int $durationMs): int
+    {
+        $timestamps = MarketCandle::query()
+            ->where('exchange', $exchange)
+            ->where('type', $type)
+            ->where('symbol', $symbol)
+            ->where('timeframe', $timeframe)
+            ->orderByDesc('timestamp')
+            ->limit(500)
+            ->pluck('timestamp')
+            ->sort()
+            ->values();
+
+        if ($timestamps->count() < 2) {
+            return 0;
+        }
+
+        $largest = 0;
+        for ($i = 1; $i < $timestamps->count(); $i++) {
+            $largest = max($largest, (int) $timestamps[$i] - (int) $timestamps[$i - 1]);
+        }
+
+        return max(0, $largest - $durationMs);
+    }
+
+    private function activeStrategyMarkets()
+    {
+        return QcMethod::query()
+            ->where('onactive', 1)
+            ->whereNotNull('pair')
+            ->where('pair', '<>', '')
+            ->get()
+            ->map(function ($method) {
+                $symbol = $this->slashSymbol($this->normalizeSymbol((string) $method->pair));
+                $exchange = str_contains(strtolower((string) $method->exchange), 'bybit') ? 'bybit' : 'binance';
+                $type = $this->marketType($method);
+                $timeframe = strtolower($method->tf ?: '1h');
+
+                return [
+                    'strategy_id' => $method->id,
+                    'strategy_name' => $method->nama_metode,
+                    'exchange' => $exchange,
+                    'type' => $type,
+                    'symbol' => $symbol,
+                    'timeframe' => $timeframe,
+                    'key' => $this->marketKey($exchange, $type, $symbol, $timeframe),
+                ];
+            })
+            ->filter(fn($market) => $market['symbol'])
+            ->unique('key')
+            ->values();
+    }
+
+    private function marketType(QcMethod $method): string
+    {
+        $latestSignalMarket = DB::connection('methods')->table('qc_signal')
+            ->where('id_method', $method->id)
+            ->whereNotNull('market_type')
+            ->where('market_type', '<>', '')
+            ->orderByDesc('datetime')
+            ->value('market_type');
+
+        $haystack = strtolower(($method->nama_metode ?? '') . ' ' . ($method->exchange ?? '') . ' ' . ($latestSignalMarket ?? ''));
+
+        return str_contains($haystack, 'future') || str_contains($haystack, 'perp') ? 'future' : 'spot';
+    }
+
+    private function marketKey(string $exchange, string $type, string $symbol, string $timeframe): string
+    {
+        return strtolower("{$exchange}|{$type}|{$symbol}|{$timeframe}");
+    }
+
+    private function normalizeSymbol(string $pair): string
+    {
+        $symbol = strtoupper(preg_replace('/[^A-Z0-9]/', '', $pair));
+
+        return preg_match('/(USDT|USDC|BUSD|USD)$/', $symbol) ? $symbol : $symbol . 'USDT';
+    }
+
+    private function slashSymbol(string $symbol): string
+    {
+        foreach (['USDT', 'USDC', 'BUSD', 'USD'] as $quote) {
+            if (str_ends_with($symbol, $quote)) {
+                return substr($symbol, 0, -strlen($quote)) . '/' . $quote;
+            }
+        }
+
+        return '';
     }
 }

@@ -63,6 +63,10 @@ Route::view('/sentiment-flow/dashboard', 'sentiment-flow.dashboard')->name('sent
 
 // Strategy Creator Routes
 Route::get('/strategies/{creator}', [App\Http\Controllers\CreatorStrategyController::class, 'show'])->name('strategies.creator');
+Route::get('/api/strategies/{strategy}/candles', [App\Http\Controllers\CreatorStrategyController::class, 'candles'])
+    ->name('api.strategies.candles');
+Route::get('/api/strategies/{strategy}/ticker', [App\Http\Controllers\CreatorStrategyController::class, 'ticker'])
+    ->name('api.strategies.ticker');
 
 // Backtest & Signal Placeholder Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');
@@ -538,6 +542,8 @@ if (app()->isLocal()) {
 // ── Market Data Crawler ──────────────────────────────────────────────────────
 Route::get('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'index'])
     ->name('market-data.index');
+Route::get('/market-data/candle-sync-status', [App\Http\Controllers\MarketDataController::class, 'candleSyncStatus'])
+    ->name('market-data.candle-sync-status');
 Route::post('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'store'])
     ->name('market-data.store');
 Route::delete('/market-data/crawler', [App\Http\Controllers\MarketDataController::class, 'destroy'])

@@ -4,18 +4,20 @@ namespace App\Jobs;
 
 use App\Models\MarketCandle;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class CrawlMarketDataJob implements ShouldQueue
+class CrawlMarketDataJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries   = 3;
     public int $timeout = 3600;
+    public int $uniqueFor = 3600;
 
     public function __construct(
         protected string $exchange,
@@ -25,6 +27,18 @@ class CrawlMarketDataJob implements ShouldQueue
         protected string $startDate,
         protected string $endDate,
     ) {}
+
+    public function uniqueId(): string
+    {
+        return implode('|', [
+            $this->exchange,
+            $this->type,
+            $this->symbol,
+            $this->timeframe,
+            $this->startDate,
+            $this->endDate,
+        ]);
+    }
 
     public function handle(): void
     {
