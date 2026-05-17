@@ -33,6 +33,8 @@
         selectedTrade: null,
         tradeFocus: 'entry',
         tradeWindowStart: null,
+        lastPrice: null,
+        forceExitBusy: false,
     };
 
     const chart = LightweightCharts.createChart(chartEl, {
@@ -87,6 +89,7 @@
 
     wireTimeframeButtons();
     wireTableRows();
+    wireForceExitButton();
     chart.subscribeClick(handleChartClick);
     loadChart(state.tf);
 
@@ -524,6 +527,63 @@
         }
 
         updateLivePrice(price);
+        state.lastPrice = price;
+    }
+
+    function wireForceExitButton() {
+        const button = document.getElementById('forceExitButton');
+        if (!button || !cfg.forceExitEndpoint) return;
+
+        button.addEventListener('click', async () => {
+            if (state.forceExitBusy) return;
+
+            const activeTrades = (cfg.trades || []).filter((trade) => !trade.is_exited);
+            if (!activeTrades.length) {
+                window.alert('No active entry signal found for this strategy.');
+                return;
+            }
+
+            const price = Number(state.lastPrice);
+            if (!Number.isFinite(price) || price <= 0) {
+                window.alert('Live price is not ready yet.');
+                return;
+            }
+
+            const confirmed = window.confirm(`Create force exit signal at $${formatNumber(price)}?`);
+            if (!confirmed) return;
+
+            state.forceExitBusy = true;
+            button.disabled = true;
+            const previousText = button.textContent;
+            button.textContent = 'Exiting';
+
+            try {
+                const response = await fetch(cfg.forceExitEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    body: JSON.stringify({ price_exit: price }),
+                });
+
+                const payload = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(payload.message || 'Failed to create force exit signal.');
+                }
+
+                setLiveStatus('Force exit signal created');
+                window.location.reload();
+            } catch (error) {
+                console.error('[Strategy chart] force exit failed', error);
+                window.alert(error.message || 'Failed to create force exit signal.');
+            } finally {
+                state.forceExitBusy = false;
+                button.disabled = false;
+                button.textContent = previousText;
+            }
+        });
     }
 
     function isSaneTick(price) {

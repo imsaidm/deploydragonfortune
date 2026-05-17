@@ -41,6 +41,7 @@ class QcSignal extends Model
         'quantity',
         'ratio',
         'market_type',
+        'force_exit',
         'telegram_processing',
     ];
     
@@ -58,5 +59,6 @@ class QcSignal extends Model
         'quantity' => 'decimal:8',
         'ratio' => 'decimal:3',
         'market_type' => 'string',
+        'force_exit' => 'boolean',
     ];
 }

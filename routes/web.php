@@ -67,6 +67,9 @@ Route::get('/api/strategies/{strategy}/candles', [App\Http\Controllers\CreatorSt
     ->name('api.strategies.candles');
 Route::get('/api/strategies/{strategy}/ticker', [App\Http\Controllers\CreatorStrategyController::class, 'ticker'])
     ->name('api.strategies.ticker');
+Route::post('/api/strategies/{strategy}/force-exit', [App\Http\Controllers\CreatorStrategyController::class, 'forceExit'])
+    ->middleware('throttle:10,1')
+    ->name('api.strategies.force-exit');
 
 // Backtest & Signal Placeholder Routes
 Route::view('/signal-analytics', 'signal-analytics.dashboard')->name('signal-analytics.index');

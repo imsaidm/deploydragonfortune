@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\QcMethod;
+use App\Models\QcSignal;
 use App\Models\MarketCandle;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -282,6 +283,69 @@ class CreatorStrategyController extends Controller
         ]);
     }
 
+    public function forceExit(QcMethod $strategy, Request $request)
+    {
+        $validated = $request->validate([
+            'price_exit' => ['nullable', 'numeric', 'gt:0'],
+        ]);
+
+        $meta = $this->buildStrategyMeta($strategy, $this->latestSignalContext($strategy->id));
+        $price = isset($validated['price_exit']) ? (float) $validated['price_exit'] : null;
+
+        if (! $price || $price <= 0) {
+            $price = $meta['exchange'] === 'bybit'
+                ? $this->bybitTicker($meta['market_type'], $meta['symbol'])
+                : $this->binanceTicker($meta['market_type'], $meta['symbol']);
+        }
+
+        if (! $price || $price <= 0) {
+            return response()->json([
+                'message' => 'Live exit price is unavailable. Please wait for the price stream and try again.',
+            ], 422);
+        }
+
+        $activeEntry = $this->latestOpenEntrySignal($strategy->id);
+        if (! $activeEntry) {
+            return response()->json([
+                'message' => 'No active entry signal found for this strategy.',
+            ], 422);
+        }
+
+        $signal = QcSignal::create([
+            'id_method' => $strategy->id,
+            'datetime' => now(),
+            'type' => 'exit',
+            'jenis' => $activeEntry->jenis ?: 'sell',
+            'leverage' => $activeEntry->leverage ?: 1,
+            'price_entry' => $activeEntry->price_entry ?: 0,
+            'price_exit' => $price,
+            'target_tp' => $activeEntry->target_tp ?: 0,
+            'target_sl' => $activeEntry->target_sl ?: 0,
+            'real_tp' => 0,
+            'real_sl' => 0,
+            'quantity' => $activeEntry->quantity ?: 0,
+            'ratio' => 0,
+            'market_type' => $activeEntry->market_type ?: $meta['market_type'],
+            'force_exit' => true,
+            'message' => 'Manual force exit from strategy page at $' . number_format($price, 8, '.', ''),
+            'telegram_sent' => 0,
+            'telegram_processing' => 0,
+        ]);
+
+        return response()->json([
+            'message' => 'Force exit signal created.',
+            'signal' => [
+                'id' => $signal->id,
+                'id_method' => $signal->id_method,
+                'type' => $signal->type,
+                'jenis' => $signal->jenis,
+                'price_exit' => (float) $signal->price_exit,
+                'force_exit' => (bool) $signal->force_exit,
+                'market_type' => $signal->market_type,
+            ],
+        ], 201);
+    }
+
     private function latestSignalContext(int $strategyId): array
     {
         $signal = DB::connection('methods')->table('qc_signal')
@@ -292,6 +356,31 @@ class CreatorStrategyController extends Controller
             ->first(['market_type']);
 
         return $signal ? [['market_type' => strtolower($signal->market_type)]] : [];
+    }
+
+    private function latestOpenEntrySignal(int $strategyId): ?object
+    {
+        return DB::connection('methods')->table('qc_signal as s_entry')
+            ->where('s_entry.id_method', $strategyId)
+            ->where('s_entry.type', 'entry')
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('qc_signal as s_exit')
+                    ->whereColumn('s_exit.id_method', 's_entry.id_method')
+                    ->where('s_exit.type', 'exit')
+                    ->whereColumn('s_exit.created_at', '>', 's_entry.created_at');
+            })
+            ->orderByDesc('s_entry.created_at')
+            ->first([
+                's_entry.id',
+                's_entry.jenis',
+                's_entry.leverage',
+                's_entry.price_entry',
+                's_entry.target_tp',
+                's_entry.target_sl',
+                's_entry.quantity',
+                's_entry.market_type',
+            ]);
     }
 
     private function buildStrategyMeta(QcMethod $strategy, array $tradesList): array
