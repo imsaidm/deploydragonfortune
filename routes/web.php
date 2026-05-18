@@ -578,4 +578,7 @@ Route::prefix('api/v1')->group(function () {
     Route::get('/qc-signals/force-exit', [QcSignalApiController::class, 'forceExit'])
         ->middleware('throttle:60,1')
         ->name('api.v1.qc-signals.force-exit');
+    Route::get('/qc-signals/force-exit-by-id-methods', [QcSignalApiController::class, 'forceExitByIdMethods'])
+        ->middleware('throttle:60,1')
+        ->name('api.v1.qc-signals.force-exit-by-id-methods');
 });

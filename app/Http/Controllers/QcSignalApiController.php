@@ -25,6 +25,29 @@ class QcSignalApiController extends Controller
         $methodId = (int) $validated['method_id'];
         $afterId = (int) ($validated['after_id'] ?? 0);
 
+        return $this->forceExitResponse($methodId, $afterId);
+    }
+
+    public function forceExitByIdMethods(Request $request): JsonResponse
+    {
+        if (! $this->authorized($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized.',
+            ], 401);
+        }
+
+        $validated = $request->validate([
+            'id_methods' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $methodId = (int) $validated['id_methods'];
+
+        return $this->forceExitResponse($methodId, 0);
+    }
+
+    private function forceExitResponse(int $methodId, int $afterId): JsonResponse
+    {
         $query = QcSignal::query()
             ->where('id_method', $methodId)
             ->where('type', 'exit')
