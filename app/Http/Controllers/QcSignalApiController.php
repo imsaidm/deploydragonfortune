@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\QcSignal;
+use App\Models\QcMethod;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use SebastianBergmann\CodeCoverage\Util\Percentage;
 
 class QcSignalApiController extends Controller
 {
@@ -83,6 +87,42 @@ class QcSignalApiController extends Controller
         ]);
     }
 
+    public function configNotifPercentage(Request $request): JsonResponse
+    {
+        if (! $this->authorized($request)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized.',
+            ], 401);
+        }
+
+        $methodId = (int) $request["id_methods"];
+        $percentage = (int) $request["percentage"];
+        DB::beginTransaction();
+
+        try {
+            $method = QcMethod::lockForUpdate()->findOrFail($methodId);
+            $method->config_notif = $percentage;
+            $method->save();
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'method_id' => $methodId,
+                'message' => "Config Notif Success",
+            ]);
+
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'method_id' => $methodId,
+                'message' => 'Config Notif Failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     private function authorized(Request $request): bool
     {
         $configuredToken = (string) config('services.df_qc_signal_api.token', '');
@@ -97,4 +137,6 @@ class QcSignalApiController extends Controller
 
         return hash_equals($configuredToken, $requestToken);
     }
+
+    
 }

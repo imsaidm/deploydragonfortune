@@ -33,6 +33,7 @@ class QcMethod extends Model
         'secret_key',
         'onactive',
         'is_production',
+        'config_notif',
     ];
     
     protected $casts = [

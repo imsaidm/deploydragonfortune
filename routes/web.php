@@ -581,4 +581,7 @@ Route::prefix('api/v1')->group(function () {
     Route::get('/qc-signals/force-exit-by-id-methods', [QcSignalApiController::class, 'forceExitByIdMethods'])
         ->middleware('throttle:60,1')
         ->name('api.v1.qc-signals.force-exit-by-id-methods');
+    Route::get('/setting/notif-by-id-methods', [QcSignalApiController::class, 'configNotifPercentage'])
+        ->middleware('throttle:60,1')
+        ->name('api.v1.setting.notif-by-id-methods');
 });
