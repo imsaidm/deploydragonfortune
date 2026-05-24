@@ -113,7 +113,7 @@
     .metric-grid {
         display: grid;
         gap: 12px;
-        grid-template-columns: 1.35fr repeat(4, minmax(140px, 1fr));
+        grid-template-columns: repeat(6, minmax(140px, 1fr));
         margin-bottom: 14px;
     }
 
@@ -149,6 +149,48 @@
 
     .metric-negative {
         color: var(--sd-red);
+    }
+
+    .metric-neutral {
+        color: var(--sd-muted);
+    }
+
+    .entry-move-card {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        justify-content: space-between;
+    }
+
+    .entry-move-value {
+        font-size: 1.45rem;
+        font-weight: 850;
+        line-height: 1.1;
+        margin-top: 8px;
+    }
+
+    .entry-move-meta,
+    .entry-move-thresholds {
+        color: var(--sd-muted);
+        font-size: .78rem;
+        line-height: 1.45;
+    }
+
+    .entry-move-thresholds {
+        border-top: 1px solid var(--sd-border);
+        padding-top: 8px;
+    }
+
+    .entry-move-line {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .entry-move-line strong {
+        color: var(--sd-text);
+        font-weight: 800;
     }
 
     .chart-card {
@@ -647,6 +689,19 @@
             <div class="metric-label">Live price</div>
             <div class="metric-value" id="livePrice">Loading</div>
             <div class="metric-note" id="liveStatus">{{ strtoupper($strategyMeta['exchange']) }} {{ strtoupper($strategyMeta['market_type']) }}</div>
+        </div>
+        <div class="strategy-card metric-card entry-move-card">
+            <div>
+                <div class="metric-label">Entry move</div>
+                <div class="entry-move-value metric-neutral" id="entryMoveValue">Waiting</div>
+                <div class="entry-move-meta" id="entryMoveStatus">Active entry and live price required</div>
+            </div>
+            <div class="entry-move-thresholds">
+                <div class="entry-move-line"><span>Entry</span><strong id="entryMoveEntry">-</strong></div>
+                <div class="entry-move-line"><span>Current</span><strong id="entryMoveCurrent">-</strong></div>
+                <div class="entry-move-line"><span>Alert step</span><strong id="entryMoveThresholds">-</strong></div>
+                <div class="entry-move-line"><span>Next level</span><strong id="entryMoveNext">-</strong></div>
+            </div>
         </div>
         <div class="strategy-card metric-card">
             <div class="metric-label">Win rate</div>

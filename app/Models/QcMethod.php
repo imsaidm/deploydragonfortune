@@ -33,7 +33,8 @@ class QcMethod extends Model
         'secret_key',
         'onactive',
         'is_production',
-        'config_notif',
+        'notify_up_percentage',
+        'notify_down_percentage',
     ];
     
     protected $casts = [
@@ -50,6 +51,8 @@ class QcMethod extends Model
         'kpi_extra' => 'array',
         'onactive' => 'boolean',
         'is_production' => 'boolean',
+        'notify_up_percentage' => 'decimal:4',
+        'notify_down_percentage' => 'decimal:4',
     ];
 
     /**
