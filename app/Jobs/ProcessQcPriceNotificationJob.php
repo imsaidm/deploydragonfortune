@@ -274,34 +274,44 @@ class ProcessQcPriceNotificationJob implements ShouldQueue
     ): string {
         $directionText = $direction === 'up' ? 'Naik' : 'Turun';
         $sign = $direction === 'up' ? '+' : '-';
+        $directionTone = $direction === 'up' ? '🟢 ALERT HARGA NAIK 🟢' : '🔴 ALERT HARGA TURUN 🔴';
         $strategyName = $this->cleanMarkdown((string) ($method->nama_metode ?: 'Unknown Strategy'));
         $creator = $this->cleanMarkdown((string) ($method->creator ?: '-'));
         $pair = $this->cleanMarkdown((string) ($method->pair ?: '-'));
         $exchange = $this->cleanMarkdown((string) ($method->exchange ?: '-'));
+        $timeframe = $this->cleanMarkdown((string) ($method->tf ?: '-'));
         $side = $this->cleanMarkdown(strtoupper((string) ($signal->jenis ?: '-')));
         $source = $this->cleanMarkdown((string) ($this->source ?: 'quantconnect'));
         $eventTime = $this->occurredAt
             ? Carbon::parse($this->occurredAt)->setTimezone('Asia/Jakarta')
             : now()->setTimezone('Asia/Jakarta');
 
-        $message = "*DRAGONFORTUNE ALERT HARGA*\n";
-        $message .= "==============================\n";
-        $message .= "`{$pair}` | `{$side}` | `{$exchange}`\n\n";
-        $message .= "*Ringkasan*\n";
-        $message .= "- Status: `Harga {$directionText}`\n";
-        $message .= "- Level trigger: `{$sign}{$this->formatPercent($levelPercentage)}%`\n";
-        $message .= "- Step alert: `{$this->formatPercent($stepPercentage)}%`\n";
-        $message .= "- Pergerakan saat ini: `{$this->formatSignedPercent($movementPercentage)}%`\n\n";
-        $message .= "*Harga*\n";
-        $message .= "- Entry: `$ {$this->formatPrice($entryPrice)}`\n";
-        $message .= "- Market: `$ {$this->formatPrice($this->marketPrice)}`\n\n";
-        $message .= "*Strategi*\n";
-        $message .= "- Nama: `{$strategyName}`\n";
-        $message .= "- Creator: `{$creator}`\n";
-        $message .= "- Signal Entry: `#{$signal->id}`\n\n";
-        $message .= "*Info*\n";
-        $message .= "- Sumber: `{$source}`\n";
-        $message .= "- Waktu: `" . $eventTime->format('d M Y, H:i:s') . " WIB`";
+        $message = "━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "🐉 *DRAGONFORTUNE PRICE ALERT*\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "⚠️ `Notifikasi pergerakan harga, bukan signal entry baru.`\n\n";
+        $message .= "📊 *Strategy Info*\n";
+        $message .= "├ Name: `{$strategyName}`\n";
+        $message .= "├ Creator: `{$creator}`\n";
+        $message .= "├ Exchange: `{$exchange}`\n";
+        $message .= "├ Pair: `{$pair}`\n";
+        $message .= "└ Timeframe: `{$timeframe}`\n\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━\n";
+        $message .= "📬 *{$directionTone}*\n";
+        $message .= "━━━━━━━━━━━━━━━━━━━━\n\n";
+        $message .= "📌 *Price Movement Detail*\n";
+        $message .= "├ Status: `Harga {$directionText}`\n";
+        $message .= "├ Level Trigger: `{$sign}{$this->formatPercent($levelPercentage)}%`\n";
+        $message .= "├ Step Alert: `{$this->formatPercent($stepPercentage)}%`\n";
+        $message .= "└ Pergerakan Saat Ini: `{$this->formatSignedPercent($movementPercentage)}%`\n\n";
+        $message .= "💰 *Harga*\n";
+        $message .= "├ Entry: `$ {$this->formatPrice($entryPrice)}`\n";
+        $message .= "└ Market: `$ {$this->formatPrice($this->marketPrice)}`\n\n";
+        $message .= "ℹ️ *Info*\n";
+        $message .= "├ Side: `{$side}`\n";
+        $message .= "├ Signal Entry: `#{$signal->id}`\n";
+        $message .= "├ Sumber: `{$source}`\n";
+        $message .= "└ Waktu: `" . $eventTime->format('d M Y, H:i:s') . " WIB`";
 
         return $message;
     }
