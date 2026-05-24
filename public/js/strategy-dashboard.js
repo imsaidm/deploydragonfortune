@@ -1070,19 +1070,10 @@
         const status = document.getElementById('entryMoveStatus');
         const entryTarget = document.getElementById('entryMoveEntry');
         const currentTarget = document.getElementById('entryMoveCurrent');
-        const thresholdsTarget = document.getElementById('entryMoveThresholds');
-        const nextTarget = document.getElementById('entryMoveNext');
-        if (!value || !status || !entryTarget || !currentTarget || !thresholdsTarget || !nextTarget) return;
+        if (!value || !status || !entryTarget || !currentTarget) return;
 
         const trade = latestActiveTrade();
         const current = Number(price);
-        const thresholds = cfg.strategy.notification_thresholds || {};
-        const upStep = Number(thresholds.up_percentage || 0);
-        const downStep = Number(thresholds.down_percentage || 0);
-
-        thresholdsTarget.textContent = upStep > 0 || downStep > 0
-            ? `+${formatPercent(upStep)}% / -${formatPercent(downStep)}%`
-            : 'Off';
 
         if (!trade) {
             value.textContent = 'No active';
@@ -1090,7 +1081,6 @@
             status.textContent = 'No open entry signal';
             entryTarget.textContent = '-';
             currentTarget.textContent = Number.isFinite(current) && current > 0 ? `$${formatNumber(current)}` : '-';
-            nextTarget.textContent = '-';
             return;
         }
 
@@ -1101,7 +1091,6 @@
             status.textContent = 'Active entry and live price required';
             entryTarget.textContent = Number.isFinite(entry) && entry > 0 ? `$${formatNumber(entry)}` : '-';
             currentTarget.textContent = Number.isFinite(current) && current > 0 ? `$${formatNumber(current)}` : '-';
-            nextTarget.textContent = '-';
             return;
         }
 
@@ -1112,15 +1101,6 @@
         status.textContent = movement > 0 ? 'Price above entry' : (movement < 0 ? 'Price below entry' : 'At entry price');
         entryTarget.textContent = `$${formatNumber(entry)}`;
         currentTarget.textContent = `$${formatNumber(current)}`;
-
-        const step = movement >= 0 ? upStep : downStep;
-        if (!Number.isFinite(step) || step <= 0) {
-            nextTarget.textContent = 'Off';
-            return;
-        }
-
-        const nextLevel = (Math.floor(Math.abs(movement) / step) + 1) * step;
-        nextTarget.textContent = `${movement >= 0 ? '+' : '-'}${formatPercent(nextLevel)}%`;
     }
 
     function latestActiveTrade() {

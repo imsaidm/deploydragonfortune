@@ -405,10 +405,6 @@ class CreatorStrategyController extends Controller
             'base_tf' => strtolower($strategy->tf ?: '1h'),
             'description' => $strategy->description,
             'quantconnect_url' => $strategy->url,
-            'notification_thresholds' => [
-                'up_percentage' => (float) $strategy->notify_up_percentage,
-                'down_percentage' => (float) $strategy->notify_down_percentage,
-            ],
             'metrics' => [
                 'cagr' => (float) $strategy->cagr,
                 'drawdown' => (float) $strategy->drawdown,

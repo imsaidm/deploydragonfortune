@@ -2,15 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\ProcessQcPriceNotificationJob;
 use App\Jobs\SendQcPriceNotificationEventJob;
-use App\Models\QcMethod;
 use App\Models\QcSignal;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\DB;
 
 class QcSignalApiController extends Controller
 {
@@ -89,55 +86,6 @@ class QcSignalApiController extends Controller
         ]);
     }
 
-    public function updateNotificationThresholds(Request $request): JsonResponse
-    {
-        if (! $this->authorized($request)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized.',
-            ], 401);
-        }
-
-        $validated = $request->validate([
-            'id_methods' => ['required_without:method_id', 'integer', 'min:1'],
-            'method_id' => ['required_without:id_methods', 'integer', 'min:1'],
-            'percentage_up' => ['required', 'numeric', 'min:0', 'max:100'],
-            'percentage_down' => ['required', 'numeric', 'min:0', 'max:100'],
-        ]);
-
-        $methodId = $this->methodIdFromPayload($validated);
-
-        $method = DB::connection('methods')->transaction(function () use ($methodId, $validated) {
-            $method = QcMethod::query()->lockForUpdate()->find($methodId);
-
-            if (! $method) {
-                return null;
-            }
-
-            $method->notify_up_percentage = (float) $validated['percentage_up'];
-            $method->notify_down_percentage = (float) $validated['percentage_down'];
-            $method->save();
-
-            return $method;
-        });
-
-        if (! $method) {
-            return response()->json([
-                'success' => false,
-                'method_id' => $methodId,
-                'message' => 'Method not found.',
-            ], 404);
-        }
-
-        return response()->json([
-            'success' => true,
-            'method_id' => $methodId,
-            'percentage_up' => (float) $method->notify_up_percentage,
-            'percentage_down' => (float) $method->notify_down_percentage,
-            'message' => 'Notification thresholds updated.',
-        ]);
-    }
-
     public function dispatchPriceNotification(Request $request): JsonResponse
     {
         if (! $this->authorized($request)) {
@@ -147,55 +95,7 @@ class QcSignalApiController extends Controller
             ], 401);
         }
 
-        if ($request->has('level_percentage') || $request->has('event_type')) {
-            return $this->dispatchQcPriceNotificationEvent($request);
-        }
-
-        $validated = $request->validate([
-            'id_methods' => ['required_without:method_id', 'integer', 'min:1'],
-            'method_id' => ['required_without:id_methods', 'integer', 'min:1'],
-            'market_price' => ['required_without:price', 'numeric', 'gt:0'],
-            'price' => ['required_without:market_price', 'numeric', 'gt:0'],
-            'source' => ['nullable', 'string', 'max:50'],
-            'occurred_at' => ['nullable', 'date'],
-            'send_now' => ['nullable', 'boolean'],
-        ]);
-
-        $methodId = $this->methodIdFromPayload($validated);
-        $marketPrice = (float) ($validated['market_price'] ?? $validated['price']);
-        $source = $validated['source'] ?? 'quantconnect';
-
-        try {
-            $job = new ProcessQcPriceNotificationJob(
-                $methodId,
-                $marketPrice,
-                $source,
-                $validated['occurred_at'] ?? null
-            );
-
-            if ((bool) ($validated['send_now'] ?? false)) {
-                Bus::dispatchSync($job);
-            } else {
-                Bus::dispatch($job);
-            }
-
-            return response()->json([
-                'success' => true,
-                'method_id' => $methodId,
-                'market_price' => $marketPrice,
-                'queue' => (bool) ($validated['send_now'] ?? false) ? null : 'telegram-price-alerts',
-                'mode' => 'market_price_check',
-                'message' => (bool) ($validated['send_now'] ?? false)
-                    ? 'Price notification check processed.'
-                    : 'Price notification check queued.',
-            ], (bool) ($validated['send_now'] ?? false) ? 200 : 202);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'method_id' => $methodId,
-                'message' => 'Failed to queue price notification check: ' . $e->getMessage(),
-            ], 500);
-        }
+        return $this->dispatchQcPriceNotificationEvent($request);
     }
 
     private function dispatchQcPriceNotificationEvent(Request $request): JsonResponse
