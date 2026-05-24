@@ -1062,6 +1062,71 @@
     function updateLivePrice(price) {
         const livePrice = document.getElementById('livePrice');
         if (livePrice) livePrice.textContent = `$${formatNumber(price)}`;
+        updateEntryMoveCard(price);
+    }
+
+    function updateEntryMoveCard(price) {
+        const value = document.getElementById('entryMoveValue');
+        const status = document.getElementById('entryMoveStatus');
+        const entryTarget = document.getElementById('entryMoveEntry');
+        const currentTarget = document.getElementById('entryMoveCurrent');
+        const thresholdsTarget = document.getElementById('entryMoveThresholds');
+        const nextTarget = document.getElementById('entryMoveNext');
+        if (!value || !status || !entryTarget || !currentTarget || !thresholdsTarget || !nextTarget) return;
+
+        const trade = latestActiveTrade();
+        const current = Number(price);
+        const thresholds = cfg.strategy.notification_thresholds || {};
+        const upStep = Number(thresholds.up_percentage || 0);
+        const downStep = Number(thresholds.down_percentage || 0);
+
+        thresholdsTarget.textContent = upStep > 0 || downStep > 0
+            ? `+${formatPercent(upStep)}% / -${formatPercent(downStep)}%`
+            : 'Off';
+
+        if (!trade) {
+            value.textContent = 'No active';
+            value.className = 'entry-move-value metric-neutral';
+            status.textContent = 'No open entry signal';
+            entryTarget.textContent = '-';
+            currentTarget.textContent = Number.isFinite(current) && current > 0 ? `$${formatNumber(current)}` : '-';
+            nextTarget.textContent = '-';
+            return;
+        }
+
+        const entry = Number(trade.entry_price);
+        if (!Number.isFinite(entry) || entry <= 0 || !Number.isFinite(current) || current <= 0) {
+            value.textContent = 'Waiting';
+            value.className = 'entry-move-value metric-neutral';
+            status.textContent = 'Active entry and live price required';
+            entryTarget.textContent = Number.isFinite(entry) && entry > 0 ? `$${formatNumber(entry)}` : '-';
+            currentTarget.textContent = Number.isFinite(current) && current > 0 ? `$${formatNumber(current)}` : '-';
+            nextTarget.textContent = '-';
+            return;
+        }
+
+        const movement = ((current - entry) / entry) * 100;
+        const movementClass = movement > 0 ? 'metric-positive' : (movement < 0 ? 'metric-negative' : 'metric-neutral');
+        value.textContent = `${movement > 0 ? '+' : ''}${formatPercent(movement)}%`;
+        value.className = `entry-move-value ${movementClass}`;
+        status.textContent = movement > 0 ? 'Price above entry' : (movement < 0 ? 'Price below entry' : 'At entry price');
+        entryTarget.textContent = `$${formatNumber(entry)}`;
+        currentTarget.textContent = `$${formatNumber(current)}`;
+
+        const step = movement >= 0 ? upStep : downStep;
+        if (!Number.isFinite(step) || step <= 0) {
+            nextTarget.textContent = 'Off';
+            return;
+        }
+
+        const nextLevel = (Math.floor(Math.abs(movement) / step) + 1) * step;
+        nextTarget.textContent = `${movement >= 0 ? '+' : '-'}${formatPercent(nextLevel)}%`;
+    }
+
+    function latestActiveTrade() {
+        return (cfg.trades || [])
+            .filter((trade) => !trade.is_exited && Number(trade.entry_price) > 0)
+            .sort((a, b) => Number(b.entry_time || 0) - Number(a.entry_time || 0))[0] || null;
     }
 
     function setLiveStatus(text) {
@@ -1082,6 +1147,15 @@
         return numeric.toLocaleString(undefined, {
             minimumFractionDigits: numeric >= 100 ? 2 : 4,
             maximumFractionDigits: numeric >= 100 ? 2 : 6,
+        });
+    }
+
+    function formatPercent(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return '-';
+        return numeric.toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2,
         });
     }
 
