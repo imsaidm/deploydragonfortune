@@ -16,11 +16,7 @@ Route::get('/status', function () {
 Route::get('/getdata', [DataController::class, 'getData']);
 
 Route::prefix('v1')->group(function () {
-    Route::match(['get', 'post'], '/setting/notification-thresholds', [QcSignalApiController::class, 'updateNotificationThresholds'])
-        ->middleware('throttle:60,1')
-        ->name('api.v1.setting.notification-thresholds');
-
-    Route::match(['get', 'post'], '/qc-signals/price-notification', [QcSignalApiController::class, 'dispatchPriceNotification'])
+    Route::post('/qc-signals/price-notification', [QcSignalApiController::class, 'dispatchPriceNotification'])
         ->middleware('throttle:120,1')
         ->name('api.v1.qc-signals.price-notification');
 });

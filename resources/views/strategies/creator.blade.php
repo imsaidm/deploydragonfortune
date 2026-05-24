@@ -170,13 +170,13 @@
     }
 
     .entry-move-meta,
-    .entry-move-thresholds {
+    .entry-move-details {
         color: var(--sd-muted);
         font-size: .78rem;
         line-height: 1.45;
     }
 
-    .entry-move-thresholds {
+    .entry-move-details {
         border-top: 1px solid var(--sd-border);
         padding-top: 8px;
     }
@@ -696,11 +696,9 @@
                 <div class="entry-move-value metric-neutral" id="entryMoveValue">Waiting</div>
                 <div class="entry-move-meta" id="entryMoveStatus">Active entry and live price required</div>
             </div>
-            <div class="entry-move-thresholds">
+            <div class="entry-move-details">
                 <div class="entry-move-line"><span>Entry</span><strong id="entryMoveEntry">-</strong></div>
                 <div class="entry-move-line"><span>Current</span><strong id="entryMoveCurrent">-</strong></div>
-                <div class="entry-move-line"><span>Alert step</span><strong id="entryMoveThresholds">-</strong></div>
-                <div class="entry-move-line"><span>Next level</span><strong id="entryMoveNext">-</strong></div>
             </div>
         </div>
         <div class="strategy-card metric-card">
